@@ -1,1028 +1,131 @@
-/**
- * index.html - HydroSync Competition-Grade SCADA / Smart Agriculture Console
- * 
- * Digital Twin Dashboard for international jury evaluation (UN SDG 6 & 13 aligned).
- * Precision Agri-Twin v1.2 - Operating console for Smart Irrigation PID Control.
- * 
- * Domain Nomenclature:
- *   VWC = Volumetric Water Content (%)
- *   SP  = Setpoint (%)
- *   PV  = Process Variable
- *   e(t) = Control Error = SP - PV
- *   PWM = Pulse Width Modulation duty cycle
- */
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HydroSync - Precision Agri-Twin v1.2</title>
-
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Feather Icons for SCADA-style icons -->
-  <script src="https://unpkg.com/feather-icons/dist/feather.min.js"></script>
-
-  <!-- Google Fonts: Segoe UI (UI) + JetBrains Mono (telemetry data) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Competition-Grade HydroSync Style CSS -->
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HydroSync | Precision Agri-Twin SCADA</title>
+  <meta name="description" content="HydroSync Digital Twin — Smart Irrigation and Water Management console. US Embassy funded showcase." />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-
-  <div class="main-container">
-
-    <!-- ===================== HEADER / TOP BAR ===================== -->
-    <header class="header">
-      <div class="brand">
-        <div class="icon"><i data-feather="droplet"></i></div>
-        <div>
-          <h1>HydroSync</h1>
-          <p class="subtitle">Precision Agri-Twin v1.2</p>
-        </div>
+  <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="fa-solid fa-droplet"></i></div>
+      <div class="brand-text"><h2>HydroSync</h2><p>Precision Agri-Twin v2.0</p></div>
+    </div>
+    <div class="sidebar-section">
+      <span class="sidebar-label">Connection</span>
+      <div class="connection-badge" id="connectionStatus" role="status" aria-live="polite">
+        <span class="pulse-dot" id="pingDot"></span><span id="statusText">OFFLINE</span>
       </div>
-
-      <!-- Heartbeat Pulse Indicator: LIVE TELEMETRY STREAM -->
-      <div class="heartbeat-indicator" id="heartbeatPulse"></div>
-
-      <div class="telemetry-controls">
-        <!-- System Uptime Timer -->
-        <div class="uptime-timer" id="uptimeTimer">Uptime: --:--</div>
-
-        <!-- Connection Status with Ping -->
-        <div class="connection-status" id="connectionStatus">
-          <span class="ping-indicator" id="pingDot"></span>
-          <span class="status-text" id="statusText">OFFLINE</span>
-        </div>
+      <div class="heartbeat-row"><span class="heartbeat" id="heartbeatPulse" aria-hidden="true"></span><span class="heartbeat-label">LIVE TELEMETRY</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <span class="sidebar-label">Console</span>
+      <a href="#overview" class="nav-item active"><i class="fa-solid fa-gauge-high"></i><span>Overview</span></a>
+      <a href="#telemetry" class="nav-item"><i class="fa-solid fa-chart-line"></i><span>Telemetry</span></a>
+      <a href="#pid" class="nav-item"><i class="fa-solid fa-sliders"></i><span>PID Tuning</span></a>
+      <a href="#disturbance" class="nav-item"><i class="fa-solid fa-triangle-exclamation"></i><span>Disturbance Injector</span></a>
+      <a href="#logs" class="nav-item"><i class="fa-solid fa-terminal"></i><span>System Logs</span></a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sdg-badge"><i class="fa-solid fa-leaf"></i> SDG 6 &amp; 13 Aligned</div>
+      <p class="sidebar-version">US Embassy Funded Program</p>
+    </div>
+  </aside>
+  <div class="layout-main">
+    <header class="top-header">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle sidebar"><i class="fa-solid fa-bars"></i></button>
+      <div class="header-title"><h1>HydroSync Digital Twin</h1><p>Smart Irrigation &amp; Water Management Operating Console</p></div>
+      <div class="header-meta">
+        <div class="uptime-chip" title="System uptime"><i class="fa-regular fa-clock"></i><span id="uptimeTimer">00:00:00</span></div>
+        <div class="showcase-tag"><i class="fa-solid fa-award"></i> US Embassy / Thirduni Showcase</div>
       </div>
     </header>
-
-    <!-- ===================== SECTION A: Core Vital Gauges ===================== -->
-    <section class="section-a">
-      <!-- VWC Gauge: Volumetric Water Content -->
-      <div class="gauge-card vwc" id="vcwCard">
-        <div class="radial-ring">
-          <svg viewBox="0 0 180 180">
-            <circle class="background" cx="90" cy="90" r="80"/>
-            <circle class="progress" cx="90" cy="90" r="80" id="vcwProgress" stroke-dasharray="502.65"/>
-            <text class="label" x="90" y="95" text-anchor="middle" id="vcwValue">60</text>
-            <text class="sub-label" x="90" y="115" text-anchor="middle">VWC %</text>
-          </svg>
-        </div>
-        <div class="card-title">Root-Zone VWC</div>
-        <div class="value-display">
-          <span class="current" id="vcwValueDisplay">60.0%</span>
-          <span class="max" id="vcwSetpointDisplay">SP: 50.0%</span>
-        </div>
-      </div>
-
-      <!-- Actuator Output / PWM Duty Cycle Gauge -->
-      <div class="gauge-card actuator" id="actuatorCard">
-        <div class="radial-ring">
-          <svg viewBox="0 0 180 180">
-            <circle class="background" cx="90" cy="90" r="80"/>
-            <circle class="progress" cx="90" cy="90" r="80" id="actuatorProgress" stroke-dasharray="502.65"/>
-            <text class="label" x="90" y="95" text-anchor="middle" id="actuatorValue">0</text>
-            <text class="sub-label" x="90" y="115" text-anchor="middle">PWM Duty %</text>
-          </svg>
-        </div>
-        <div class="card-title">Actuator Output</div>
-        <div class="value-display">
-          <span class="current" id="actuatorValueDisplay">0%</span>
-          <span class="max" id="actuaterSetpointDisplay">SP: 0%</span>
-        </div>
-      </div>
-
-      <!-- Hydraulic Flow Rate Gauge -->
-      <div class="gauge-card flow" id="flowCard">
-        <div class="radial-ring">
-          <svg viewBox="0 0 180 180">
-            <circle class="background" cx="90" cy="90" r="80"/>
-            <circle class="progress" cx="90" cy="90" r="80" id="flowProgress" stroke-dasharray="502.65"/>
-            <text class="label" x="90" y="95" text-anchor="middle" id="flowValue">0</text>
-            <text class="sub-label" x="90" y="115" text-anchor="middle">L/min</text>
-          </svg>
-        </div>
-        <div class="card-title">Hydraulic Flow</div>
-        <div class="value-display">
-          <span class="current" id="flowValueDisplay">0 L/min</span>
-          <span class="max" id="flowRateCapacity">Capacity: 50 L/min</span>
-        </div>
-      </div>
-
-      <!-- Water Conservation Efficiency Gauge -->
-      <div class="gauge-card conservation" id="conservationCard">
-        <div class="radial-ring">
-          <svg viewBox="0 0 180 180">
-            <circle class="background" cx="90" cy="90" r="80"/>
-            <circle class="progress" cx="90" cy="90" r="80" id="conservationProgress" stroke-dasharray="502.65"/>
-            <text class="label" x="90" y="95" text-anchor="middle" id="conservationValue">0</text>
-            <text class="sub-label" x="90" y="115" text-anchor="middle">Efficiency %</text>
-          </svg>
-        </div>
-        <div class="card-title">Water Saved</div>
-        <div class="value-display">
-          <span class="current" id="conservationValueDisplay">0%</span>
-          <span class="max" id="baselineConsumption">vs. Timer Irrigation</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== SECTION B: Main Telemetry Graph ===================== -->
-    <section class="section-b">
-      <div class="chart-section">
-        <div class="section-header">
-          <i data-feather="chart-square"></i> Main Telemetry &
-          <span class="badge badge-cyan" id="graphMode">Live VWC</span>
-        </div>
-
-        <canvas id="mainChart"></canvas>
-      </div>
-    </section>
-
-    <!-- ===================== SECTION C: PID Engine Tuning & Diagnostics ===================== -->
-    <section class="section-c">
-      <div class="pid-panel">
-        <div class="section-header">
-          <i data-feather="zap"></i> PID Engine Tuning &
-          <span class="badge badge-amber" id="pidMode">Auto</span>
-        </div>
-
-        <div class="pid-controls">
-          <!-- Kp: Proportional Gain -->
-          <div class="pid-card" id="pidKpCard">
-            <div class="parameter-name">Kp <span>Proportional Gain</span></div>
-            <input type="range" class="slider" id="KpSlider" min="0" max="2" step="0.1" value="0.8">
-            <div class="value-display">
-              <span class="current" id="KpValue">0.80</span>
-              <span class="max">Max: 2.00</span>
-            </div>
-            <div class="term-breakdown" id="KpBreakdown">
-              <div class="term">P-term: <span id="KpTerm">0.00</span></div>
-            </div>
+    <main class="dashboard" id="overview">
+      <section class="card-grid" aria-label="Telemetry cards">
+        <article class="glass-card gauge-card" id="vcwCard">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture</span><span class="card-unit">VWC %</span></div>
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+              <circle class="gauge-bg" cx="100" cy="100" r="80" />
+              <circle class="gauge-fg vwc" id="vcwProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+            </svg>
+            <div class="gauge-center"><strong id="vcwValue">--</strong><span>VWC %</span></div>
           </div>
-
-          <!-- Ki: Integral Gain -->
-          <div class="pid-card" id="pidKiCard">
-            <div class="parameter-name">Ki <span>Integral Gain</span></div>
-            <input type="range" class="slider" id="KiSlider" min="0" max="0.2" step="0.01" value="0.01">
-            <div class="value-display">
-              <span class="current" id="KiValue">0.01</span>
-              <span class="max">Max: 0.20</span>
-            </div>
-            <div class="term-breakdown" id="KiBreakdown">
-              <div class="term">I-term: <span id="KiTerm">0.00</span></div>
-            </div>
+          <div class="card-values"><div><span>Current</span><strong id="vcwValueDisplay">--%</strong></div><div><span>Setpoint</span><strong id="vcwSetpointDisplay">SP: --%</strong></div></div>
+        </article>
+        <article class="glass-card gauge-card" id="actuatorCard">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Actuator PWM</span><span class="card-unit">%</span></div>
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+              <circle class="gauge-bg" cx="100" cy="100" r="80" />
+              <circle class="gauge-fg pwm" id="actuatorProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+            </svg>
+            <div class="gauge-center"><strong id="actuatorValue">--</strong><span>PWM %</span></div>
           </div>
-
-          <!-- Kd: Derivative Gain -->
-          <div class="pid-card" id="pidKdCard">
-            <div class="parameter-name">Kd <span>Derivative Gain</span></div>
-            <input type="range" class="slider" id="KdSlider" min="0" max="1" step="0.1" value="0.2">
-            <div class="value-display">
-              <span class="current" id="KdValue">0.20</span>
-              <span class="max">Max: 1.00</span>
-            </div>
-            <div class="term-breakdown" id="KdBreakdown">
-              <div class="term">D-term: <span id="KdTerm">0.00</span></div>
-            </div>
+          <div class="card-values"><div><span>Output</span><strong id="actuatorValueDisplay">--%</strong></div><div><span>Mode</span><strong id="pidMode">AUTO</strong></div></div>
+        </article>
+        <article class="glass-card gauge-card" id="flowCard">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-wave-square"></i> Flow Rate</span><span class="card-unit">L/min</span></div>
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+              <circle class="gauge-bg" cx="100" cy="100" r="80" />
+              <circle class="gauge-fg flow" id="flowProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+            </svg>
+            <div class="gauge-center"><strong id="flowValue">--</strong><span>L/min</span></div>
           </div>
-        </div>
-
-        <!-- Anti-Windup Indicator / Saturation LED -->
-        <div class="anti-windup-indicator" id="antiWindupIndicator">
-          <div class="anti-windup-led" id="antiWindupLed"></div>
-          <span>Anti-Windup Active</span>
-        </div>
+          <div class="card-values"><div><span>Current</span><strong id="flowValueDisplay">-- L/min</strong></div><div><span>Temp</span><strong id="tempValue">-- C</strong></div></div>
+        </article>
+        <article class="glass-card gauge-card" id="conservationCard">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-recycle"></i> Water Saved</span><span class="card-unit">%</span></div>
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+              <circle class="gauge-bg" cx="100" cy="100" r="80" />
+              <circle class="gauge-fg saved" id="conservationProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+            </svg>
+            <div class="gauge-center"><strong id="conservationValue">--</strong><span>Saved %</span></div>
+          </div>
+          <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Error e(t)</span><strong id="errorValue">--</strong></div></div>
+        </article>
+      </section>
+      <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
+        <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — VWC vs Setpoint</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></div>
+        <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+      </section>
+      <div class="two-col">
+        <section class="glass-card pid-card" id="pid" aria-label="PID controls">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> PID Controls</span>
+            <label class="switch" title="Manual / Auto toggle"><input type="checkbox" id="manualToggle" /><span class="track"><span class="thumb"></span></span><span class="switch-label" id="modeLabel">AUTO</span></label>
+          </div>
+          <div class="pid-row"><label for="KpSlider">Kp <output id="KpValue">2.00</output></label><input type="range" id="KpSlider" min="0" max="5" step="0.1" value="2" /><small>P-term: <span id="KpTerm">0.00</span></small></div>
+          <div class="pid-row"><label for="KiSlider">Ki <output id="KiValue">0.1000</output></label><input type="range" id="KiSlider" min="0" max="0.5" step="0.01" value="0.1" /><small>I-term: <span id="KiTerm">0.00</span> <span class="windup" id="antiWindupIndicator">Anti-windup <i id="antiWindupLed" class="dot"></i></span></small></div>
+          <div class="pid-row"><label for="KdSlider">Kd <output id="KdValue">0.50</output></label><input type="range" id="KdSlider" min="0" max="2" step="0.05" value="0.5" /><small>D-term: <span id="KdTerm">0.00</span></small></div>
+          <div class="pid-row"><label for="setpointSlider">Setpoint <output id="setpointValue">55.0%</output></label><input type="range" id="setpointSlider" min="0" max="100" step="0.5" value="55" /></div>
+          <div class="pid-row manual-row" id="manualRow" hidden><label for="manualPwmSlider">Manual PWM <output id="manualPwmValue">0%</output></label><input type="range" id="manualPwmSlider" min="0" max="100" step="1" value="0" /></div>
+        </section>
+        <section class="glass-card jury-card" id="disturbance" aria-label="Disturbance injector">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-flask-vial"></i> Jury Demo — Disturbance Injector</span></div>
+          <p class="muted">Inject a shock, watch the closed loop recover.</p>
+          <div class="btn-row">
+            <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
+            <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
+            <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
+          </div>
+          <p class="muted small" id="juryBadge">Closed-loop PID recovery demo ready.</p>
+        </section>
       </div>
-    </section>
-
-    <!-- ===================== SECTION D: Jury Demo - Disturbance Injector ===================== -->
-    <section class="section-d">
-      <div class="disturbance-panel">
-        <div class="section-header">
-          <i data-feather="zap-circle"></i> Jury Demo: Disturbance Injector
-          <span class="badge badge-warning" id="juryInfo">Test closed-loop PID recovery</span>
-        </div>
-
-        <div class="disturbance-buttons">
-          <!-- Simulate Severe Drought -->
-          <button class="disturbance-btn drought" id="droughtBtn" title="Simulate Severe Drought (VWC rapid drop)" aria-label="Simulate Severe Drought">
-            <i data-feather="sun"></i> Severe Drought
-          </button>
-
-          <!-- Simulate Heavy Rain -->
-          <button class="disturbance-btn rain" id="rainBtn" title="Simulate Heavy Rain (VWC spike)" aria-label="Simulate Heavy Rain">
-            <i data-feather="cloud-rain"></i> Heavy Rain
-          </button>
-
-          <!-- Reset System -->
-          <button class="disturbance-btn reset" id="resetBtn" title="Reset System to Initial Conditions" aria-label="Reset System">
-            <i data-feather="refresh-cw"></i> Reset System
-          </button>
-        </div>
-
-        <div style="margin-top: 20px; font-size: 0.65rem; color: rgba(255,255,255,0.4);">
-          Click buttons to inject disturbances. Observe PID closed-loop recovery in real-time.
-        </div>
-      </div>
-    </section>
-
+      <section class="glass-card logs-card" id="logs" aria-label="System logs">
+        <div class="card-top"><span class="card-title"><i class="fa-solid fa-terminal"></i> System Logs</span><span class="card-unit" id="logCount">0 events</span></div>
+        <ul class="log-list" id="logList"></ul>
+      </section>
+    </main>
   </div>
-
-  <!-- ===================== JURY BADGE ===================== -->
-  <footer class="jury-badge" id="juryBadge">
-    <i data-feather="award"></i> SDG 6 & 13 Aligned | Precision Agri-Twin v1.2
-  </footer>
-
-  <!-- ===================== SCRIPT: Chart.js & App Logic ===================== -->
-  <script>
-    // Initialize Feather Icons
-    feather.replace();
-
-    // --- Configuration ---
-    const SOCKET_URL = undefined; // will use relative path
-    const CHART_MAX_POINTS = 30; // FIFO cap: 30 data points ~6s at 200ms
-    const SIMULATION_INTERVAL = 200; // ms (must match server.js setInterval)
-
-    // --- State ---
-    let socket = null;
-    let moistureHistory = [];
-    let timestamps = [];
-    let chartStartTime = null;
-    let currentSetpoint = 50;
-    let currentKp = 0.8, currentKi = 0.01, currentKd = 0.2;
-    let isManualOverride = false;
-    let lastRenderTime = 0;
-    let droughtTimer = null;
-    let rainTimer = null;
-
-    // --- Uptime tracking ---
-    let pageLoadTime = Date.now();
-
-    // --- DOM Elements ---
-    const dom = {
-      // Header
-      heartbeatPulse: document.getElementById('heartbeatPulse'),
-      connectionStatus: document.getElementById('connectionStatus'),
-      statusText: document.getElementById('statusText'),
-      pingDot: document.getElementById('pingDot'),
-      uptimeTimer: document.getElementById('uptimeTimer'),
-
-      // VWC Gauge
-      vcwCard: document.getElementById('vcwCard'),
-      vcwProgress: document.getElementById('vcwProgress'),
-      vcwValue: document.getElementById('vcwValue'),
-      vcwValueDisplay: document.getElementById('vcwValueDisplay'),
-      vcwSetpointDisplay: document.getElementById('vcwSetpointDisplay'),
-
-      // Actuator Gauge
-      actuatorCard: document.getElementById('actuatorCard'),
-      actuatorProgress: document.getElementById('actuatorProgress'),
-      actuatorValue: document.getElementById('actuatorValue'),
-      actuatorValueDisplay: document.getElementById('actuatorValueDisplay'),
-
-      // Flow Gauge
-      flowCard: document.getElementById('flowCard'),
-      flowProgress: document.getElementById('flowProgress'),
-      flowValue: document.getElementById('flowValue'),
-      flowValueDisplay: document.getElementById('flowValueDisplay'),
-
-      // Conservation Gauge
-      conservationCard: document.getElementById('conservationCard'),
-      conservationProgress: document.getElementById('conservationProgress'),
-      conservationValue: document.getElementById('conservationValue'),
-      conservationValueDisplay: document.getElementById('conservationValueDisplay'),
-
-      // Main Chart
-      mainChartCanvas: document.getElementById('mainChart'),
-
-      // PID Controls
-      KpSlider: document.getElementById('KpSlider'),
-      KiSlider: document.getElementById('KiSlider'),
-      KdSlider: document.getElementById('KdSlider'),
-      KpValue: document.getElementById('KpValue'),
-      KiValue: document.getElementById('KiValue'),
-      KdValue: document.getElementById('KdValue'),
-      KpTerm: document.getElementById('KpTerm'),
-      KiTerm: document.getElementById('KiTerm'),
-      KdTerm: document.getElementById('KdTerm'),
-      antiWindupLed: document.getElementById('antiWindupLed'),
-      antiWindupIndicator: document.getElementById('antiWindupIndicator'),
-
-      // Jury Demo
-      droughtBtn: document.getElementById('droughtBtn'),
-      rainBtn: document.getElementById('rainBtn'),
-      resetBtn: document.getElementById('resetBtn'),
-      juryBadge: document.getElementById('juryBadge'),
-      graphMode: document.getElementById('graphMode'),
-      pidMode: document.getElementById('pidMode')
-    };
-
-    // --- Chart.js Initialization ---
-    function initChart() {
-      const ctx = dom.mainChartCanvas.getContext('2d');
-
-      dom.mainChartCanvas.width = dom.mainChartCanvas.offsetWidth;
-      dom.mainChartCanvas.height = 450;
-
-      window.mainChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [
-            // Process Variable: VWC (solid neon cyan)
-            {
-              label: 'VWC Process Variable',
-              data: [],
-              borderColor: '#00E5FF',
-              backgroundColor: 'rgba(0, 229, 255, 0.08)',
-              tension: 0.4,
-              fill: true,
-              pointRadius: 2,
-              pointHoverRadius: 4,
-              borderWidth: 2
-            },
-            // Setpoint Reference: dashed line
-            {
-              label: 'Target Agronomic Setpoint',
-              data: [],
-              borderColor: '#F59E0B',
-              backgroundColor: 'rgba(245,158,11,0.05)',
-              tension: 0.4,
-              fill: false,
-              borderDash: [10, 6],
-              pointRadius: 0,
-              borderWidth: 2,
-              // Constant line at setpoint value
-              pointStyle: 'line'
-            },
-            // Actuator Duty Cycle: area background fill
-            {
-              label: 'PWM Duty Cycle',
-              data: [],
-              borderColor: '#F59E0B',
-              backgroundColor: 'rgba(245,158,11,0.15)',
-              tension: 0.4,
-              fill: true,
-              pointRadius: 0,
-              borderWidth: 0,
-              yAxisID: 'y1' // secondary y-axis for PWM
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: {
-            duration: 10, // minimal for 60 FPS
-            easing: 'linear'
-          },
-          interaction: {
-            intersect: false,
-            mode: 'index'
-          },
-          scales: {
-            y: {
-              type: 'linear',
-              position: 'left',
-              display: true,
-              suggestedMin: 0,
-              suggestedMax: 100,
-              ticks: {
-                color: 'rgba(255,255,255,0.4)',
-                font: { size: 10 }
-              },
-              grid: {
-                color: 'rgba(255,255,255,0.08)'
-              }
-            },
-            y1: {
-              type: 'linear',
-              position: 'right',
-              display: true,
-              grid: { drawOnChartArea: false },
-              ticks: {
-                color: 'rgba(245,158,11,0.6)',
-                font: { size: 10 },
-                callback: function(value) { return value + '%'; }
-              }
-            },
-            x: {
-              display: true,
-              ticks: {
-                color: 'rgba(255,255,255,0.4)',
-                font: { size: 9 }
-              },
-              grid: { display: false }
-            }
-          },
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-              labels: {
-                color: 'rgba(255,255,255,0.5)',
-                font: { size: 9 }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    /** Resize chart on window resize */
-    function resizeChart() {
-      if (window.mainChart) {
-        window.mainChart.resize();
-        window.mainChart.update('quiet');
-      }
-    }
-    window.addEventListener('resize', resizeChart);
-
-
-    /** ==========================================
-     *  SOCKET.IO COMMUNICATION
-     *  ========================================== */
-    function initSocket() {
-      socket = io();
-
-      // --- Connection Lifecycle ---
-      socket.on('connect', () => {
-        updateConnection(true);
-        startHeartbeat();
-        startUptimeTimer();
-        console.log('🔌 HydroSync SCADA Console connected');
-      });
-
-      socket.on('disconnect', () => {
-        updateConnection(false);
-        stopHeartbeat();
-        console.log('❌ HydroSync SCADA Console disconnected');
-      });
-
-      // --- Initial State from Server ---
-      socket.on('initialState', (state) => {
-        applyInitialState(state);
-        initChartState(state);
-      });
-
-      // --- Real-Time Sensor Telemetry ---
-      socket.on('sensorData', (data) => {
-        updateTelemetryGauges(data);
-        addChartDataPoint(data);
-      });
-
-      // --- Setpoint & PID Updates from Server ---
-      socket.on('setpointUpdated', (state) => {
-        currentSetpoint = state.setpoint;
-        updateSetpointDisplays(state.setpoint);
-        updateGraphSetpoint(state.setpoint);
-      });
-
-      socket.on('pidUpdated', (params) => {
-        currentKp = params.Kp || currentKp;
-        currentKi = params.Ki || currentKi;
-        currentKd = params.Kd || currentKd;
-
-        updatePIDSlidersUI(params);
-        updatePIDTermBreakdowns(params);
-      });
-
-      socket.on('manualOverrideState', (state) => {
-        isManualOverride = state.isManual;
-        updateManualOverrideToggle(state.isManual);
-      });
-
-      // --- Disturbance Events from Server ---
-      socket.on('droughtInject', (intensity) => {
-        injectDrought(intensity || 0.8);
-      });
-
-      socket.on('rainInject', (intensity) => {
-        injectRain(intensity || 0.8);
-      });
-
-      socket.on('systemReset', () => {
-        resetSystem();
-      });
-    }
-
-    /** Apply initial state to all UI elements */
-    function applyInitialState(state) {
-      // VWC
-      const moisture = state.moisture;
-      updateVWCGauge(moisture);
-
-      // Actuator
-      const pumpSpeed = state.pumpSpeed;
-      updateActuatorGauge(pumpSpeed);
-
-      // Flow rate (derived from pump output)
-      const flowRate = calculateFlowRate(pumpSpeed);
-      updateFlowGauge(flowRate);
-
-      // Conservation efficiency
-      updateConservationEfficiency(moisture, currentSetpoint);
-
-      // Setpoint
-      currentSetpoint = state.setpoint;
-      updateSetpointDisplays(currentSetpoint);
-
-      // PID parameters
-      if (state.Kp !== undefined) {
-        currentKp = state.Kp;
-        currentKi = state.Ki || 0.01;
-        currentKd = state.Kd || 0.2;
-        updatePIDSlidersUI({ Kp: currentKp, Ki: currentKi, Kd: currentKd });
-      }
-
-      // Manual override
-      if (state.isManual !== undefined) {
-        isManualOverride = state.isManual;
-        updateManualOverrideToggle(isManualOverride);
-      }
-    }
-
-    /** Initialize chart with initial state */
-    function initChartState(state) {
-      const initialVWC = state.moisture;
-      const initialSP = state.setpoint;
-      const initialPump = state.pumpSpeed;
-
-      // Pre-fill chart history
-      const now = Date.now();
-      chartStartTime = now;
-
-      if (!timestamps) timestamps = [];
-      if (!moistureHistory) moistureHistory = [];
-
-      // FIFO: fill with historical points
-      for (let i = CHART_MAX_POINTS - 1; i >= 0; i--) {
-        const ts = now - i * SIMULATION_INTERVAL;
-        timestamps.push(ts);
-        // Add slight variance for realism
-        const variance = (Math.random() - 0.5) * 5;
-        const val = Math.max(0, Math.min(100, initialVWC + variance));
-        moistureHistory.push(val);
-      }
-
-      // Setpoint line data (constant)
-      const setpointLine = new Array(CHART_MAX_POINTS).fill(initialSP);
-
-      // Actuator data (constant)
-      const actuatorLine = new Array(CHART_MAX_POINTS).fill(initialPump);
-
-      // Update chart data
-      const timeLabels = timestamps.map(ts => {
-        const diff = Math.floor((now - ts) / 1000);
-        return `${diff}s`;
-      });
-
-      window.mainChart.data.labels = timeLabels;
-      window.mainChart.data.datasets[0].data = moistureHistory;
-      window.mainChart.data.datasets[1].data = setpointLine;
-      window.mainChart.data.datasets[2].data = actuatorLine;
-
-      window.mainChart.update('quiet');
-    }
-
-    /** Add new chart data point with FIFO capping */
-    function addChartDataPoint(data) {
-      const now = Date.now();
-
-      // Initialize chart start time
-      if (!chartStartTime) chartStartTime = now;
-
-      // FIFO: shift oldest, push new
-      if (moistureHistory.length >= CHART_MAX_POINTS) {
-        moistureHistory.shift();
-        timestamps.shift();
-      }
-
-      // Push new moisture value
-      moistureHistory.push(data.moisture);
-      timestamps.push(now);
-
-      // Generate relative time labels
-      const timeLabels = timestamps.map(ts => {
-        const diff = Math.floor((now - ts) / 1000);
-        return `${diff}s`;
-      });
-
-      // Update chart data (throttled in render loop)
-      window.mainChart.data.labels = timeLabels;
-      window.mainChart.data.datasets[0].data = moistureHistory;
-      window.mainChart.update('quiet');
-    }
-
-    /** ==========================================
-     *  TELEMETRY GAUGES UPDATE
-     *  ========================================== */
-    function updateTelemetryGauges(data) {
-      // VWC Gauge
-      updateVWCGauge(data.moisture);
-
-      // Actuator / PWM Output Gauge
-      const pumpSpeed = data.pumpSpeed;
-      updateActuatorGauge(pumpSpeed);
-
-      // Hydraulic Flow Rate (derived)
-      const flowRate = calculateFlowRate(pumpSpeed);
-      updateFlowGauge(flowRate);
-
-      // Water Conservation Efficiency
-      updateConservationEfficiency(data.moisture, currentSetpoint);
-
-      // Control Error display
-      updateControlError(data.moisture, currentSetpoint);
-    }
-
-    /** Update VWC radial gauge */
-    function updateVWCGauge(vwc) {
-      const pct = Math.max(0, Math.min(100, vwc));
-      dom.vcwProgress.style.strokeDasharray = '502.65';
-      dom.vcwProgress.style.strokeDashoffset = 
-        502.65 - (502.65 * pct / 100);
-
-      dom.vcwValue.textContent = pct.toFixed(1);
-      dom.vcwValueDisplay.textContent = `${pct.toFixed(1)}%`;
-    }
-
-    /** Update Actuator PWM Duty Cycle radial gauge */
-    function updateActuatorGauge(pct) {
-      const pwr = Math.max(0, Math.min(100, pct));
-      dom.actuatorProgress.style.strokeDasharray = '502.65';
-      dom.actuatorProgress.style.strokeDashoffset = 
-        502.65 - (502.65 * pwr / 100);
-
-      dom.actuatorValue.textContent = Math.round(pwr);
-      dom.actuatorValueDisplay.textContent = `${Math.round(pwr)}%`;
-
-      // Color coding: green < 30%, amber 30-70%, red > 70%
-      if (pwr < 30) {
-        dom.actuatorCard.style.borderColor = 'rgba(16,185,129,0.3)';
-      } else if (pwr < 70) {
-        dom.actuatorCard.style.borderColor = 'rgba(245,158,11,0.3)';
-      } else {
-        dom.actuatorCard.style.borderColor = 'rgba(239,68,68,0.3)';
-      }
-    }
-
-    /** Calculate and update hydraulic flow rate */
-    function calculateFlowRate(pumpPct) {
-      // Simple derivation: pump % * max capacity
-      const maxCap = 50; // L/min from gauge card
-      return Math.round(pumpPct / 100 * maxCap);
-    }
-
-    function updateFlowGauge(lpm) {
-      const lpmClamped = Math.max(0, Math.min(50, lpm));
-      // Progress circle
-      const circumference = 502.65;
-      dom.flowProgress.style.strokeDasharray = circumference;
-      dom.flowProgress.style.strokeDashoffset = circumference - (circumference * lpmClamped / 50);
-
-      dom.flowValue.textContent = `${lpmClamped} L/min`;
-      dom.flowValueDisplay.textContent = `${lpmClamped} L/min`;
-    }
-
-    /** Update water conservation efficiency */
-    function updateConservationEfficiency(currentVWC, setpoint) {
-      // Simple heuristic: how much water is saved vs. traditional timer irrigation
-      // If VWC is near setpoint, efficiency is high (less waste)
-      const deviation = Math.abs(currentVWC - setpoint);
-      const efficiency = Math.max(0, 100 - deviation * 1.5).toFixed(1);
-
-      const pct = parseFloat(efficiency);
-      dom.conservationProgress.style.strokeDasharray = '502.65';
-      dom.conservationProgress.style.strokeDashoffset = 
-        502.65 - (502.65 * pct / 100);
-
-      dom.conservationValue.textContent = Math.round(pct);
-      dom.conservationValueDisplay.textContent = `${Math.round(pct)}%`;
-
-      // Color: green if high efficiency, amber if moderate, red if low
-      if (pct >= 70) {
-        dom.conservationCard.style.borderColor = 'rgba(16,185,129,0.3)';
-      } else if (pct >= 40) {
-        dom.conservationCard.style.borderColor = 'rgba(245,158,11,0.3)';
-      } else {
-        dom.conservationCard.style.borderColor = 'rgba(239,68,68,0.3)';
-      }
-    }
-
-    /** Update control error display */
-    function updateControlError(processVar, setpoint) {
-      const error = (setpoint - processVar).toFixed(1);
-      const errorEl = document.getElementById('vcwSetpointDisplay');
-      if (errorEl) {
-        errorEl.textContent = `SP: ${setpoint.toFixed(1)}%`;
-        // Show deviation color
-        if (Math.abs(error) > 10) {
-          errorEl.style.color = 'var(--amber-warning)';
-        } else {
-          errorEl.style.color = 'var(--cyan-highlight)';
-        }
-      }
-    }
-
-    /** ==========================================
-     *  SETPOINT & PID DISPLAY UPDATES
-     *  ========================================== */
-    function updateSetpointDisplays(sp) {
-      dom.vcwSetpointDisplay.textContent = `SP: ${sp.toFixed(1)}%`;
-      dom.KpValue.textContent = currentKp.toFixed(2);
-      dom.KiValue.textContent = currentKi.toFixed(4);
-      dom.KdValue.textContent = currentKd.toFixed(2);
-    }
-
-    function updateGraphSetpoint(sp) {
-      // Update the setpoint reference line in chart
-      if (window.mainChart) {
-        // Find the setpoint dataset and update its data
-        const dp = window.mainChart.data.datasets[1];
-        if (dp) {
-          // Fill with constant setpoint value
-          dp.data = new Array(CHART_MAX_POINTS).fill(sp);
-          window.mainChart.update('quiet');
-        }
-      }
-    }
-
-    /** Update PID sliders UI from server */
-    function updatePIDSlidersUI(params) {
-      if (dom.KpSlider) dom.KpSlider.value = params.Kp;
-      if (dom.KiSlider) dom.KiSlider.value = params.Ki;
-      if (dom.KdSlider) dom.KdSlider.value = params.Kd;
-
-      if (dom.KpValue) dom.KpValue.textContent = params.Kp.toFixed(2);
-      if (dom.KiValue) dom.KiValue.textContent = params.Ki.toFixed(4);
-      if (dom.KdValue) dom.KdValue.textContent = params.Kd.toFixed(2);
-    }
-
-    /** Update P-term, I-term, D-term breakdowns */
-    function updatePIDTermBreakdowns(params) {
-      // Calculate terms based on error = SP - PV
-      const error = (currentSetpoint - parseFloat(dom.vcwValue.textContent.replace('%','')) || 10).toFixed(2);
-
-      if (dom.KpTerm) dom.KpTerm.textContent = (params.Kp * error).toFixed(2);
-      if (dom.KiTerm) dom.KiTerm.textContent = (params.Ki * error * 0.5).toFixed(2); // simplified integration
-      if (dom.KdTerm) dom.KdTerm.textContent = (params.Kd * (error - (parseFloat(dom.KpTerm.textContent) || 0))).toFixed(2);
-    }
-
-    /** Update anti-windup indicator */
-    function updateAntiWindupIndicator(isSaturated) {
-      const led = document.getElementById('antiWindupLed');
-      if (!led) return;
-
-      if (isSaturated) {
-        led.style.background = 'var(--amber-warning)';
-        led.style.boxShadow = '0 0 8px var(--glow-amber)';
-        led.classList.add('warning');
-      } else {
-        led.style.background = 'var(--emerald-normal)';
-        led.style.boxShadow = '0 0 8px var(--glow-emerald)';
-        led.classList.remove('warning');
-      }
-    }
-
-    /** ==========================================
-     *  MANUAL OVERRIDE TOGGLE
-     *  ========================================== */
-    function updateManualOverrideToggle(isManual) {
-      isManualOverride = isManual;
-
-      // Update badge text
-      if (dom.pidMode) {
-        dom.pidMode.textContent = isManual ? 'MAN' : 'AUTO';
-        dom.pidMode.className = `badge ${isManual ? 'badge-amber' : 'badge-cyan'}`;
-      }
-
-      // Visual feedback on cards
-      if (isManual) {
-        // Slight amber tint to indicate manual mode
-        document.body.classList.add('manual-mode');
-      } else {
-        document.body.classList.remove('manual-mode');
-      }
-    }
-
-    /** ==========================================
-     *  JURY DEMO: DISTURBANCE INJECTORS
-     *  ========================================== */
-    function injectDrought(intensity) {
-      // Intensity: 0-1 multiplier on moisture decay rate
-      if (socket) {
-        socket.emit('droughtInject', intensity);
-      }
-
-      // Visual feedback
-      showDisturbanceFeedback('drought', intensity);
-
-      // Start timer to auto-recover after drought
-      if (droughtTimer) clearTimeout(droughtTimer);
-      droughtTimer = setTimeout(() => {
-        socket.emit('systemReset');
-        hideDisturbanceFeedback('drought');
-      }, 5000 + intensity * 3000);
-    }
-
-    function injectRain(intensity) {
-      if (socket) {
-        socket.emit('rainInject', intensity);
-      }
-
-      showDisturbanceFeedback('rain', intensity);
-
-      if (rainTimer) clearTimeout(rainTimer);
-      rainTimer = setTimeout(() => {
-        socket.emit('systemReset');
-        hideDisturbanceFeedback('rain');
-      }, 8000 + intensity * 5000);
-    }
-
-    function resetSystem() {
-      if (socket) {
-        socket.emit('resetSimulator');
-      }
-      hideAllDisturbanceFeedback();
-      showJuryInfo('System reset to initial conditions');
-    }
-
-    function showDisturbanceFeedback(type, intensity) {
-      const btn = type === 'drought' ? dom.droughtBtn : dom.rainBtn;
-      if (!btn) return;
-
-      btn.style.transform = 'scale(0.95)';
-      btn.style.background = type === 'drought' 
-        : `rgba(16,185,129,0.2)` 
-        : 'var(--amber-warning, #F59E0B)';
-
-      setTimeout(() => {
-        btn.style.transform = '';
-        btn.style.background = '';
-      }, 150);
-    }
-
-    function hideAllDisturbanceFeedback() {
-      if (dom.droughtBtn) dom.droughtBtn.style.transform = '';
-      if (dom.rainBtn) dom.rainBtn.style.transform = '';
-    }
-
-    function showJuryInfo(message) {
-      if (dom.juryBadge) {
-        dom.juryBadge.textContent = message;
-        setTimeout(() => {
-          dom.juryBadge.textContent = 'SDG 6 & 13 Aligned | Precision Agri-Twin v1.2';
-        }, 3000);
-      }
-    }
-
-    /* ==========================================
-     *  EVENT LISTENERS
-     *  ========================================== */
-
-    // Setpoint slider/input synchronization
-    function initSetpointControls() {
-      // Slider -> Input
-      if (dom.KpSlider) {
-        dom.KpSlider.addEventListener('input', (e) => {
-          const val = parseFloat(e.target.value);
-          if (!isNaN(val)) {
-            dom.KpValue.textContent = val.toFixed(2);
-            if (socket) socket.emit('updatePID', { Kp: val });
-          }
-        });
-      }
-
-      if (dom.KiSlider) {
-        dom.KiSlider.addEventListener('input', (e) => {
-          const val = parseFloat(e.target.value);
-          if (!isNaN(val)) {
-            dom.KiValue.textContent = val.toFixed(4);
-            if (socket) socket.emit('updatePID', { Ki: val });
-          }
-        });
-      }
-
-      if (dom.KdSlider) {
-        dom.KdSlider.addEventListener('input', (e) => {
-          const val = parseFloat(e.target.value);
-          if (!isNaN(val)) {
-            dom.KdValue.textContent = val.toFixed(2);
-            if (socket) socket.emit('updatePID', { Kd: val });
-          }
-        });
-      }
-    }
-
-    // Jury demo button listeners
-    function initJuryDemo() {
-      if (dom.droughtBtn) {
-        dom.droughtBtn.addEventListener('click', () => {
-          injectDrought(0.8);
-        });
-      }
-
-      if (dom.rainBtn) {
-        dom.rainBtn.addEventListener('click', () => {
-          injectRain(0.8);
-        });
-      }
-
-      if (dom.resetBtn) {
-        dom.resetBtn.addEventListener('click', () => {
-          resetSystem();
-        });
-      }
-    }
-
-    // ==========================================
-    //  CONNECTION & UPTIME MANAGEMENT
-    // ========================================== */
-    function updateConnection(connected) {
-      const statusEl = dom.connectionStatus;
-      const pingEl = dom.pingDot;
-      const statusText = dom.statusText;
-
-      if (connected) {
-        statusEl.className = 'connection-status connected';
-        pingEl.style.background = 'var(--emerald-normal)';
-        pingEl.style.animation = 'ping 2s ease-in-out infinite';
-        statusText.textContent = 'LIVE';
-        startHeartbeat();
-      } else {
-        statusEl.className = 'connection-status disconnected';
-        pingEl.style.background = 'var(--amber-warning)';
-        pingEl.style.animation = 'ping 0.5s ease-in-out infinite';
-        statusText.textContent = 'OFFLINE';
-        stopHeartbeat();
-      }
-    }
-
-    function startHeartbeat() {
-      if (dom.heartbeatPulse) {
-        dom.heartbeatPulse.style.animation = 'heartbeat 1s ease-in-out infinite';
-      }
-    }
-
-    function stopHeartbeat() {
-      if (dom.heartbeatPulse) {
-        dom.heartbeatPulse.style.animation = 'none';
-        dom.heartbeatPulse.style.background = 'rgba(255,255,255,0.1)';
-      }
-    }
-
-    function startUptimeTimer() {
-      function updateTimer() {
-        const elapsed = Math.floor((Date.now() - pageLoadTime) / 1000);
-        const mins = Math.floor(elapsed / 60);
-        const secs = elapsed % 60;
-        if (dom.uptimeTimer) {
-          dom.uptimeTimer.textContent = `Uptime: ${mins}:${secs < 10 ? '0' : ''}${secs}s`;
-        }
-      }
-      updateTimer();
-      setInterval(updateTimer, 1000);
-    }
-
-    /* ==========================================
-     *  INITIALIZATION
-     *  ========================================== */
-    function init() {
-      // Initialize Feather icons
-      feather.replace();
-
-      // Initialize Chart.js
-      initChart();
-
-      // Initialize Socket.io
-      initSocket();
-
-      // Initialize controls
-      initSetpointControls();
-      initJuryDemo();
-
-      // Start uptime timer
-      startUptimeTimer();
-
-      // Initial heartbeat
-      startHeartbeat();
-    }
-
-    // Start when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
