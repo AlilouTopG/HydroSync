@@ -1,149 +1,171 @@
-/**
- * server.js - HydroSync Express Server with Socket.io
- * 
- * Refactored for full-stack synchronization with simulator.js and public/app.js.
- * 
- * Features:
- * - Broadcasts unified 'telemetry' packet every 1 second
- * - Listens for client socket events: update_pid, update_setpoint, disturbance, manual_override
- * - Tracks server uptime for header display
- */
+/* public/app.js - HydroSync SCADA Client */
 
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const simulator = require('./simulator'); // Import our PID/simulator module
+// Initialize resilient Socket.io connection
+const socket = io({
+  transports: ['websocket', 'polling'],
+  reconnectionAttempts: 10
+});
 
-const app = express();
-const server = http.createServer(app);
+// UI State & Elements
+const statusBadge = document.getElementById('connectionStatus') || document.getElementById('status-dot');
+const statusText = document.getElementById('statusText') || document.getElementById('conn-status');
+const uptimeDisplay = document.getElementById('uptimeTimer') || document.getElementById('uptime-val');
 
-// Initialize Socket.io with CORS configuration
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+// Telemetry Metric Elements
+const vwcEl = document.getElementById('vcwProgress') || document.getElementById('val-vwc');
+const pwmEl = document.getElementById('actuatorProgress') || document.getElementById('val-pwm');
+const flowEl = document.getElementById('flowProgress') || document.getElementById('val-flow');
+const savedEl = document.getElementById('conservationProgress') || document.getElementById('val-saved');
+
+// Log Console Helper
+function logEvent(msg) {
+  const logList = document.getElementById('logList');
+  if (!logList) return;
+  const time = new Date().toLocaleTimeString();
+  const li = document.createElement('li');
+  li.textContent = `[${time}] ${msg}`;
+  logList.prepend(li);
+  if (logList.children.length > 30) logList.removeChild(logList.lastChild);
+}
+
+// Chart.js Setup
+let telemetryChart = null;
+const chartCanvas = document.getElementById('mainChart') || document.getElementById('telemetryChart');
+
+if (chartCanvas) {
+  const ctx = chartCanvas.getContext('2d');
+  telemetryChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: 'Soil Moisture (%)',
+          data: [],
+          borderColor: '#00E5FF',
+          backgroundColor: 'rgba(0, 229, 255, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3
+        },
+        {
+          label: 'Setpoint (%)',
+          data: [],
+          borderColor: '#10B981',
+          borderDash: [5, 5],
+          borderWidth: 1.5,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { grid: { color: 'rgba(255,255,255,0.05)' } }
+      },
+      plugins: { legend: { labels: { color: '#94A3B8' } } },
+      animation: { duration: 0 }
+    }
+  });
+}
+
+// --- Socket Handlers ---
+socket.on('connect', () => {
+  if (statusBadge) statusBadge.classList.add('online');
+  if (statusText) statusText.textContent = 'ONLINE';
+  logEvent('System online: Connected to HydroSync telemetry engine.');
+});
+
+socket.on('disconnect', () => {
+  if (statusBadge) statusBadge.classList.remove('online');
+  if (statusText) statusText.textContent = 'OFFLINE';
+  logEvent('Connection lost. Attempting reconnection...');
+});
+
+socket.on('telemetry', (data) => {
+  if (!data) return;
+
+  // Update Metrics
+  if (vwcEl) vwcEl.textContent = `${(data.vwc || 0).toFixed(1)}%`;
+  if (pwmEl) pwmEl.textContent = `${Math.round(data.pumpDuty || 0)}%`;
+  if (flowEl) flowEl.textContent = `${(data.flowRate || 0).toFixed(1)} L/m`;
+  if (savedEl) savedEl.textContent = `${Math.round(data.waterSaved || 0)}%`;
+
+  // Update Uptime
+  if (uptimeDisplay && data.uptimeSeconds !== undefined) {
+    const mins = String(Math.floor(data.uptimeSeconds / 60)).padStart(2, '0');
+    const secs = String(data.uptimeSeconds % 60).padStart(2, '0');
+    uptimeDisplay.textContent = `00:${mins}:${secs}`;
+  }
+
+  // Update Chart (FIFO window max 20 points)
+  if (telemetryChart) {
+    const timeLabel = new Date().toLocaleTimeString();
+    telemetryChart.data.labels.push(timeLabel);
+    telemetryChart.data.datasets[0].data.push(data.vwc);
+    telemetryChart.data.datasets[1].data.push(data.setpoint || 55);
+
+    if (telemetryChart.data.labels.length > 20) {
+      telemetryChart.data.labels.shift();
+      telemetryChart.data.datasets[0].data.shift();
+      telemetryChart.data.datasets[1].data.shift();
+    }
+    telemetryChart.update();
   }
 });
 
-// --- === Server State === ---
-let serverStartTime = Date.now();
-
-// --- === Serve Static Files === ---
-app.use(express.static('public'));
-
-/* ==========================================
- *  SOCKET.IO EVENT HANDLING
- *  ========================================== */
-io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
-
-  // Send initial simulator state to newly connected client
-  const initialState = simulator.getState();
-  socket.emit('telemetry', initialState);
-  console.log(`📡 Initial telemetry sent to ${socket.id}`);
-
-  // --- Listen for client events ---
-
-  // 1. Client: Update PID parameters
-  socket.on('client:update_pid', (params) => {
-    if (!params) return;
-    simulator.setPIDParams({
-      kp: params.kp !== undefined ? params.kp : simulator.getState().kp,
-      ki: params.ki !== undefined ? params.ki : simulator.getState().ki,
-      kd: params.kd !== undefined ? params.kd : simulator.getState().kd
-    });
-    // Broadcast updated state to ALL clients
-    broadcastTelemetry();
+// --- Button & Slider Controls ---
+const droughtBtn = document.getElementById('droughtBtn') || document.getElementById('btn-drought');
+if (droughtBtn) {
+  droughtBtn.addEventListener('click', () => {
+    socket.emit('client:disturbance', 'drought');
+    logEvent('Weather Trigger: Severe Drought injected.');
   });
-
-  // 2. Client: Update target setpoint
-  socket.on('client:update_setpoint', (sp) => {
-    if (sp === undefined) return;
-    simulator.setTargetSetpoint(sp);
-    broadcastTelemetry();
-  });
-
-  // 2b. Client: Update physical system settings (setpoint, tank capacity, soil type)
-  socket.on('client:update_settings', (settings) => {
-    if (!settings || typeof settings !== 'object') return;
-    simulator.setSettings(settings);
-    broadcastTelemetry();
-  });
-
-  // 3. Client: Inject disturbance (drought/rain)
-  socket.on('client:disturbance', (type) => {
-    if (!type || (type !== 'drought' && type !== 'rain')) return;
-    simulator.injectDisturbance(type);
-    broadcastTelemetry();
-  });
-
-  // 3b. Client: Select active monitoring zone
-  socket.on('client:select_zone', (id) => {
-    if (typeof id !== 'string') return;
-    simulator.setActiveZone(id);
-    broadcastTelemetry();
-  });
-
-  // 4. Client: Toggle manual mode and PWM output
-  socket.on('client:manual_override', (data) => {
-    if (data === undefined) return;
-    const enabled = data.enabled !== undefined ? data.enabled : false;
-    const pwm = data.manualPwm !== undefined ? data.manualPwm : simulator.getState().pumpDuty;
-    simulator.setManualMode(enabled, pwm);
-    broadcastTelemetry();
-  });
-
-  // 5. Client disconnect
-  socket.on('disconnect', () => {
-    console.log(`❌ Client disconnected: ${socket.id}`);
-  });
-})
-
-/* ==========================================
- *  BROADCAST TELEMETRY PACKET (every 1 second)
- *  ========================================== */
-// Initial broadcast
-broadcastTelemetry();
-
-// Set up interval to broadcast telemetry every 1 second
-const TELEMETRY_INTERVAL = 1000;
-setInterval(() => {
-  broadcastTelemetry();
-}, TELEMETRY_INTERVAL);
-
-/**
- * Compute next PID loop step and broadcast unified telemetry packet.
- */
-function broadcastTelemetry() {
-  // Advance the simulator's internal PID loop by one step
-  simulator.pidLoop();
-
-  // Get the full state
-  const state = simulator.getState();
-
-  // Calculate server uptime
-  const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
-  const mins = Math.floor(uptimeSeconds / 60);
-  const secs = uptimeSeconds % 60;
-
-  // Emit unified telemetry packet to ALL connected clients
-  // (spread forwards physics fields: et0, solarRad, tankVolumeL, waterSavedL, soilType, isManual…)
-  io.emit('telemetry', {
-    ...state,
-    uptimeSeconds: uptimeSeconds,
-    uptimeMinutes: mins,
-    uptimeSecs: secs
-  });
-
-  // Log to server console periodically (every 10 broadcasts)
-  // console.log(`📡 Telemetry broadcast: VWC=${state.vwc.toFixed(1)}% SP=${state.setpoint}% Pump=${state.pumpDuty}%`);
 }
 
-/* ==========================================
- *  START SERVER
- *  ========================================== */
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🌿 HydroSync Server running at http://localhost:${PORT}`);
-  console.log(`📡 Telemetry broadcasting every 1s (SDG 6 & 13 Aligned)`);
+const rainBtn = document.getElementById('rainBtn') || document.getElementById('btn-rain');
+if (rainBtn) {
+  rainBtn.addEventListener('click', () => {
+    socket.emit('client:disturbance', 'rain');
+    logEvent('Weather Trigger: Heavy Rain injected.');
+  });
+}
+
+const resetBtn = document.getElementById('resetBtn') || document.getElementById('btn-reset');
+if (resetBtn) {
+  resetBtn.addEventListener('click', () => {
+    socket.emit('client:disturbance', 'drought'); // triggers reset cycle
+    socket.emit('client:update_setpoint', 55);
+    logEvent('System state restored to baseline.');
+  });
+}
+
+// PID Sliders
+['kp', 'ki', 'kd'].forEach((param) => {
+  const slider = document.getElementById(`${param}Slider`) || document.getElementById(`slider-${param}`);
+  const readout = document.getElementById(`val-${param}`);
+  if (slider) {
+    slider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (readout) readout.textContent = val.toFixed(2);
+      const update = {};
+      update[param] = val;
+      socket.emit('client:update_pid', update);
+    });
+  }
+});
+
+// Zone Selection (Field Micro-Plots)
+document.querySelectorAll('.zone-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.zone-card').forEach((c) => c.classList.remove('active'));
+    card.classList.add('active');
+    const zoneId = card.dataset.zone || card.querySelector('.zone-id')?.textContent;
+    if (zoneId) {
+      socket.emit('client:select_zone', zoneId);
+      logEvent(`Active sector changed to: ${zoneId}`);
+    }
+  });
 });

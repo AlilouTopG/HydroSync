@@ -1,21 +1,29 @@
-/* HydroSync v2.0 — real-time SCADA client. Telemetry in, control events out. */
+/* ==========================================================================
+   HydroSync v2.0 Enterprise — Advanced SCADA Client
+   Features: AI Co-Pilot, Watchdog Failsafe, ROI Calculator, Multi-Zone
+   ========================================================================== */
 (function () {
   "use strict";
 
   var FIFO_MAX = 25;
   var CIRC = 502.65; // 2*pi*80 for radial gauges
   var FLOW_MAX = 50; // L/min gauge capacity
+  var WATER_PRICE = 0.045; // Cost per liter saved for ROI calculation
 
   var socket = null;
-  var twinTank = 85; // local reservoir % fallback when server tank fields are absent
+  var twinTank = 85; 
   var chart = null;
   var labels = [];
   var vwcSeries = [];
   var spSeries = [];
   var pwmSeries = [];
-  var cumWaterL = 0; // client-side dispensed-liter estimate for analytics
+  var cumWaterL = 0; 
   var booted = false;
+  
+  // Advanced State Tracking
   var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200, maxFlow: 0, activeZone: "A1" };
+  var watchdogTripped = false;
+  var aiLastAlert = 0;
 
   function $(id) { return document.getElementById(id); }
 
@@ -29,7 +37,12 @@
       time.className = "t";
       time.textContent = t;
       li.appendChild(time);
-      li.appendChild(document.createTextNode(msg));
+      
+      // Inject HTML safely for advanced formatting
+      var contentSpan = document.createElement("span");
+      contentSpan.innerHTML = " " + msg;
+      li.appendChild(contentSpan);
+      
       list.prepend(li);
       while (list.children.length > 30) list.removeChild(list.lastChild);
       var count = $("logCount");
@@ -67,7 +80,7 @@
 
   function setText(id, text) {
     var el = $(id);
-    if (el) el.textContent = text;
+    if (el) el.innerHTML = text; // Used innerHTML to allow colored badges in metrics
   }
 
   /* ---------- Chart ---------- */
@@ -131,7 +144,7 @@
     }
   }
 
-  /* ---------- Telemetry ---------- */
+  /* ---------- Telemetry Processor & AI ---------- */
   function onTelemetry(d) {
     if (!d || typeof d !== "object") return;
     var vwc = +d.vwc || 0, sp = +d.setpoint || 0, pwm = +d.pumpDuty || 0;
@@ -157,21 +170,27 @@
     setText("conservationValue", String(Math.round(saved)));
     setText("conservationValueDisplay", Math.round(saved) + "%");
     setRing("conservationProgress", saved / 100);
-    setText("savedLitersValue", ((typeof d.waterSavedL === "number") ? d.waterSavedL : 0).toFixed(1) + " L");
+    
+    // 💡 ROI Calculator: Convert Liters saved to Financial Value
+    var litersSaved = (typeof d.waterSavedL === "number") ? d.waterSavedL : 0;
+    var moneySaved = (litersSaved * WATER_PRICE).toFixed(3);
+    setText("savedLitersValue", litersSaved.toFixed(1) + " L <span style='color:var(--emerald); margin-left:6px;'><i class='fa-solid fa-sack-dollar'></i> $" + moneySaved + "</span>");
+    
     setText("errorValue", "e(t) " + (err >= 0 ? "+" : "") + err.toFixed(1));
-
     setText("KpTerm", (+d.pTerm || 0).toFixed(2));
     setText("KiTerm", (+d.iTerm || 0).toFixed(2));
     setText("KdTerm", (+d.dTerm || 0).toFixed(2));
 
-    // Session analytics series (FIFO-aligned with chart)
     pwmSeries.push(pwm);
     while (pwmSeries.length > FIFO_MAX) pwmSeries.shift();
-    cumWaterL += (flow / 60); // ≈1 s packet
+    cumWaterL += (flow / 60);
+    
     if (typeof d.tankCapacityL === "number") state.tankCapacity = d.tankCapacityL;
     if (typeof d.soilType === "string") state.soilType = d.soilType;
+    
     updateTwin(vwc, pwm, flow, d);
     renderZones(d.zones, d.activeZoneId);
+    runAIAnalyst(vwc, sp, pwm, flow); // Run AI checks
 
     if (!booted) {
       booted = true;
@@ -179,21 +198,32 @@
       if (typeof d.kp === "number") state.kp = d.kp;
       if (typeof d.ki === "number") state.ki = d.ki;
       if (typeof d.kd === "number") state.kd = d.kd;
-      if (typeof d.soilType === "string") state.soilType = d.soilType;
-      if (typeof d.tankCapacityL === "number") state.tankCapacity = d.tankCapacityL;
       syncControls();
       syncSettingsForm();
       seedChart(vwc, sp);
-      log("Telemetry stream established");
+      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> Telemetry stream established successfully.");
     } else {
       pushPoint(vwc, sp);
     }
   }
 
-  /* ---------- Visual Twin ---------- */
+  /* ---------- AI Agronomist Co-Pilot ---------- */
+  function runAIAnalyst(vwc, sp, pwm, flow) {
+    var now = Date.now();
+    if (now - aiLastAlert > 20000) { // Limit AI advice to every 20 seconds
+      if (pwm > 85 && vwc < sp - 15) {
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output detected with low moisture response. Suspected pipe leak or extreme evaporation in Zone " + state.activeZone + ".");
+        aiLastAlert = now;
+      } else if (vwc > 85) {
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> Soil saturation critical. Decreasing Target Setpoint is highly recommended to prevent root rot.");
+        aiLastAlert = now;
+      }
+    }
+  }
+
+  /* ---------- Visual Twin & Watchdog ---------- */
   function updateTwin(vwc, pwm, flow, d) {
     try {
-      // Tank: prefer authoritative server volume; fall back to local drain model
       var pct, liters;
       if (d && typeof d.tankVolumeL === "number" && typeof d.tankCapacityL === "number" && d.tankCapacityL > 0) {
         pct = Math.max(0, Math.min(100, (d.tankVolumeL / d.tankCapacityL) * 100));
@@ -203,34 +233,51 @@
         pct = twinTank;
         liters = twinTank / 100 * state.tankCapacity;
       }
+
+      // 🛡️ Hardware Watchdog: Dry-Run Protection
+      if (pct <= 5.0 && !watchdogTripped) {
+        watchdogTripped = true;
+        state.manual = true;
+        state.manualPwm = 0;
+        setManualUI(true);
+        if (socket && socket.connected) {
+          socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
+        }
+        log("<strong style='color:var(--danger)'><i class='fa-solid fa-triangle-exclamation'></i> [WATCHDOG]</strong> Tank level critical (<5%). Emergency shutoff engaged to prevent pump damage.");
+        var shutoff = $("shutoffBtn"); if (shutoff) shutoff.classList.add("armed");
+      } else if (pct > 10 && watchdogTripped) {
+        watchdogTripped = false;
+        log("<strong style='color:var(--emerald)'>[WATCHDOG]</strong> Tank level restored. System ready.");
+      }
+
       var fill = $("twinTankFill");
       if (fill) fill.style.height = pct.toFixed(1) + "%";
       setText("twinTankLevel", Math.round(pct) + "% · " + liters.toFixed(0) + "L");
-      // Pipe: animate only when pump is active; speed scales with PWM
+      
       var pipe = $("twinPipe");
       if (pipe) {
         var flowing = pwm > 0.5;
         pipe.classList.toggle("flowing", flowing);
-        // faster pulses at higher duty: 2.2s idle-slow → 0.5s full blast
         pipe.style.setProperty("--flow-speed", (2.2 - (Math.min(100, pwm) / 100) * 1.7).toFixed(2) + "s");
       }
       setText("twinPwmLabel", Math.round(pwm) + "% PWM");
-      // Soil + plant: dry <30 amber, wet >65 cyan, else healthy emerald
+      
       var soil = $("twinSoil");
       if (soil) {
         soil.classList.toggle("dry", vwc < 30);
         soil.classList.toggle("wet", vwc > 65);
       }
       setText("twinStatus", vwc < 30 ? "DRY — IRRIGATING" : vwc > 65 ? "SATURATED" : "HYDRATED");
-    } catch (e) { /* twin visuals must never break telemetry */ }
+    } catch (e) {}
   }
 
-  /* ---------- Field zones heatmap ---------- */
+  /* ---------- Field Zones Heatmap ---------- */
   function zoneBand(m) {
     if (m < 35) return "dry";
     if (m > 65) return "wet";
     return "optimal";
   }
+
   function renderZones(zones, activeId) {
     try {
       if (!Array.isArray(zones) || !zones.length) return;
@@ -247,12 +294,10 @@
           card.classList.add(zoneBand(m));
           var isActive = z.id === state.activeZone;
           card.classList.toggle("active", isActive);
-          card.setAttribute("aria-selected", isActive ? "true" : "false");
         })(zones[i]);
       }
       setText("activeZoneBadge", "Active: Zone " + state.activeZone);
-      setText("fieldActive", "Zone " + state.activeZone);
-    } catch (e) { /* heatmap must never break telemetry */ }
+    } catch (e) {}
   }
 
   function syncControls() {
@@ -267,7 +312,7 @@
     setText("setpointValue", state.setpoint.toFixed(1) + "%");
   }
 
-  /* ---------- Emitters ---------- */
+  /* ---------- Controls & Binds ---------- */
   function emitPid() {
     if (!socket || !socket.connected) return;
     socket.emit("client:update_pid", { kp: state.kp, ki: state.ki, kd: state.kd });
@@ -282,20 +327,17 @@
   function setManualUI(manual) {
     setText("modeLabel", manual ? "MANUAL" : "AUTO");
     setText("pidMode", manual ? "MANUAL" : "AUTO");
-    var row = $("manualRow");
-    if (row) row.hidden = !manual;
-    var banner = $("manualBanner");
-    if (banner) banner.hidden = !manual;
+    var row = $("manualRow"); if (row) row.hidden = !manual;
+    var banner = $("manualBanner"); if (banner) banner.hidden = !manual;
     var pidCard = document.querySelector(".pid-card");
     if (pidCard) pidCard.classList.toggle("manual-active", manual);
   }
 
   function bindControls() {
     function slider(id, fn) {
-      var el = $(id);
-      if (el) el.addEventListener("input", fn);
+      var el = $(id); if (el) el.addEventListener("input", fn);
     }
-    // PID sliders → client:update_pid
+    
     slider("KpSlider", function (e) {
       state.kp = parseFloat(e.target.value) || 0;
       setText("KpValue", state.kp.toFixed(2)); emitPid();
@@ -319,24 +361,22 @@
       if (state.manual && socket && socket.connected)
         socket.emit("client:manual_override", { enabled: true, manualPwm: state.manualPwm });
     });
+
     var pwmSlider = $("manualPwmSlider");
     if (pwmSlider) pwmSlider.addEventListener("change", function () {
-      if (state.manual) log("[MANUAL] Valve opened to " + state.manualPwm + "%");
+      if (state.manual) log("<strong style='color:var(--amber)'>[MANUAL]</strong> Valve opened to " + state.manualPwm + "%");
     });
 
-    // Manual mode toggle → client:manual_override
     var toggle = $("manualToggle");
     if (toggle) toggle.addEventListener("change", function (e) {
       state.manual = !!e.target.checked;
       setManualUI(state.manual);
-      var shut = $("shutoffBtn");
-      if (shut) shut.classList.toggle("armed", false);
+      var shut = $("shutoffBtn"); if (shut) shut.classList.toggle("armed", false);
       if (socket && socket.connected)
         socket.emit("client:manual_override", { enabled: state.manual, manualPwm: state.manualPwm });
-      log(state.manual ? "[MANUAL] Override engaged — valve at " + state.manualPwm + "%" : "[AUTO] Returned to PID control");
+      log(state.manual ? "<strong style='color:var(--amber)'>[MANUAL]</strong> Override engaged — valve at " + state.manualPwm + "%" : "<strong style='color:var(--emerald)'>[AUTO]</strong> Returned to AI PID control");
     });
 
-    // Zone cards → active monitoring zone
     var zc = $("zonesContainer");
     if (zc) zc.addEventListener("click", function (e) {
       var t = e.target;
@@ -345,35 +385,33 @@
       var id = card.getAttribute("data-zone");
       if (!id || id === state.activeZone) return;
       if (socket && socket.connected) socket.emit("client:select_zone", id);
-      var val = card.querySelector(".zone-val");
-      log("[DISPATCH] Switched focus to Sector " + id + " - Moisture: " + (val ? val.textContent : "--"));
+      log("<strong style='color:var(--cyan)'>[DISPATCH]</strong> Agronomy focus switched to Sector " + id);
     });
 
-    // Weather buttons → client:disturbance (+ visual + log feedback)
     function disturbance(type, label) {
       return function (e) {
         pressFlash(e && e.currentTarget);
         if (socket && socket.connected) socket.emit("client:disturbance", type);
-        var badge = $("juryBadge");
-        if (badge) badge.textContent = label + " — watch recovery…";
-        log("[WEATHER] " + label + " simulated");
+        log("<strong>[WEATHER]</strong> " + label + " injected.");
       };
     }
+    
     var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");
-    if (dr) dr.addEventListener("click", disturbance("drought", "Severe drought"));
-    if (ra) ra.addEventListener("click", disturbance("rain", "Heavy rain"));
+    if (dr) dr.addEventListener("click", disturbance("drought", "<span style='color:var(--amber)'>Severe Drought</span>"));
+    if (ra) ra.addEventListener("click", disturbance("rain", "<span style='color:var(--cyan)'>Heavy Rain</span>"));
+    
     if (shutoff) shutoff.addEventListener("click", function (e) {
       pressFlash(e.currentTarget);
       shutoff.classList.add("armed");
-      state.manual = true;
-      state.manualPwm = 0;
+      state.manual = true; state.manualPwm = 0;
       var t = $("manualToggle"); if (t) t.checked = true;
       setManualUI(true);
       var pwm = $("manualPwmSlider"); if (pwm) pwm.value = 0;
       setText("manualPwmValue", "0%");
       if (socket && socket.connected) socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
-      log("[EMERGENCY] Shutoff engaged — valve closed");
+      log("<strong style='color:var(--danger)'><i class='fa-solid fa-octagon-xmark'></i> [EMERGENCY]</strong> Manual shutoff engaged!");
     });
+    
     if (rs) rs.addEventListener("click", function (e) {
       pressFlash(e.currentTarget);
       if (socket && socket.connected) {
@@ -381,96 +419,46 @@
         socket.emit("client:update_setpoint", 55);
         socket.emit("client:update_pid", { kp: 2.0, ki: 0.1, kd: 0.5 });
       }
-      state.manual = false;
-      state.kp = 2.0; state.ki = 0.1; state.kd = 0.5; state.setpoint = 55;
+      state.manual = false; state.kp = 2.0; state.ki = 0.1; state.kd = 0.5; state.setpoint = 55;
       syncControls();
       var t = $("manualToggle"); if (t) t.checked = false;
       setManualUI(false);
       var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
-      log("[SYSTEM] Normal reset — defaults restored");
+      watchdogTripped = false;
+      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-rotate-right'></i> [SYSTEM]</strong> Normal reset complete.");
     });
 
     bindModals();
-
-    var menu = $("menuBtn");
-    if (menu) menu.addEventListener("click", function () { document.body.classList.toggle("nav-open"); });
-    var items = document.querySelectorAll(".nav-item");
-    Array.prototype.forEach.call(items, function (a) {
-      a.addEventListener("click", function (e) {
-        var modal = a.getAttribute("data-modal");
-        var view = a.getAttribute("data-view");
-        if (modal) {
-          e.preventDefault();
-          if (modal === "analyticsModal") fillAnalytics();
-          openModal(modal);
-          document.body.classList.remove("nav-open");
-          return;
-        }
-        Array.prototype.forEach.call(items, function (b) { b.classList.remove("active"); });
-        a.classList.add("active");
-        document.body.classList.remove("nav-open");
-        if (view === "analytics") fillAnalyticsFlash();
-      });
-    });
   }
 
   /* ---------- Modals ---------- */
   function openModal(id) {
-    var m = $(id);
-    if (!m) return;
-    m.classList.add("open");
-    m.setAttribute("aria-hidden", "false");
+    var m = $(id); if (!m) return;
+    m.classList.add("open"); m.setAttribute("aria-hidden", "false");
   }
   function closeModal(m) {
-    if (typeof m === "string") m = $(m);
-    if (!m) return;
-    m.classList.remove("open");
-    m.setAttribute("aria-hidden", "true");
+    if (typeof m === "string") m = $(m); if (!m) return;
+    m.classList.remove("open"); m.setAttribute("aria-hidden", "true");
   }
   function syncSettingsForm() {
     var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType"), mf = $("settingsMaxFlow");
-    if (s) s.value = state.setpoint;
-    if (c) c.value = state.tankCapacity;
-    if (soil) soil.value = state.soilType;
-    if (mf) mf.value = state.maxFlow;
+    if (s) s.value = state.setpoint; if (c) c.value = state.tankCapacity;
+    if (soil) soil.value = state.soilType; if (mf) mf.value = state.maxFlow;
   }
-  function fillAnalytics() {
-    function avg(a) {
-      if (!a.length) return 0;
-      var s = 0, i;
-      for (i = 0; i < a.length; i++) s += a[i];
-      return s / a.length;
-    }
-    var n = vwcSeries.length;
-    var mn = n ? Math.min.apply(null, vwcSeries) : 0;
-    var mx = n ? Math.max.apply(null, vwcSeries) : 0;
-    setText("statSamples", String(n));
-    setText("statVwc", n ? avg(vwcSeries).toFixed(1) + " / " + mn.toFixed(1) + " / " + mx.toFixed(1) + " %" : "--");
-    setText("statPwm", pwmSeries.length ? avg(pwmSeries).toFixed(1) + " %" : "--");
-    setText("statWater", cumWaterL.toFixed(2) + " L dispensed");
-    var up = $("uptimeTimer");
-    setText("statUptime", up ? up.textContent : "--");
-  }
-  function fillAnalyticsFlash() {
-    fillAnalytics();
-    openModal("analyticsModal");
-  }
+  
   function bindModals() {
     var overlays = document.querySelectorAll(".modal-overlay");
     Array.prototype.forEach.call(overlays, function (o) {
-      o.addEventListener("click", function (e) {
-        if (e.target === o) closeModal(o);
-      });
+      o.addEventListener("click", function (e) { if (e.target === o) closeModal(o); });
       var closers = o.querySelectorAll("[data-close]");
       Array.prototype.forEach.call(closers, function (b) {
         b.addEventListener("click", function () { closeModal(o); });
       });
     });
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        Array.prototype.forEach.call(overlays, function (o) { closeModal(o); });
-      }
+      if (e.key === "Escape") Array.prototype.forEach.call(overlays, function (o) { closeModal(o); });
     });
+    
     var save = $("settingsSave");
     if (save) save.addEventListener("click", function () {
       pressFlash(save);
@@ -481,21 +469,19 @@
       var maxF = mf && mf.value !== "" ? Math.max(0, Math.min(50, parseFloat(mf.value) || 0)) : 0;
       state.setpoint = sp; state.tankCapacity = cap; state.soilType = st; state.maxFlow = maxF;
       setText("setpointValue", sp.toFixed(1) + "%");
-      var spSlider = $("setpointSlider");
-      if (spSlider) spSlider.value = sp;
+      var spSlider = $("setpointSlider"); if (spSlider) spSlider.value = sp;
       if (socket && socket.connected) {
         socket.emit("client:update_settings", { setpoint: sp, tankCapacityL: cap, soilType: st, maxFlowL: maxF });
         socket.emit("client:update_setpoint", sp);
       }
       closeModal("settingsModal");
-      log("[SETTINGS] Target=" + sp.toFixed(1) + "% · Tank=" + cap + "L · Soil=" + st + " · MaxFlow=" + (maxF > 0 ? maxF + "L/min" : "uncapped"));
+      log("<strong style='color:var(--cyan)'>[CONFIG]</strong> Applied: Target=" + sp.toFixed(1) + "% · Tank=" + cap + "L · Soil=" + st.toUpperCase());
     });
+    
     var accept = $("consentAccept");
     if (accept) accept.addEventListener("click", function () {
-      var checked = $("consentCheck");
-      var ok = checked ? !!checked.checked : true;
       closeModal("termsModal");
-      log(ok ? "[COMPLIANCE] Data-logging consent recorded" : "[COMPLIANCE] Terms viewed — consent declined");
+      log("<strong style='color:var(--emerald)'>[COMPLIANCE]</strong> Enterprise Data-logging consent recorded.");
     });
   }
 
@@ -506,17 +492,16 @@
     setStatus(false);
     var socketScript = typeof io !== "undefined";
     if (!socketScript) {
-      log("Socket.io failed to load");
+      log("Socket.io library not found.");
       return;
     }
     try {
       socket = io({ transports: ["websocket", "polling"], reconnectionAttempts: 10 });
     } catch (e) {
-      log("Socket.io connection failed");
       return;
     }
-    socket.on("connect", function () { setStatus(true); log("Connected to HydroSync server"); });
-    socket.on("disconnect", function () { setStatus(false); log("Disconnected from server"); });
+    socket.on("connect", function () { setStatus(true); });
+    socket.on("disconnect", function () { setStatus(false); });
     socket.on("connect_error", function () { setStatus(false); });
     socket.on("telemetry", onTelemetry);
     window.addEventListener("resize", function () { if (chart) chart.resize(); });
