@@ -1,6 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Advanced SCADA Client
-   Features: AI Co-Pilot, Watchdog Failsafe, ROI Calculator, Multi-Zone
+   Features: AI Co-Pilot, Watchdog Failsafe, ROI Calculator, Multi-Zone &
+             Agronomic Crop Profiles Engine
    ========================================================================== */
 (function () {
   "use strict";
@@ -8,7 +9,7 @@
   var FIFO_MAX = 25;
   var CIRC = 502.65; // 2*pi*80 for radial gauges
   var FLOW_MAX = 50; // L/min gauge capacity
-  var WATER_PRICE = 0.045; // Cost per liter saved for ROI calculation
+  var WATER_PRICE = 0.045; // Cost per liter saved ($) for ROI calculation
 
   var socket = null;
   var twinTank = 85; 
@@ -21,9 +22,30 @@
   var booted = false;
   
   // Advanced State Tracking
-  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200, maxFlow: 0, activeZone: "A1" };
+  var state = { 
+    kp: 2.0, 
+    ki: 0.1, 
+    kd: 0.5, 
+    setpoint: 55.0, 
+    manual: false, 
+    manualPwm: 0, 
+    soilType: "loam", 
+    tankCapacity: 200, 
+    maxFlow: 0, 
+    activeZone: "A1" 
+  };
   var watchdogTripped = false;
   var aiLastAlert = 0;
+
+  // 🌾 Agronomic Crop Profiles Database (Biological Setpoints & Tuning)
+  var CROP_PROFILES = {
+    "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4, note: "Cereal grain — balanced drainage requirement" },
+    "Tomatoes": { setpoint: 65.0, kp: 3.2, ki: 0.16, kd: 0.6, note: "High hydration demand, sensitive to deficit" },
+    "Olives": { setpoint: 35.0, kp: 1.4, ki: 0.04, kd: 0.3, note: "Deep-root tree — drought tolerant, low budget" },
+    "Barley": { setpoint: 42.0, kp: 2.0, ki: 0.07, kd: 0.35, note: "Hardy dryland crop — low water footprint" },
+    "Corn": { setpoint: 60.0, kp: 2.8, ki: 0.12, kd: 0.5, note: "High evapotranspiration rate, rapid depletion" },
+    "Potatoes": { setpoint: 55.0, kp: 2.4, ki: 0.10, kd: 0.45, note: "Tuber crop — requires balanced, stable hydration" }
+  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -38,7 +60,6 @@
       time.textContent = t;
       li.appendChild(time);
       
-      // Inject HTML safely for advanced formatting
       var contentSpan = document.createElement("span");
       contentSpan.innerHTML = " " + msg;
       li.appendChild(contentSpan);
@@ -47,7 +68,7 @@
       while (list.children.length > 30) list.removeChild(list.lastChild);
       var count = $("logCount");
       if (count) count.textContent = list.children.length + " events";
-    } catch (e) { /* never break UI for logs */ }
+    } catch (e) { /* keep UI stable */ }
   }
 
   function fmtUptime(total) {
@@ -80,7 +101,7 @@
 
   function setText(id, text) {
     var el = $(id);
-    if (el) el.innerHTML = text; // Used innerHTML to allow colored badges in metrics
+    if (el) el.innerHTML = text;
   }
 
   /* ---------- Chart ---------- */
@@ -171,7 +192,7 @@
     setText("conservationValueDisplay", Math.round(saved) + "%");
     setRing("conservationProgress", saved / 100);
     
-    // 💡 ROI Calculator: Convert Liters saved to Financial Value
+    // Financial ROI Calculation
     var litersSaved = (typeof d.waterSavedL === "number") ? d.waterSavedL : 0;
     var moneySaved = (litersSaved * WATER_PRICE).toFixed(3);
     setText("savedLitersValue", litersSaved.toFixed(1) + " L <span style='color:var(--emerald); margin-left:6px;'><i class='fa-solid fa-sack-dollar'></i> $" + moneySaved + "</span>");
@@ -190,7 +211,7 @@
     
     updateTwin(vwc, pwm, flow, d);
     renderZones(d.zones, d.activeZoneId);
-    runAIAnalyst(vwc, sp, pwm, flow); // Run AI checks
+    runAIAnalyst(vwc, sp, pwm, flow);
 
     if (!booted) {
       booted = true;
@@ -210,12 +231,12 @@
   /* ---------- AI Agronomist Co-Pilot ---------- */
   function runAIAnalyst(vwc, sp, pwm, flow) {
     var now = Date.now();
-    if (now - aiLastAlert > 20000) { // Limit AI advice to every 20 seconds
+    if (now - aiLastAlert > 20000) {
       if (pwm > 85 && vwc < sp - 15) {
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output detected with low moisture response. Suspected pipe leak or extreme evaporation in Zone " + state.activeZone + ".");
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output detected with low moisture response. Suspected hydraulic pipe leak or rapid drainage in Zone " + state.activeZone + ".");
         aiLastAlert = now;
       } else if (vwc > 85) {
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> Soil saturation critical. Decreasing Target Setpoint is highly recommended to prevent root rot.");
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> Soil saturation critical. Decreasing Target Setpoint is recommended to protect crop root structure.");
         aiLastAlert = now;
       }
     }
@@ -234,7 +255,7 @@
         liters = twinTank / 100 * state.tankCapacity;
       }
 
-      // 🛡️ Hardware Watchdog: Dry-Run Protection
+      // Hardware Watchdog: Dry-Run Failsafe
       if (pct <= 5.0 && !watchdogTripped) {
         watchdogTripped = true;
         state.manual = true;
@@ -243,11 +264,11 @@
         if (socket && socket.connected) {
           socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
         }
-        log("<strong style='color:var(--danger)'><i class='fa-solid fa-triangle-exclamation'></i> [WATCHDOG]</strong> Tank level critical (<5%). Emergency shutoff engaged to prevent pump damage.");
+        log("<strong style='color:var(--danger)'><i class='fa-solid fa-triangle-exclamation'></i> [WATCHDOG]</strong> Tank level critical (<5%). Emergency shutoff engaged to prevent pump cavitation.");
         var shutoff = $("shutoffBtn"); if (shutoff) shutoff.classList.add("armed");
       } else if (pct > 10 && watchdogTripped) {
         watchdogTripped = false;
-        log("<strong style='color:var(--emerald)'>[WATCHDOG]</strong> Tank level restored. System ready.");
+        log("<strong style='color:var(--emerald)'>[WATCHDOG]</strong> Tank volume recovered. Interlock cleared.");
       }
 
       var fill = $("twinTankFill");
@@ -377,15 +398,40 @@
       log(state.manual ? "<strong style='color:var(--amber)'>[MANUAL]</strong> Override engaged — valve at " + state.manualPwm + "%" : "<strong style='color:var(--emerald)'>[AUTO]</strong> Returned to AI PID control");
     });
 
+    // 🌾 Interactive Micro-Plots Zone Selection with Crop Profiles Engine
     var zc = $("zonesContainer");
     if (zc) zc.addEventListener("click", function (e) {
       var t = e.target;
       var card = (t && t.closest) ? t.closest(".zone-card[data-zone]") : null;
       if (!card) return;
       var id = card.getAttribute("data-zone");
-      if (!id || id === state.activeZone) return;
-      if (socket && socket.connected) socket.emit("client:select_zone", id);
-      log("<strong style='color:var(--cyan)'>[DISPATCH]</strong> Agronomy focus switched to Sector " + id);
+      if (!id) return;
+
+      var cropTag = card.querySelector(".crop-tag");
+      var cropName = cropTag ? cropTag.textContent.trim() : "Wheat";
+      var profile = CROP_PROFILES[cropName] || CROP_PROFILES["Wheat"];
+
+      // Update local state with agronomic profile
+      state.activeZone = id;
+      state.setpoint = profile.setpoint;
+      state.kp = profile.kp;
+      state.ki = profile.ki;
+      state.kd = profile.kd;
+
+      syncControls();
+      setText("activeZoneBadge", "Active: Zone " + id + " (" + cropName + ")");
+
+      var allCards = zc.querySelectorAll(".zone-card");
+      Array.prototype.forEach.call(allCards, function (c) { c.classList.remove("active"); });
+      card.classList.add("active");
+
+      if (socket && socket.connected) {
+        socket.emit("client:select_zone", id);
+        socket.emit("client:update_setpoint", state.setpoint);
+        emitPid();
+      }
+
+      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-seedling'></i> [AGRONOMIST]</strong> Switched focus to Sector " + id + " (<strong>" + cropName + "</strong>). Applied optimal target: " + profile.setpoint.toFixed(1) + "% (" + profile.note + ")");
     });
 
     function disturbance(type, label) {
