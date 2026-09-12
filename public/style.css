@@ -1,0 +1,605 @@
+/**
+ * style.css - HydroSync Competition-Grade SCADA Dashboard
+ * 
+ * Ultra-modern Dark Cyber-Industrial theme for international jury evaluation.
+ * Aligned with UN SDG 6 & 13 Precision Agriculture Digital Twin standards.
+ * 
+ * Color Palette (ANSI-approved industrial colors):
+ *   --obsidian-primary: #070A11 (Deep obsidian - main background)
+ *   --slate-card:       #0E1424 (Card surface - slate)
+ *   --cyan-highlight:   #00E5FF (Cyan accent - live data, active states)
+ *   --emerald-normal:   #10B981 (Emerald - normal/healthy operation)
+ *   --amber-warning:    #F59E0B (Amber - warnings, deviations)
+ *   --midnight-bg:      #050511 (Secondary depth background)
+ */
+
+:root {
+  --obsidian-primary: #070A11;
+  --slate-card:       #0E1424;
+  --cyan-highlight:   #00E5FF;
+  --emerald-normal:   #10B981;
+  --amber-warning:    #F59E0B;
+  --midnight-bg:      #050511;
+  --glow-cyan:        rgba(0, 229, 255, 0.35);
+  --glow-emerald:     rgba(16, 185, 129, 0.3);
+  --glow-amber:       rgba(245, 158, 11, 0.3);
+  --max-width:        1600px;
+  --font-primary:     'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --font-mono:        'JetBrains Mono', 'Fira Mono', monospace;
+}
+
+/* --- CSS Variables & Base Reset --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  transition: none 0.15s ease; /* Minimal transitions for SCADA responsiveness */
+}
+
+html {
+  font-size: 16px; /* Base - scales responsively */
+  -webkit-text-size-adjust: 100%; /* Prevents iOS font scaling */
+}
+
+body {
+  font-family: var(--font-primary);
+  background: var(--obsidian-primary);
+  color: var(--cyan-highlight);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* --- Background Depth & Atmosphere --- */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    radial-gradient(at 20% 80%, rgba(0, 229, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(at 80% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
+    radial-gradient(at 50% 50%, #070A11 0%, #050511 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    linear-gradient(180deg, transparent 0%, rgba(0, 229, 255, 0.02) 100%),
+    linear-gradient(90deg, transparent 0%, rgba(16, 185, 129, 0.02) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* --- Reduced Motion --- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+  .radial-ring svg circle {
+    transition: none !important;
+  }
+  .chart-container canvas {
+    animation: none !important;
+  }
+}
+
+/* --- Main Layout Container --- */
+.main-container {
+  position: relative;
+  z-index: 2;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 36px 48px;
+  padding-top: 96px; /* Space for header heartbeat */
+}
+
+/* --- Header / Top Bar --- */
+.header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(7, 10, 17, 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+  z-index: 100;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 48px;
+}
+
+.header .brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+.header .brand .icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--cyan-highlight), var(--emerald-normal));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: var(--obsidian-primary);
+}
+
+.header .brand h1 {
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--cyan-highlight) 0%, var(--emerald-normal) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+.header .brand .subtitle {
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-left: 4px;
+}
+
+/* Heartbeat Pulse Indicator (LIVE TELEMETRY STREAM) */
+.heartbeat-indicator {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--emerald-normal);
+  animation: heartbeat 1s ease-in-out infinite;
+  box-shadow: 0 0 12px var(--glow-emerald);
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.6; }
+}
+
+/* System Uptime & Connection */
+.telemetry-controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.uptime-timer {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.4);
+  background: rgba(0,0,0,0.3);
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 20px;
+  font-size: 0.7rem;
+  color: var(--cyan-highlight);
+}
+
+.connection-status .ping-indicator {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--emerald-normal);
+  animation: ping 2s ease-in-out infinite;
+}
+
+.connection-status.disconnected .ping-indicator {
+  background: var(--amber-warning);
+  animation: ping 0.5s ease-in-out infinite;
+}
+
+@keyframes ping {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+}
+
+/* --- Section A: Core Vital Gauges --- */
+.section-a {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 28px;
+  margin: 100px 0 60px 0; /* Below fixed header */
+}
+
+/* Radial Progress Ring Component */
+.radial-ring {
+  position: relative;
+  width: 180px; height: 180px;
+  margin: 0 auto;
+}
+
+.radial-ring svg {
+  transform: rotate(-90deg);
+  width: 100%; height: 100%;
+}
+
+.radial-ring .background {
+  fill: none;
+  stroke: var(--slate-card);
+  stroke-width: 12;
+}
+
+.radial-ring .progress {
+  fill: none;
+  stroke: var(--cyan-highlight);
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Labels inside ring */
+.radial-ring .label {
+  position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-anchor: middle;
+  font-family: var(--font-mono);
+  font-size: 1.8rem;
+  font-weight: 700;
+  fill: var(--cyan-highlight);
+}
+
+.radial-ring .sub-label {
+  position: absolute;
+  bottom: 20px; left: 50%; transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.5);
+  text-anchor: middle;
+}
+
+/* Card wrapping the radial ring */
+.gauge-card {
+  background: var(--slate-card);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.gauge-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan-highlight), transparent);
+  opacity: 0.5;
+}
+
+.gauge-card .card-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 12px;
+}
+
+/* Specific colors per gauge type */
+.gauge-card.vwc .radial-ring .progress { stroke: var(--emerald-normal); }
+.gauge-card.vwc .label { fill: var(--emerald-normal); }
+
+.gauge-card.actuator .radial-ring .progress { stroke: var(--amber-warning); }
+.gauge-card.actuator .label { fill: var(--amber-warning); }
+
+.gauge-card.flow .radial-ring .progress { stroke: var(--cyan-highlight); }
+.gauge-card.flow .label { fill: var(--cyan-highlight); }
+
+.gauge-card.conservation .radial-ring .progress { stroke: var(--amber-warning); }
+.gauge-card.conservation .label { fill: var(--amber-warning); }
+
+/* Value display below card */
+.gauge-card .value-display {
+  margin-top: 16px;
+  font-size: 1.1rem;
+  color: var(--cyan-highlight);
+  font-weight: 500;
+}
+
+/* --- Section B: Main Telemetry Graph --- */
+.section-b {
+  margin: 60px 0;
+}
+
+.chart-section {
+  background: var(--slate-card);
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px;
+}
+
+.chart-section .section-header {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+.chart-section canvas {
+  width: 100% !important;
+  height: 500px !important;
+  background: var(--midnight-bg) !important;
+  border-radius: 12px !important;
+  display: block !important;
+  margin: 0 auto !important;
+}
+
+/* Chart.js Customizations will be applied in app.js */
+
+/* --- Section C: PID Engine Tuning & Diagnostics --- */
+.section-c {
+  margin: 60px 0;
+}
+
+.pid-panel {
+  background: var(--slate-card);
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px;
+}
+
+.pid-panel .section-header {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 28px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+.pid-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+/* PID Parameter Card */
+.pid-card {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.pid-card .parameter-name {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 12px;
+  display: block;
+}
+
+.pid-card .slider-wrapper {
+  width: 100%;
+}
+
+.pid-card .slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 4px;
+  outline: none;
+  margin: 8px 0;
+}
+
+.pid-card .slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px; height: 20px;
+  background: var(--cyan-highlight);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 12px var(--glow-cyan);
+  transition: transform 0.15s ease;
+}
+
+.pid-card .slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+.pid-card .slider::-moz-range-thumb {
+  width: 20px; height: 20px;
+  background: var(--cyan-highlight);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.pid-card .value-display {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--cyan-highlight);
+}
+
+.pid-card .value-display .current { color: var(--cyan-highlight); }
+.pid-card .value-display .max { color: rgba(255,255,255,0.3); }
+
+/* P-term, I-term, D-term breakdown */
+.term-breakdown {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0,229,255,0.1);
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.4);
+}
+
+.term-breakdown .term {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0;
+}
+
+.term-breakdown .term-span { color: var(--amber-warning); }
+
+/* Anti-Windup Indicator / Saturation LED */
+.anti-windup-indicator {
+  margin-top: 24px;
+  padding: 16px;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.anti-windup-led {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--emerald-normal);
+  box-shadow: 0 0 8px var(--glow-emerald);
+  animation: windup-blink 2s ease-in-out infinite;
+}
+
+.anti-windup-led.warning { background: var(--amber-warning); box-shadow: 0 0 8px var(--glow-amber); }
+
+@keyframes windup-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* --- Section D: Disturbance Injector (Jury Demo) --- */
+.section-d {
+  margin: 60px 0;
+}
+
+.disturbance-panel {
+  background: var(--slate-card);
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  border-radius: 20px;
+  padding: 32px;
+}
+
+.disturbance-panel .section-header {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+.disturbance-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.disturbance-btn {
+  padding: 16px 24px;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--cyan-highlight);
+  font-family: var(--font-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.disturbance-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.disturbance-btn:hover {
+  color: var(--obsidian-primary);
+  background: var(--cyan-highlight);
+}
+
+.disturbance-btn.drought {
+  color: var(--amber-warning);
+}
+
+.disturbance-btn.drought:hover {
+  background: rgba(245,158,11,0.1);
+}
+
+.disturbance-btn.rain {
+  color: var(--emerald-normal);
+}
+
+.disturbance-btn.rain:hover {
+  background: rgba(16,185,129,0.1);
+}
+
+.disturbance-btn.reset {
+  color: var(--emerald-normal);
+}
+
+.disturbance-btn.reset:hover {
+  background: rgba(16,185,129,0.1);
+}
+
+/* Jury Badge */
+.jury-badge {
+  position: fixed;
+  bottom: 32px; right: 32px;
+  background: rgba(0,229,255,0.1);
+  border: 1px solid rgba(0,229,255,0.3);
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 0.65rem;
+  color: var(--cyan-highlight);
+  backdrop-filter: blur(8px);
+}
+
+/* --- Responsive --- */
+@media (max-width: 1024px) {
+  .main-container { padding: 24px 20px; }
+  .header { padding: 0 20px; height: 64px; }
+  .heartbeat-indicator { display: none; }
+  .section-a { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .gauge-card { padding: 16px; }
+  .pid-controls { grid-template-columns: 1fr; }
+  .disturbance-buttons { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 768px) {
+  .main-container { padding: 16px; }
+  .section-a { grid-template-columns: 1fr; }
+  .header .brand h1 { font-size: 1rem; }
+  .telemetry-controls { display: none; } /* Mobile: full-screen toggle */
+  .jury-badge { display: none; }
+}
+
+/* --- Print / Export Styles --- */
+@media print {
+  body * { visibility: hidden; }
+  .main-container, .main-container * { visibility: visible; }
+  .main-container { position: absolute; top: 0; left: 0; width: 100%; }
+}
