@@ -50,7 +50,10 @@
     badge.classList.toggle("online", !!online);
     badge.classList.toggle("offline", !online);
     txt.textContent = online ? "ONLINE" : "OFFLINE";
-    if (dot) dot.style.background = online ? "var(--emerald)" : "#64748b";
+    if (dot) {
+      dot.style.background = online ? "var(--emerald)" : "var(--danger)";
+      dot.style.boxShadow = online ? "0 0 10px rgba(16,185,129,.8)" : "0 0 10px rgba(239,68,68,.8)";
+    }
     var beat = $("heartbeatPulse");
     if (beat) beat.style.opacity = online ? "1" : "0.25";
   }
@@ -72,6 +75,7 @@
     var canvas = $("mainChart");
     if (!canvas || typeof Chart === "undefined") return;
     var ctx = canvas.getContext("2d");
+    if (!ctx) return;
     var grad = ctx.createLinearGradient(0, 0, 0, 340);
     grad.addColorStop(0, "rgba(0,229,255,0.35)");
     grad.addColorStop(1, "rgba(0,229,255,0.02)");
@@ -233,16 +237,17 @@
       if (typeof activeId === "string") state.activeZone = activeId;
       for (var i = 0; i < zones.length; i++) {
         (function (z) {
-          var cell = document.querySelector('#zonesContainer [data-zone="' + z.id + '"]');
-          if (!cell) return;
+          if (!z || typeof z.id !== "string") return;
+          var card = document.querySelector('#zonesContainer [data-zone="' + z.id + '"]');
+          if (!card) return;
           var m = Math.max(0, Math.min(100, +z.moisture || 0));
-          var val = cell.querySelector(".zone-val");
+          var val = card.querySelector(".zone-val");
           if (val) val.textContent = Math.round(m) + "%";
-          cell.classList.remove("dry", "optimal", "wet");
-          cell.classList.add(zoneBand(m));
+          card.classList.remove("dry", "optimal", "wet");
+          card.classList.add(zoneBand(m));
           var isActive = z.id === state.activeZone;
-          cell.classList.toggle("active", isActive);
-          cell.setAttribute("aria-selected", isActive ? "true" : "false");
+          card.classList.toggle("active", isActive);
+          card.setAttribute("aria-selected", isActive ? "true" : "false");
         })(zones[i]);
       }
       setText("activeZoneBadge", "Active: Zone " + state.activeZone);
@@ -268,11 +273,29 @@
     socket.emit("client:update_pid", { kp: state.kp, ki: state.ki, kd: state.kd });
   }
 
+  function pressFlash(el) {
+    if (!el) return;
+    el.classList.add("firing");
+    setTimeout(function () { el.classList.remove("firing"); }, 320);
+  }
+
+  function setManualUI(manual) {
+    setText("modeLabel", manual ? "MANUAL" : "AUTO");
+    setText("pidMode", manual ? "MANUAL" : "AUTO");
+    var row = $("manualRow");
+    if (row) row.hidden = !manual;
+    var banner = $("manualBanner");
+    if (banner) banner.hidden = !manual;
+    var pidCard = document.querySelector(".pid-card");
+    if (pidCard) pidCard.classList.toggle("manual-active", manual);
+  }
+
   function bindControls() {
     function slider(id, fn) {
       var el = $(id);
       if (el) el.addEventListener("input", fn);
     }
+    // PID sliders → client:update_pid
     slider("KpSlider", function (e) {
       state.kp = parseFloat(e.target.value) || 0;
       setText("KpValue", state.kp.toFixed(2)); emitPid();
@@ -301,17 +324,11 @@
       if (state.manual) log("[MANUAL] Valve opened to " + state.manualPwm + "%");
     });
 
+    // Manual mode toggle → client:manual_override
     var toggle = $("manualToggle");
     if (toggle) toggle.addEventListener("change", function (e) {
       state.manual = !!e.target.checked;
-      setText("modeLabel", state.manual ? "MANUAL" : "AUTO");
-      setText("pidMode", state.manual ? "MANUAL" : "AUTO");
-      var row = $("manualRow");
-      if (row) row.hidden = !state.manual;
-      var banner = $("manualBanner");
-      if (banner) banner.hidden = !state.manual;
-      var pidCard = document.querySelector(".pid-card");
-      if (pidCard) pidCard.classList.toggle("manual-active", state.manual);
+      setManualUI(state.manual);
       var shut = $("shutoffBtn");
       if (shut) shut.classList.toggle("armed", false);
       if (socket && socket.connected)
@@ -319,20 +336,7 @@
       log(state.manual ? "[MANUAL] Override engaged — valve at " + state.manualPwm + "%" : "[AUTO] Returned to PID control");
     });
 
-    function pressFlash(el) {
-      if (!el) return;
-      el.classList.add("firing");
-      setTimeout(function () { el.classList.remove("firing"); }, 320);
-    }
-    function disturbance(type, label) {
-      return function (e) {
-        pressFlash(e && e.currentTarget);
-        if (socket && socket.connected) socket.emit("client:disturbance", type);
-        var badge = $("juryBadge");
-        if (badge) badge.textContent = label + " — watch recovery…";
-        log("[WEATHER] " + label + " simulated");
-      };
-    }
+    // Zone cards → active monitoring zone
     var zc = $("zonesContainer");
     if (zc) zc.addEventListener("click", function (e) {
       var t = e.target;
@@ -345,6 +349,16 @@
       log("[DISPATCH] Switched focus to Sector " + id + " - Moisture: " + (val ? val.textContent : "--"));
     });
 
+    // Weather buttons → client:disturbance (+ visual + log feedback)
+    function disturbance(type, label) {
+      return function (e) {
+        pressFlash(e && e.currentTarget);
+        if (socket && socket.connected) socket.emit("client:disturbance", type);
+        var badge = $("juryBadge");
+        if (badge) badge.textContent = label + " — watch recovery…";
+        log("[WEATHER] " + label + " simulated");
+      };
+    }
     var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");
     if (dr) dr.addEventListener("click", disturbance("drought", "Severe drought"));
     if (ra) ra.addEventListener("click", disturbance("rain", "Heavy rain"));
@@ -354,11 +368,7 @@
       state.manual = true;
       state.manualPwm = 0;
       var t = $("manualToggle"); if (t) t.checked = true;
-      setText("modeLabel", "MANUAL"); setText("pidMode", "MANUAL");
-      var row = $("manualRow"); if (row) { row.hidden = false; }
-      var banner = $("manualBanner"); if (banner) banner.hidden = false;
-      var pidCard = document.querySelector(".pid-card");
-      if (pidCard) pidCard.classList.add("manual-active");
+      setManualUI(true);
       var pwm = $("manualPwmSlider"); if (pwm) pwm.value = 0;
       setText("manualPwmValue", "0%");
       if (socket && socket.connected) socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
@@ -375,11 +385,7 @@
       state.kp = 2.0; state.ki = 0.1; state.kd = 0.5; state.setpoint = 55;
       syncControls();
       var t = $("manualToggle"); if (t) t.checked = false;
-      setText("modeLabel", "AUTO"); setText("pidMode", "AUTO");
-      var row = $("manualRow"); if (row) row.hidden = true;
-      var banner = $("manualBanner"); if (banner) banner.hidden = true;
-      var pidCard = document.querySelector(".pid-card");
-      if (pidCard) pidCard.classList.remove("manual-active");
+      setManualUI(false);
       var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
       log("[SYSTEM] Normal reset — defaults restored");
     });
@@ -467,6 +473,7 @@
     });
     var save = $("settingsSave");
     if (save) save.addEventListener("click", function () {
+      pressFlash(save);
       var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType"), mf = $("settingsMaxFlow");
       var sp = s ? Math.max(0, Math.min(100, parseFloat(s.value) || state.setpoint)) : state.setpoint;
       var cap = c ? Math.max(20, Math.min(2000, parseFloat(c.value) || state.tankCapacity)) : state.tankCapacity;
@@ -497,10 +504,15 @@
     initChart();
     bindControls();
     setStatus(false);
+    var socketScript = typeof io !== "undefined";
+    if (!socketScript) {
+      log("Socket.io failed to load");
+      return;
+    }
     try {
       socket = io();
     } catch (e) {
-      log("Socket.io failed to load");
+      log("Socket.io connection failed");
       return;
     }
     socket.on("connect", function () { setStatus(true); log("Connected to HydroSync server"); });

@@ -127,18 +127,6 @@
           </div>
         </div>
       </section>
-      <section class="glass-card field-card" id="field" aria-label="Field micro-plots and soil heatmap">
-        <div class="card-top"><span class="card-title"><i class="fa-solid fa-table-cells"></i> Field Micro-Plots &amp; Soil Heatmap</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="fieldActive">Zone A1</span></span></div>
-        <div class="zone-grid" id="zoneGrid" role="listbox" aria-label="Field zones">
-          <button class="zone-cell" data-zone="A1" role="option" aria-selected="true"><span class="zone-id">A1</span><span class="zone-crop">Wheat</span><span class="zone-moist" id="zoneMoist-A1">--%</span></button>
-          <button class="zone-cell" data-zone="A2" role="option" aria-selected="false"><span class="zone-id">A2</span><span class="zone-crop">Tomatoes</span><span class="zone-moist" id="zoneMoist-A2">--%</span></button>
-          <button class="zone-cell" data-zone="A3" role="option" aria-selected="false"><span class="zone-id">A3</span><span class="zone-crop">Lettuce</span><span class="zone-moist" id="zoneMoist-A3">--%</span></button>
-          <button class="zone-cell" data-zone="B1" role="option" aria-selected="false"><span class="zone-id">B1</span><span class="zone-crop">Corn</span><span class="zone-moist" id="zoneMoist-B1">--%</span></button>
-          <button class="zone-cell" data-zone="B2" role="option" aria-selected="false"><span class="zone-id">B2</span><span class="zone-crop">Carrots</span><span class="zone-moist" id="zoneMoist-B2">--%</span></button>
-          <button class="zone-cell" data-zone="B3" role="option" aria-selected="false"><span class="zone-id">B3</span><span class="zone-crop">Peppers</span><span class="zone-moist" id="zoneMoist-B3">--%</span></button>
-        </div>
-        <p class="muted small">Select a zone to focus the dials, charts, and pump control on that sector.</p>
-      </section>
       <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
         <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
