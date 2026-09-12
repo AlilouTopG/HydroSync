@@ -40,10 +40,10 @@ const SOILS = {
 const ZONE_DEFS = [
   { id: 'A1', crop: 'Wheat',    drain: 1.00, moisture: 38.0 },
   { id: 'A2', crop: 'Tomatoes', drain: 1.15, moisture: 32.0 },
-  { id: 'A3', crop: 'Lettuce',  drain: 0.90, moisture: 45.0 },
-  { id: 'B1', crop: 'Corn',     drain: 1.05, moisture: 30.0 },
-  { id: 'B2', crop: 'Carrots',  drain: 0.85, moisture: 50.0 },
-  { id: 'B3', crop: 'Peppers',  drain: 1.20, moisture: 36.0 }
+  { id: 'A3', crop: 'Olives',   drain: 0.90, moisture: 45.0 },
+  { id: 'B1', crop: 'Barley',   drain: 1.05, moisture: 30.0 },
+  { id: 'B2', crop: 'Corn',     drain: 0.85, moisture: 50.0 },
+  { id: 'B3', crop: 'Potatoes', drain: 1.20, moisture: 36.0 }
 ];
 function defaultZones() {
   return ZONE_DEFS.map(z => ({ id: z.id, crop: z.crop, drain: z.drain, moisture: z.moisture }));

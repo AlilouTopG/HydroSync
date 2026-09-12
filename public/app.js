@@ -233,11 +233,11 @@
       if (typeof activeId === "string") state.activeZone = activeId;
       for (var i = 0; i < zones.length; i++) {
         (function (z) {
-          var cell = document.querySelector('[data-zone="' + z.id + '"]');
+          var cell = document.querySelector('#zonesContainer [data-zone="' + z.id + '"]');
           if (!cell) return;
           var m = Math.max(0, Math.min(100, +z.moisture || 0));
-          var moist = cell.querySelector(".zone-moist");
-          if (moist) moist.textContent = m.toFixed(1) + "%";
+          var val = cell.querySelector(".zone-val");
+          if (val) val.textContent = Math.round(m) + "%";
           cell.classList.remove("dry", "optimal", "wet");
           cell.classList.add(zoneBand(m));
           var isActive = z.id === state.activeZone;
@@ -245,6 +245,7 @@
           cell.setAttribute("aria-selected", isActive ? "true" : "false");
         })(zones[i]);
       }
+      setText("activeZoneBadge", "Active: Zone " + state.activeZone);
       setText("fieldActive", "Zone " + state.activeZone);
     } catch (e) { /* heatmap must never break telemetry */ }
   }
@@ -332,16 +333,16 @@
         log("[WEATHER] " + label + " simulated");
       };
     }
-    var zg = $("zoneGrid");
-    if (zg) zg.addEventListener("click", function (e) {
+    var zc = $("zonesContainer");
+    if (zc) zc.addEventListener("click", function (e) {
       var t = e.target;
-      var cell = (t && t.closest) ? t.closest("[data-zone]") : null;
-      if (!cell) return;
-      var id = cell.getAttribute("data-zone");
+      var card = (t && t.closest) ? t.closest(".zone-card[data-zone]") : null;
+      if (!card) return;
+      var id = card.getAttribute("data-zone");
       if (!id || id === state.activeZone) return;
       if (socket && socket.connected) socket.emit("client:select_zone", id);
-      var moist = cell.querySelector(".zone-moist");
-      log("[DISPATCH] Switched focus to Sector " + id + " - Moisture: " + (moist ? moist.textContent : "--"));
+      var val = card.querySelector(".zone-val");
+      log("[DISPATCH] Switched focus to Sector " + id + " - Moisture: " + (val ? val.textContent : "--"));
     });
 
     var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");

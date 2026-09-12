@@ -49,6 +49,21 @@
       </div>
     </header>
     <main class="dashboard" id="overview">
+<section class="card field-grid-section" id="fieldSection">
+  <div class="card-head">
+    <h3><i class="fa-solid fa-border-all"></i> Field Micro-Plots & Soil Heatmap</h3>
+    <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
+  </div>
+  <div class="zones-grid" id="zonesContainer">
+    <!-- 6 interactive zone cards generated dynamically or hardcoded -->
+    <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">52%</strong></div>
+    <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">48%</strong></div>
+    <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">60%</strong></div>
+    <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">34%</strong></div>
+    <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">71%</strong></div>
+    <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">55%</strong></div>
+  </div>
+</section>
       <section class="card-grid" aria-label="Telemetry cards">
         <article class="glass-card gauge-card" id="vcwCard">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture Level</span><span class="card-unit">%</span></div>
