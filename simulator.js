@@ -19,11 +19,23 @@
  *                    pump increases VWC proportionally to pumpDuty.
  */
 
-// --- === System Constants === ---
-const EVA_RATE = 0.2;          // Evaporation rate %/sec
-const PUMP_EFFICIENCY = 0.015; // VWC increase per % pump duty %/sec
-const FLOW_RATE_MULT = 0.05;   // L/min per % pump duty
+// --- === System Constants (real-world ag-tech physics) === ---
+const EVA_BASE = 0.12;         // Baseline evaporation %/sec (scaled by ET0 below)
 const ANTI_WINDUP_CLAMP = 100; // Integral accumulation clamp
+// Hydraulic orifice (valve): Q = Cd * A * sqrt(2*P/rho), D = 9 mm, P = 200 kPa
+const ORIFICE_CD = 0.61;
+const ORIFICE_D = 0.009;       // m
+const ORIFICE_A = Math.PI / 4 * ORIFICE_D * ORIFICE_D; // m^2
+const LINE_PRESSURE = 200000;  // Pa
+const WATER_RHO = 1000;        // kg/m^3
+const Q_FULL_LMIN = ORIFICE_CD * ORIFICE_A * Math.sqrt(2 * LINE_PRESSURE / WATER_RHO) * 60000; // ≈46.6 L/min
+const FLOOD_BASELINE_LMIN = 6; // Standard flood-irrigation baseline flow
+// Soil physics: absorption (VWC gain per %PWM/sec) + decay multiplier
+const SOILS = {
+  sandy: { absorption: 0.010, decay: 1.4 },
+  loam:  { absorption: 0.015, decay: 1.0 },
+  clay:  { absorption: 0.022, decay: 0.6 }
+};
 
 // --- === System State === ---
 let state = {
@@ -34,8 +46,16 @@ let state = {
   ki: 0.1,             // Integral gain
   kd: 0.5,             // Derivative gain
   pumpDuty: 0,         // Actuator PWM Duty Cycle (0-100%)
-  flowRate: 0,         // Hydraulic flow (L/min)
-  waterSaved: 0,       // Cumulative % saved vs open-loop
+  flowRate: 0,         // Hydraulic flow (L/min, orifice formula)
+  waterSaved: 0,       // Cumulative % saved vs flood baseline
+  waterSavedL: 0,      // Accumulated real liters saved vs flood baseline
+  waterUsedL: 0,       // Accumulated real liters dispensed
+  floodUsedL: 0,       // Accumulated flood-baseline liters
+  et0: 0,              // Reference evapotranspiration (mm/day, Hargreaves approx)
+  solarRad: 20,        // Simulated solar radiation (MJ/m2/day)
+  tankCapacityL: 200,  // Reservoir capacity (L, configurable)
+  tankVolumeL: 170,    // Current reservoir volume (L)
+  soilType: 'loam',    // sandy | loam | clay
   error: 0,            // e(t) = setpoint - vwc
   pTerm: 0,            // Proportional term
   iTerm: 0,            // Integral term
@@ -64,6 +84,14 @@ function init() {
     pumpDuty: 0,
     flowRate: 0,
     waterSaved: 0,
+    waterSavedL: 0,
+    waterUsedL: 0,
+    floodUsedL: 0,
+    et0: 0,
+    solarRad: 20,
+    tankCapacityL: 200,
+    tankVolumeL: 170,
+    soilType: 'loam',
     error: 0,
     pTerm: 0,
     iTerm: 0,
@@ -93,6 +121,15 @@ function getState() {
     pumpDuty: state.pumpDuty,
     flowRate: state.flowRate,
     waterSaved: state.waterSaved,
+    waterSavedL: state.waterSavedL,
+    waterUsedL: state.waterUsedL,
+    floodUsedL: state.floodUsedL,
+    et0: state.et0,
+    solarRad: state.solarRad,
+    tankCapacityL: state.tankCapacityL,
+    tankVolumeL: state.tankVolumeL,
+    soilType: state.soilType,
+    isManual,
     error: state.error,
     pTerm: state.pTerm,
     iTerm: state.iTerm,
@@ -105,59 +142,56 @@ function getState() {
  *  PID CONTROL LOOP (runs every 1000ms)
  *  ========================================== */
 function pidLoop() {
+  // NOTE: driven by server.js every 1000ms — no self-scheduling (avoids double-stepping).
   const now = Date.now();
-  const dt = (now - lastPidTime) / 1000; // time in seconds
+  let dt = (now - lastPidTime) / 1000; // time in seconds
+  if (!(dt > 0) || dt > 5) dt = 1;
   lastPidTime = now;
 
-  if (dt <= 0) return;
+  const soil = SOILS[state.soilType] || SOILS.loam;
 
-  // 1. Physical soil dynamics
-  // VWC naturally decreases by evaporation
-  state.vwc = Math.max(0, state.vwc - EVA_RATE * dt);
+  // 1. Solar + temperature model (diurnal wave + noise), then ET0 (Hargreaves approx):
+  // ET0 = 0.0023 * (T + 17.8) * sqrt(TR) * (Rs / 2.45), TR ≈ 6 °C diurnal range.
+  const dayFrac = (now / 86400000) % 1;
+  state.solarRad = Math.max(2, 18 + 10 * Math.sin(dayFrac * Math.PI * 2) + (Math.random() - 0.5) * 2);
+  state.temp = Math.max(18, Math.min(32, 24 + (state.solarRad - 18) * 0.25 + (Math.random() - 0.5) * 0.4));
+  state.et0 = 0.0023 * (state.temp + 17.8) * Math.sqrt(6) * (state.solarRad / 2.45);
 
-  // If not in manual mode, PID controls the pump
+  // 2. Evapotranspiration-driven VWC decay, scaled by soil type
+  const evaRate = (EVA_BASE + state.et0 * 0.04) * soil.decay;
+  state.vwc = Math.max(0, state.vwc - evaRate * dt);
+
+  // 3. PID control (auto) or manual PWM
   if (!isManual) {
-    // Compute error
     state.error = state.setpoint - state.vwc;
-
-    // Integral term with anti-windup clamp
     integral += state.error * dt;
     integral = Math.max(-ANTI_WINDUP_CLAMP, Math.min(ANTI_WINDUP_CLAMP, integral));
-
-    // Derivative term
     const derivative = (state.error - state.lastError) / dt;
-
-    // PID output
     const rawOutput = (state.kp * state.error) + (state.ki * integral) + (state.kd * derivative);
-
-    // Clamp pump duty to 0-100%
     state.pumpDuty = Math.max(0, Math.min(100, rawOutput));
   } else {
-    // Manual mode: use manualPwm
     state.pumpDuty = Math.max(0, Math.min(100, manualPwm));
   }
 
-  // 2. Physical soil dynamics: pump increases VWC
-  // pumpDuty * 0.015%/sec increase in VWC
-  const vwcIncrease = state.pumpDuty * PUMP_EFFICIENCY;
-  state.vwc = Math.min(100, state.vwc + vwcIncrease);
+  // 4. Cavitation guard: empty tank cannot pump
+  if (state.tankVolumeL <= 0) state.pumpDuty = 0;
 
-  // 3. Update derived values
-  state.flowRate = state.pumpDuty * FLOW_RATE_MULT; // L/min
+  // 5. Soil absorption: pump increases VWC per soil type
+  state.vwc = Math.min(100, state.vwc + state.pumpDuty * soil.absorption * dt);
 
-  // 4. Update temperature with slight noise (±0.5°C)
-  state.temp = Math.max(18, Math.min(30, 24.0 + (Math.random() - 0.5)));
+  // 6. Hydraulic orifice flow: Q = Cd * A * sqrt(2P/rho) * (PWM/100)
+  state.flowRate = Q_FULL_LMIN * (state.pumpDuty / 100);
 
-  // 5. Water conservation efficiency (cumulative)
-  // Compare current vwc trajectory vs. if pump were off (open-loop)
-  // Simple heuristic: waterSaved increases when pump is active and vwc approaches setpoint
-  if (state.pumpDuty > 0 && state.error !== 0) {
-    // Gradual efficiency accumulation when actively controlling
-    state.waterSaved = Math.min(100, state.waterSaved + 0.001 * dt);
-  }
-
-  // 6. Schedule next loop iteration (1-second interval)
-  setTimeout(pidLoop, 1000 - ((Date.now() - now) % 1000));
+  // 7. Reservoir + real-liter accounting vs flood-irrigation baseline
+  const usedStep = (state.flowRate / 60) * dt;
+  const floodStep = (FLOOD_BASELINE_LMIN / 60) * dt;
+  state.waterUsedL += usedStep;
+  state.floodUsedL += floodStep;
+  state.tankVolumeL = Math.max(0, Math.min(state.tankCapacityL, state.tankVolumeL - usedStep + 0.03 * dt));
+  state.waterSavedL = Math.max(0, state.floodUsedL - state.waterUsedL);
+  state.waterSaved = state.floodUsedL > 0
+    ? Math.max(0, Math.min(100, (state.waterSavedL / state.floodUsedL) * 100))
+    : 0;
 }
 
 /* ==========================================
@@ -185,8 +219,9 @@ function injectDisturbance(type) {
     state.vwc = 10.0;
     // Keep other state variables intact
   } else if (type === 'rain') {
-    // Spike VWC to 80% (heavy rain)
+    // Spike VWC to 80% (heavy rain) + storm refill of the reservoir
     state.vwc = 80.0;
+    state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL + state.tankCapacityL * 0.25);
   }
   // Recompute PID terms after disturbance
   computePidTerms();
@@ -195,11 +230,10 @@ function injectDisturbance(type) {
 /* ==========================================
  *  HANDLER: Set manual mode with PWM output
  *  ========================================== */
-function setManualMode(enabled, manualPwm) {
+function setManualMode(enabled, pwm) {
   isManual = enabled !== undefined ? enabled : false;
-  if (manualPwm !== undefined) {
-    manualPwm = Math.max(0, Math.min(100, manualPwm));
-    manualPwm = manualPwm;
+  if (pwm !== undefined) {
+    manualPwm = Math.max(0, Math.min(100, pwm));
   }
   // When switching to manual, set the PWM output
   if (isManual) {
@@ -207,6 +241,19 @@ function setManualMode(enabled, manualPwm) {
   }
   // When switching back to auto, PID loop will take over
   computePidTerms();
+}
+
+/* ==========================================
+ *  HANDLER: Physical system settings (from Settings modal)
+ *  ========================================== */
+function setSettings({ setpoint, tankCapacityL, soilType }) {
+  if (typeof setpoint === 'number') setTargetSetpoint(setpoint);
+  if (typeof tankCapacityL === 'number' && tankCapacityL > 0) {
+    const ratio = state.tankVolumeL / state.tankCapacityL;
+    state.tankCapacityL = Math.min(2000, Math.max(20, tankCapacityL));
+    state.tankVolumeL = Math.max(0, Math.min(state.tankCapacityL, state.tankCapacityL * ratio));
+  }
+  if (typeof soilType === 'string' && SOILS[soilType]) state.soilType = soilType;
 }
 
 /* ==========================================
@@ -236,7 +283,8 @@ module.exports = {
   getState,
   setPIDParams,
   setTargetSetpoint,
+  setSettings,
   injectDisturbance,
   setManualMode,
-  pidLoop // expose for server-controlled timing if needed
+  pidLoop // driven by server.js every 1000ms
 };

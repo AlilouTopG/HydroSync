@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HydroSync | Precision Agri-Twin SCADA</title>
-  <meta name="description" content="HydroSync Digital Twin — Smart Irrigation and Water Management console. US Embassy funded showcase." />
+  <meta name="description" content="HydroSync Enterprise OS — Smart Irrigation and Water Management console." />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -16,7 +16,7 @@
   <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
     <div class="sidebar-brand">
       <div class="brand-icon"><i class="fa-solid fa-droplet"></i></div>
-      <div class="brand-text"><h2>HydroSync</h2><p>Precision Agri-Twin v2.0</p></div>
+      <div class="brand-text"><h2>HydroSync</h2><p>Enterprise OS</p></div>
     </div>
     <div class="sidebar-section">
       <span class="sidebar-label">Connection</span>
@@ -27,15 +27,15 @@
     </div>
     <nav class="sidebar-nav">
       <span class="sidebar-label">Console</span>
-      <a href="#overview" class="nav-item active"><i class="fa-solid fa-gauge-high"></i><span>Overview</span></a>
-      <a href="#telemetry" class="nav-item"><i class="fa-solid fa-chart-line"></i><span>Telemetry</span></a>
-      <a href="#pid" class="nav-item"><i class="fa-solid fa-sliders"></i><span>PID Tuning</span></a>
-      <a href="#disturbance" class="nav-item"><i class="fa-solid fa-triangle-exclamation"></i><span>Disturbance Injector</span></a>
-      <a href="#logs" class="nav-item"><i class="fa-solid fa-terminal"></i><span>System Logs</span></a>
+      <a href="#overview" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
+      <a href="#telemetry" class="nav-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics &amp; Telemetry</span></a>
+      <a href="#pid" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
+      <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-flask-vial"></i><span>Disturbance Injector</span></a>
+      <a href="#logs" class="nav-item" data-modal="termsModal"><i class="fa-solid fa-file-shield"></i><span>Terms &amp; Compliance</span></a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sdg-badge"><i class="fa-solid fa-leaf"></i> SDG 6 &amp; 13 Aligned</div>
-      <p class="sidebar-version">US Embassy Funded Program</p>
+      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
+      <p class="sidebar-version">HydroSync Enterprise OS</p>
     </div>
   </aside>
   <div class="layout-main">
@@ -44,7 +44,8 @@
       <div class="header-title"><h1>HydroSync Digital Twin</h1><p>Smart Irrigation &amp; Water Management Operating Console</p></div>
       <div class="header-meta">
         <div class="uptime-chip" title="System uptime"><i class="fa-regular fa-clock"></i><span id="uptimeTimer">00:00:00</span></div>
-        <div class="showcase-tag"><i class="fa-solid fa-award"></i> US Embassy / Thirduni Showcase</div>
+        <div class="nominal-chip"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
+        <div class="showcase-tag"><i class="fa-solid fa-building"></i> HydroSync Enterprise OS</div>
       </div>
     </header>
     <main class="dashboard" id="overview">
@@ -91,11 +92,28 @@
             </svg>
             <div class="gauge-center"><strong id="conservationValue">--</strong><span>Saved %</span></div>
           </div>
-          <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Error e(t)</span><strong id="errorValue">--</strong></div></div>
+          <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters saved</span><strong id="savedLitersValue">-- L</strong></div></div>
         </article>
       </section>
+      <section class="glass-card twin-card" id="twin" aria-label="Physical system visual twin">
+        <div class="card-top"><span class="card-title"><i class="fa-solid fa-cubes"></i> Visual Twin — Physical System</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span></div>
+        <div class="twin-grid">
+          <div class="twin-unit">
+            <span class="twin-label">Water Tank</span>
+            <div class="tank" role="img" aria-label="Water tank level"><div class="tank-fill" id="twinTankFill"></div><span class="tank-pct" id="twinTankLevel">85%</span></div>
+          </div>
+          <div class="twin-unit">
+            <span class="twin-label">Irrigation Pipe <em id="twinPwmLabel">0% PWM</em></span>
+            <div class="pipe" id="twinPipe" aria-hidden="true"><span class="pulse p1"></span><span class="pulse p2"></span><span class="pulse p3"></span></div>
+          </div>
+          <div class="twin-unit">
+            <span class="twin-label">Soil &amp; Plant Zone</span>
+            <div class="soil" id="twinSoil"><div class="plant" id="twinPlant"><i class="fa-solid fa-seedling"></i></div></div>
+          </div>
+        </div>
+      </section>
       <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
-        <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — VWC vs Setpoint</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></div>
+        <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — VWC vs Setpoint</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
         <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
       </section>
       <div class="two-col">
@@ -115,6 +133,7 @@
           <div class="btn-row">
             <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
             <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
+            <button class="btn shutoff" id="shutoffBtn"><i class="fa-solid fa-octagon-xmark"></i> Emergency Shutoff</button>
             <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
           </div>
           <p class="muted small" id="juryBadge">Closed-loop PID recovery demo ready.</p>
@@ -125,6 +144,45 @@
         <ul class="log-list" id="logList"></ul>
       </section>
     </main>
+  </div>
+
+  <!-- ============ MODALS ============ -->
+  <div class="modal-overlay" id="settingsModal" aria-hidden="true" role="dialog" aria-label="System settings">
+    <div class="modal-card">
+      <div class="modal-head"><span><i class="fa-solid fa-gear"></i> System Settings</span><button class="icon-btn modal-close" data-close aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="field"><label for="settingsSetpoint">Target Moisture Setpoint (%)</label><input type="number" id="settingsSetpoint" min="0" max="100" step="0.5" value="55" /></div>
+      <div class="field"><label for="settingsTankCap">Tank Capacity (Liters)</label><input type="number" id="settingsTankCap" min="20" max="2000" step="10" value="200" /></div>
+      <div class="field"><label for="soilType">Soil Type (absorption rate)</label>
+        <select id="soilType"><option value="sandy">Sandy — fast drain</option><option value="loam" selected>Loam — balanced</option><option value="clay">Clay — slow drain</option></select>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn info" id="settingsSave"><i class="fa-solid fa-check"></i> Apply Settings</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="analyticsModal" aria-hidden="true" role="dialog" aria-label="Analytics and telemetry">
+    <div class="modal-card">
+      <div class="modal-head"><span><i class="fa-solid fa-chart-line"></i> Analytics &amp; Telemetry</span><button class="icon-btn modal-close" data-close aria-label="Close analytics"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="stat-grid">
+        <div><span>Samples</span><strong id="statSamples">--</strong></div>
+        <div><span>VWC avg / min / max</span><strong id="statVwc">--</strong></div>
+        <div><span>Avg PWM</span><strong id="statPwm">--</strong></div>
+        <div><span>Water used</span><strong id="statWater">--</strong></div>
+        <div><span>Session uptime</span><strong id="statUptime">--</strong></div>
+      </div>
+      <div class="modal-actions"><button class="btn ghost" data-close>Close</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="termsModal" aria-hidden="true" role="dialog" aria-label="Terms of service and compliance">
+    <div class="modal-card">
+      <div class="modal-head"><span><i class="fa-solid fa-file-shield"></i> Terms of Service &amp; Compliance</span><button class="icon-btn modal-close" data-close aria-label="Close terms"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="terms-body">
+        <p>HydroSync Enterprise OS processes irrigation telemetry locally for system operation. By enabling data logging you consent to retention of operational metrics (VWC, flow, actuator output) for diagnostics and compliance auditing.</p>
+        <p>No personal data is collected. Logs remain on the deployment host unless export is explicitly triggered by an operator.</p>
+      </div>
+      <label class="consent"><input type="checkbox" id="consentCheck" /> I consent to operational data logging</label>
+      <div class="modal-actions"><button class="btn ghost" data-close>Decline</button><button class="btn info" id="consentAccept"><i class="fa-solid fa-check"></i> Accept</button></div>
+    </div>
   </div>
   <script src="app.js"></script>
 </body>

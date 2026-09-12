@@ -63,6 +63,13 @@ io.on('connection', (socket) => {
     broadcastTelemetry();
   });
 
+  // 2b. Client: Update physical system settings (setpoint, tank capacity, soil type)
+  socket.on('client:update_settings', (settings) => {
+    if (!settings || typeof settings !== 'object') return;
+    simulator.setSettings(settings);
+    broadcastTelemetry();
+  });
+
   // 3. Client: Inject disturbance (drought/rain)
   socket.on('client:disturbance', (type) => {
     if (!type || (type !== 'drought' && type !== 'rain')) return;
@@ -113,17 +120,9 @@ function broadcastTelemetry() {
   const secs = uptimeSeconds % 60;
 
   // Emit unified telemetry packet to ALL connected clients
+  // (spread forwards physics fields: et0, solarRad, tankVolumeL, waterSavedL, soilType, isManual…)
   io.emit('telemetry', {
-    vwc: state.vwc,
-    setpoint: state.setpoint,
-    temp: state.temp,
-    pumpDuty: state.pumpDuty,
-    flowRate: state.flowRate,
-    waterSaved: state.waterSaved,
-    error: state.error,
-    pTerm: state.pTerm,
-    iTerm: state.iTerm,
-    dTerm: state.dTerm,
+    ...state,
     uptimeSeconds: uptimeSeconds,
     uptimeMinutes: mins,
     uptimeSecs: secs

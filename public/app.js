@@ -7,12 +7,15 @@
   var FLOW_MAX = 50; // L/min gauge capacity
 
   var socket = null;
+  var twinTank = 85; // local reservoir % fallback when server tank fields are absent
   var chart = null;
   var labels = [];
   var vwcSeries = [];
   var spSeries = [];
+  var pwmSeries = [];
+  var cumWaterL = 0; // client-side dispensed-liter estimate for analytics
   var booted = false;
-  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0 };
+  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200 };
 
   function $(id) { return document.getElementById(id); }
 
@@ -145,15 +148,25 @@
     setText("flowValueDisplay", flow.toFixed(1) + " L/min");
     setRing("flowProgress", flow / FLOW_MAX);
     setText("tempValue", (typeof d.temp === "number" ? d.temp.toFixed(1) : "--") + " C");
+    setText("et0Value", "ET0 " + ((typeof d.et0 === "number") ? d.et0.toFixed(2) : "--") + " mm/day");
 
     setText("conservationValue", String(Math.round(saved)));
     setText("conservationValueDisplay", Math.round(saved) + "%");
     setRing("conservationProgress", saved / 100);
-    setText("errorValue", (err >= 0 ? "+" : "") + err.toFixed(1));
+    setText("savedLitersValue", ((typeof d.waterSavedL === "number") ? d.waterSavedL : 0).toFixed(1) + " L");
+    setText("errorValue", "e(t) " + (err >= 0 ? "+" : "") + err.toFixed(1));
 
     setText("KpTerm", (+d.pTerm || 0).toFixed(2));
     setText("KiTerm", (+d.iTerm || 0).toFixed(2));
     setText("KdTerm", (+d.dTerm || 0).toFixed(2));
+
+    // Session analytics series (FIFO-aligned with chart)
+    pwmSeries.push(pwm);
+    while (pwmSeries.length > FIFO_MAX) pwmSeries.shift();
+    cumWaterL += (flow / 60); // ≈1 s packet
+    if (typeof d.tankCapacityL === "number") state.tankCapacity = d.tankCapacityL;
+    if (typeof d.soilType === "string") state.soilType = d.soilType;
+    updateTwin(vwc, pwm, flow, d);
 
     if (!booted) {
       booted = true;
@@ -161,12 +174,50 @@
       if (typeof d.kp === "number") state.kp = d.kp;
       if (typeof d.ki === "number") state.ki = d.ki;
       if (typeof d.kd === "number") state.kd = d.kd;
+      if (typeof d.soilType === "string") state.soilType = d.soilType;
+      if (typeof d.tankCapacityL === "number") state.tankCapacity = d.tankCapacityL;
       syncControls();
+      syncSettingsForm();
       seedChart(vwc, sp);
       log("Telemetry stream established");
     } else {
       pushPoint(vwc, sp);
     }
+  }
+
+  /* ---------- Visual Twin ---------- */
+  function updateTwin(vwc, pwm, flow, d) {
+    try {
+      // Tank: prefer authoritative server volume; fall back to local drain model
+      var pct, liters;
+      if (d && typeof d.tankVolumeL === "number" && typeof d.tankCapacityL === "number" && d.tankCapacityL > 0) {
+        pct = Math.max(0, Math.min(100, (d.tankVolumeL / d.tankCapacityL) * 100));
+        liters = d.tankVolumeL;
+      } else {
+        twinTank = Math.max(5, Math.min(100, twinTank - flow * 0.03 + 0.02));
+        pct = twinTank;
+        liters = twinTank / 100 * state.tankCapacity;
+      }
+      var fill = $("twinTankFill");
+      if (fill) fill.style.height = pct.toFixed(1) + "%";
+      setText("twinTankLevel", Math.round(pct) + "% · " + liters.toFixed(0) + "L");
+      // Pipe: animate only when pump is active; speed scales with PWM
+      var pipe = $("twinPipe");
+      if (pipe) {
+        var flowing = pwm > 0.5;
+        pipe.classList.toggle("flowing", flowing);
+        // faster pulses at higher duty: 2.2s idle-slow → 0.5s full blast
+        pipe.style.setProperty("--flow-speed", (2.2 - (Math.min(100, pwm) / 100) * 1.7).toFixed(2) + "s");
+      }
+      setText("twinPwmLabel", Math.round(pwm) + "% PWM");
+      // Soil + plant: dry <30 amber, wet >65 cyan, else healthy emerald
+      var soil = $("twinSoil");
+      if (soil) {
+        soil.classList.toggle("dry", vwc < 30);
+        soil.classList.toggle("wet", vwc > 65);
+      }
+      setText("twinStatus", vwc < 30 ? "DRY — IRRIGATING" : vwc > 65 ? "SATURATED" : "HYDRATED");
+    } catch (e) { /* twin visuals must never break telemetry */ }
   }
 
   function syncControls() {
@@ -215,6 +266,10 @@
       if (state.manual && socket && socket.connected)
         socket.emit("client:manual_override", { enabled: true, manualPwm: state.manualPwm });
     });
+    var pwmSlider = $("manualPwmSlider");
+    if (pwmSlider) pwmSlider.addEventListener("change", function () {
+      if (state.manual) log("[MANUAL] Valve opened to " + state.manualPwm + "%");
+    });
 
     var toggle = $("manualToggle");
     if (toggle) toggle.addEventListener("change", function (e) {
@@ -223,44 +278,163 @@
       setText("pidMode", state.manual ? "MANUAL" : "AUTO");
       var row = $("manualRow");
       if (row) row.hidden = !state.manual;
+      var shut = $("shutoffBtn");
+      if (shut) shut.classList.toggle("armed", false);
       if (socket && socket.connected)
         socket.emit("client:manual_override", { enabled: state.manual, manualPwm: state.manualPwm });
-      log(state.manual ? "Manual override engaged" : "Returned to AUTO PID");
+      log(state.manual ? "[MANUAL] Override engaged — valve at " + state.manualPwm + "%" : "[AUTO] Returned to PID control");
     });
 
-    function disturbance(type) {
-      return function () {
+    function pressFlash(el) {
+      if (!el) return;
+      el.classList.add("firing");
+      setTimeout(function () { el.classList.remove("firing"); }, 320);
+    }
+    function disturbance(type, label) {
+      return function (e) {
+        pressFlash(e && e.currentTarget);
         if (socket && socket.connected) socket.emit("client:disturbance", type);
         var badge = $("juryBadge");
-        if (badge) badge.textContent = type === "drought" ? "Drought injected — watch recovery…" : type === "rain" ? "Rain injected — watch recovery…" : "Reset requested…";
-        log("Disturbance sent: " + type);
+        if (badge) badge.textContent = label + " — watch recovery…";
+        log("[DISTURBANCE] " + label + " injected");
       };
     }
-    var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn");
-    if (dr) dr.addEventListener("click", disturbance("drought"));
-    if (ra) ra.addEventListener("click", disturbance("rain"));
-    if (rs) rs.addEventListener("click", function () {
+    var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");
+    if (dr) dr.addEventListener("click", disturbance("drought", "Severe drought"));
+    if (ra) ra.addEventListener("click", disturbance("rain", "Heavy rain"));
+    if (shutoff) shutoff.addEventListener("click", function (e) {
+      pressFlash(e.currentTarget);
+      shutoff.classList.add("armed");
+      state.manual = true;
+      state.manualPwm = 0;
+      var t = $("manualToggle"); if (t) t.checked = true;
+      setText("modeLabel", "MANUAL"); setText("pidMode", "MANUAL");
+      var row = $("manualRow"); if (row) { row.hidden = false; }
+      var pwm = $("manualPwmSlider"); if (pwm) pwm.value = 0;
+      setText("manualPwmValue", "0%");
+      if (socket && socket.connected) socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
+      log("[EMERGENCY] Shutoff engaged — valve closed");
+    });
+    if (rs) rs.addEventListener("click", function (e) {
+      pressFlash(e.currentTarget);
       if (socket && socket.connected) {
         socket.emit("client:manual_override", { enabled: false, manualPwm: 0 });
         socket.emit("client:update_setpoint", 55);
         socket.emit("client:update_pid", { kp: 2.0, ki: 0.1, kd: 0.5 });
       }
       state.manual = false;
+      state.kp = 2.0; state.ki = 0.1; state.kd = 0.5; state.setpoint = 55;
+      syncControls();
       var t = $("manualToggle"); if (t) t.checked = false;
       setText("modeLabel", "AUTO"); setText("pidMode", "AUTO");
       var row = $("manualRow"); if (row) row.hidden = true;
-      log("Normal reset requested");
+      var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
+      log("[SYSTEM] Normal reset — defaults restored");
     });
+
+    bindModals();
 
     var menu = $("menuBtn");
     if (menu) menu.addEventListener("click", function () { document.body.classList.toggle("nav-open"); });
     var items = document.querySelectorAll(".nav-item");
     Array.prototype.forEach.call(items, function (a) {
-      a.addEventListener("click", function () {
+      a.addEventListener("click", function (e) {
+        var modal = a.getAttribute("data-modal");
+        var view = a.getAttribute("data-view");
+        if (modal) {
+          e.preventDefault();
+          if (modal === "analyticsModal") fillAnalytics();
+          openModal(modal);
+          document.body.classList.remove("nav-open");
+          return;
+        }
         Array.prototype.forEach.call(items, function (b) { b.classList.remove("active"); });
         a.classList.add("active");
         document.body.classList.remove("nav-open");
+        if (view === "analytics") fillAnalyticsFlash();
       });
+    });
+  }
+
+  /* ---------- Modals ---------- */
+  function openModal(id) {
+    var m = $(id);
+    if (!m) return;
+    m.classList.add("open");
+    m.setAttribute("aria-hidden", "false");
+  }
+  function closeModal(m) {
+    if (typeof m === "string") m = $(m);
+    if (!m) return;
+    m.classList.remove("open");
+    m.setAttribute("aria-hidden", "true");
+  }
+  function syncSettingsForm() {
+    var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
+    if (s) s.value = state.setpoint;
+    if (c) c.value = state.tankCapacity;
+    if (soil) soil.value = state.soilType;
+  }
+  function fillAnalytics() {
+    function avg(a) {
+      if (!a.length) return 0;
+      var s = 0, i;
+      for (i = 0; i < a.length; i++) s += a[i];
+      return s / a.length;
+    }
+    var n = vwcSeries.length;
+    var mn = n ? Math.min.apply(null, vwcSeries) : 0;
+    var mx = n ? Math.max.apply(null, vwcSeries) : 0;
+    setText("statSamples", String(n));
+    setText("statVwc", n ? avg(vwcSeries).toFixed(1) + " / " + mn.toFixed(1) + " / " + mx.toFixed(1) + " %" : "--");
+    setText("statPwm", pwmSeries.length ? avg(pwmSeries).toFixed(1) + " %" : "--");
+    setText("statWater", cumWaterL.toFixed(2) + " L dispensed");
+    var up = $("uptimeTimer");
+    setText("statUptime", up ? up.textContent : "--");
+  }
+  function fillAnalyticsFlash() {
+    fillAnalytics();
+    openModal("analyticsModal");
+  }
+  function bindModals() {
+    var overlays = document.querySelectorAll(".modal-overlay");
+    Array.prototype.forEach.call(overlays, function (o) {
+      o.addEventListener("click", function (e) {
+        if (e.target === o) closeModal(o);
+      });
+      var closers = o.querySelectorAll("[data-close]");
+      Array.prototype.forEach.call(closers, function (b) {
+        b.addEventListener("click", function () { closeModal(o); });
+      });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        Array.prototype.forEach.call(overlays, function (o) { closeModal(o); });
+      }
+    });
+    var save = $("settingsSave");
+    if (save) save.addEventListener("click", function () {
+      var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
+      var sp = s ? Math.max(0, Math.min(100, parseFloat(s.value) || state.setpoint)) : state.setpoint;
+      var cap = c ? Math.max(20, Math.min(2000, parseFloat(c.value) || state.tankCapacity)) : state.tankCapacity;
+      var st = soil && soil.value ? soil.value : state.soilType;
+      state.setpoint = sp; state.tankCapacity = cap; state.soilType = st;
+      setText("setpointValue", sp.toFixed(1) + "%");
+      var spSlider = $("setpointSlider");
+      if (spSlider) spSlider.value = sp;
+      if (socket && socket.connected) {
+        socket.emit("client:update_settings", { setpoint: sp, tankCapacityL: cap, soilType: st });
+        socket.emit("client:update_setpoint", sp);
+      }
+      closeModal("settingsModal");
+      log("[SETTINGS] SP=" + sp.toFixed(1) + "% · Tank=" + cap + "L · Soil=" + st);
+    });
+    var accept = $("consentAccept");
+    if (accept) accept.addEventListener("click", function () {
+      var checked = $("consentCheck");
+      var ok = checked ? !!checked.checked : true;
+      closeModal("termsModal");
+      log(ok ? "[COMPLIANCE] Data-logging consent recorded" : "[COMPLIANCE] Terms viewed — consent declined");
     });
   }
 
