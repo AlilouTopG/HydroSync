@@ -15,7 +15,7 @@
   var pwmSeries = [];
   var cumWaterL = 0; // client-side dispensed-liter estimate for analytics
   var booted = false;
-  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200, maxFlow: 0 };
+  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200, maxFlow: 0, activeZone: "A1" };
 
   function $(id) { return document.getElementById(id); }
 
@@ -167,6 +167,7 @@
     if (typeof d.tankCapacityL === "number") state.tankCapacity = d.tankCapacityL;
     if (typeof d.soilType === "string") state.soilType = d.soilType;
     updateTwin(vwc, pwm, flow, d);
+    renderZones(d.zones, d.activeZoneId);
 
     if (!booted) {
       booted = true;
@@ -218,6 +219,34 @@
       }
       setText("twinStatus", vwc < 30 ? "DRY — IRRIGATING" : vwc > 65 ? "SATURATED" : "HYDRATED");
     } catch (e) { /* twin visuals must never break telemetry */ }
+  }
+
+  /* ---------- Field zones heatmap ---------- */
+  function zoneBand(m) {
+    if (m < 35) return "dry";
+    if (m > 65) return "wet";
+    return "optimal";
+  }
+  function renderZones(zones, activeId) {
+    try {
+      if (!Array.isArray(zones) || !zones.length) return;
+      if (typeof activeId === "string") state.activeZone = activeId;
+      for (var i = 0; i < zones.length; i++) {
+        (function (z) {
+          var cell = document.querySelector('[data-zone="' + z.id + '"]');
+          if (!cell) return;
+          var m = Math.max(0, Math.min(100, +z.moisture || 0));
+          var moist = cell.querySelector(".zone-moist");
+          if (moist) moist.textContent = m.toFixed(1) + "%";
+          cell.classList.remove("dry", "optimal", "wet");
+          cell.classList.add(zoneBand(m));
+          var isActive = z.id === state.activeZone;
+          cell.classList.toggle("active", isActive);
+          cell.setAttribute("aria-selected", isActive ? "true" : "false");
+        })(zones[i]);
+      }
+      setText("fieldActive", "Zone " + state.activeZone);
+    } catch (e) { /* heatmap must never break telemetry */ }
   }
 
   function syncControls() {
@@ -303,6 +332,18 @@
         log("[WEATHER] " + label + " simulated");
       };
     }
+    var zg = $("zoneGrid");
+    if (zg) zg.addEventListener("click", function (e) {
+      var t = e.target;
+      var cell = (t && t.closest) ? t.closest("[data-zone]") : null;
+      if (!cell) return;
+      var id = cell.getAttribute("data-zone");
+      if (!id || id === state.activeZone) return;
+      if (socket && socket.connected) socket.emit("client:select_zone", id);
+      var moist = cell.querySelector(".zone-moist");
+      log("[DISPATCH] Switched focus to Sector " + id + " - Moisture: " + (moist ? moist.textContent : "--"));
+    });
+
     var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");
     if (dr) dr.addEventListener("click", disturbance("drought", "Severe drought"));
     if (ra) ra.addEventListener("click", disturbance("rain", "Heavy rain"));

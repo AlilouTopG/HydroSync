@@ -36,11 +36,28 @@ const SOILS = {
   loam:  { absorption: 0.015, decay: 1.0 },
   clay:  { absorption: 0.022, decay: 0.6 }
 };
+// Field micro-plots: id, crop, per-zone drainage variation + initial moisture
+const ZONE_DEFS = [
+  { id: 'A1', crop: 'Wheat',    drain: 1.00, moisture: 38.0 },
+  { id: 'A2', crop: 'Tomatoes', drain: 1.15, moisture: 32.0 },
+  { id: 'A3', crop: 'Lettuce',  drain: 0.90, moisture: 45.0 },
+  { id: 'B1', crop: 'Corn',     drain: 1.05, moisture: 30.0 },
+  { id: 'B2', crop: 'Carrots',  drain: 0.85, moisture: 50.0 },
+  { id: 'B3', crop: 'Peppers',  drain: 1.20, moisture: 36.0 }
+];
+function defaultZones() {
+  return ZONE_DEFS.map(z => ({ id: z.id, crop: z.crop, drain: z.drain, moisture: z.moisture }));
+}
+function findZone(zones, id) {
+  return zones.find(z => z.id === id) || zones[0];
+}
 
 // --- === System State === ---
 let state = {
   maxFlowL: 0,         // Optional flow cap (L/min, 0 = uncapped)
-  vwc: 35.0,           // Current VWC (%)
+  activeZoneId: 'A1',  // Focused micro-plot; PID regulates this zone
+  zones: defaultZones(), // 6 independent field-zone moisture states
+  vwc: 35.0,           // Current VWC (%) — mirrors the active zone
   setpoint: 55.0,      // Target VWC (%)
   temp: 24.0,          // Root-zone temperature (°C)
   kp: 2.0,             // Proportional gain
@@ -77,6 +94,8 @@ let manualPwm = 0;
 function init() {
   state = {
     maxFlowL: 0,
+    activeZoneId: 'A1',
+    zones: defaultZones(),
     vwc: 35.0,
     setpoint: 55.0,
     temp: 24.0,
@@ -132,6 +151,8 @@ function getState() {
     tankVolumeL: state.tankVolumeL,
     soilType: state.soilType,
     maxFlowL: state.maxFlowL,
+    activeZoneId: state.activeZoneId,
+    zones: state.zones.map(z => ({ id: z.id, crop: z.crop, moisture: Math.round(z.moisture * 100) / 100 })),
     isManual,
     error: state.error,
     pTerm: state.pTerm,
@@ -160,9 +181,15 @@ function pidLoop() {
   state.temp = Math.max(18, Math.min(32, 24 + (state.solarRad - 18) * 0.25 + (Math.random() - 0.5) * 0.4));
   state.et0 = 0.0023 * (state.temp + 17.8) * Math.sqrt(6) * (state.solarRad / 2.45);
 
-  // 2. Evapotranspiration-driven VWC decay, scaled by soil type
+  // 2. Evapotranspiration decay per zone (drainage variation + noise);
+  //    the active zone is mirrored to state.vwc so PID/dials/charts follow it.
   const evaRate = (EVA_BASE + state.et0 * 0.04) * soil.decay;
-  state.vwc = Math.max(0, state.vwc - evaRate * dt);
+  const active = findZone(state.zones, state.activeZoneId);
+  for (const z of state.zones) {
+    const wobble = 0.9 + Math.random() * 0.2;
+    z.moisture = Math.max(0, z.moisture - evaRate * z.drain * wobble * dt);
+  }
+  state.vwc = active.moisture;
 
   // 3. PID control (auto) or manual PWM
   if (!isManual) {
@@ -183,9 +210,11 @@ function pidLoop() {
   state.flowRate = Q_FULL_LMIN * (state.pumpDuty / 100);
   if (state.maxFlowL > 0) state.flowRate = Math.min(state.flowRate, state.maxFlowL);
 
-  // 6. Soil absorption follows effective delivered flow (not raw PWM)
+  // 6. Soil absorption follows effective delivered flow (not raw PWM),
+  //    applied to the ACTIVE zone only; idle zones keep evaporating.
   const effDuty = (state.flowRate / Q_FULL_LMIN) * 100;
-  state.vwc = Math.min(100, state.vwc + effDuty * soil.absorption * dt);
+  active.moisture = Math.min(100, active.moisture + effDuty * soil.absorption * dt);
+  state.vwc = active.moisture;
 
   // 7. Reservoir + real-liter accounting vs flood-irrigation baseline
   const usedStep = (state.flowRate / 60) * dt;
@@ -220,14 +249,15 @@ function setTargetSetpoint(sp) {
  *  ========================================== */
 function injectDisturbance(type) {
   if (type === 'drought') {
-    // Drop VWC to 10% (severe drought)
-    state.vwc = 10.0;
+    // Drop ALL zones to 10% (severe drought)
+    for (const z of state.zones) z.moisture = 10.0;
     // Keep other state variables intact
   } else if (type === 'rain') {
-    // Spike VWC to 80% (heavy rain) + storm refill of the reservoir
-    state.vwc = 80.0;
+    // Spike ALL zones to 80% (heavy rain) + storm refill of the reservoir
+    for (const z of state.zones) z.moisture = 80.0;
     state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL + state.tankCapacityL * 0.25);
   }
+  state.vwc = findZone(state.zones, state.activeZoneId).moisture;
   // Recompute PID terms after disturbance
   computePidTerms();
 }
@@ -245,6 +275,20 @@ function setManualMode(enabled, pwm) {
     state.pumpDuty = manualPwm;
   }
   // When switching back to auto, PID loop will take over
+  computePidTerms();
+}
+
+/* ==========================================
+ *  HANDLER: Select active monitoring zone (bumpless transfer)
+ *  ========================================== */
+function setActiveZone(id) {
+  const zone = state.zones.find(z => z.id === id);
+  if (!zone) return;
+  state.activeZoneId = zone.id;
+  state.vwc = zone.moisture;
+  // Reset integral + derivative history so the error step doesn't kick the pump
+  integral = 0;
+  state.lastError = state.setpoint - zone.moisture;
   computePidTerms();
 }
 
@@ -289,6 +333,7 @@ module.exports = {
   getState,
   setPIDParams,
   setTargetSetpoint,
+  setActiveZone,
   setSettings,
   injectDisturbance,
   setManualMode,

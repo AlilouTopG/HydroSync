@@ -77,6 +77,13 @@ io.on('connection', (socket) => {
     broadcastTelemetry();
   });
 
+  // 3b. Client: Select active monitoring zone
+  socket.on('client:select_zone', (id) => {
+    if (typeof id !== 'string') return;
+    simulator.setActiveZone(id);
+    broadcastTelemetry();
+  });
+
   // 4. Client: Toggle manual mode and PWM output
   socket.on('client:manual_override', (data) => {
     if (data === undefined) return;
