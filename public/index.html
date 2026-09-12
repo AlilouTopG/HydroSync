@@ -38,32 +38,52 @@
       <p class="sidebar-version">HydroSync Enterprise OS</p>
     </div>
   </aside>
+
   <div class="layout-main">
     <header class="top-header">
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle sidebar"><i class="fa-solid fa-bars"></i></button>
       <div class="header-title"><h1>HydroSync Digital Twin</h1><p>Smart Irrigation &amp; Water Management Operating Console</p></div>
       <div class="header-meta">
+        <button class="audio-btn" id="audioToggleBtn" title="Toggle Safety Audio Alarms" aria-label="Toggle Audio"><i class="fa-solid fa-volume-high" id="audioIcon"></i></button>
         <div class="uptime-chip" title="System uptime"><i class="fa-regular fa-clock"></i><span id="uptimeTimer">00:00:00</span></div>
         <div class="nominal-chip"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
         <div class="showcase-tag"><i class="fa-solid fa-building"></i> HydroSync Enterprise OS</div>
       </div>
     </header>
+
     <main class="dashboard" id="overview">
-<section class="card field-grid-section" id="fieldSection">
-  <div class="card-head">
-    <h3><i class="fa-solid fa-border-all"></i> Field Micro-Plots & Soil Heatmap</h3>
-    <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
-  </div>
-  <div class="zones-grid" id="zonesContainer">
-    <!-- 6 interactive zone cards generated dynamically or hardcoded -->
-    <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">52%</strong></div>
-    <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">48%</strong></div>
-    <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">60%</strong></div>
-    <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">34%</strong></div>
-    <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">71%</strong></div>
-    <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">55%</strong></div>
-  </div>
-</section>
+      <!-- 🛡️ INDUSTRIAL SAFETY & INTERLOCK MATRIX BAR -->
+      <section class="safety-banner nominal" id="safetyBanner" aria-label="Safety status">
+        <div class="safety-status">
+          <i class="fa-solid fa-shield-halved" id="safetyIcon"></i>
+          <div>
+            <strong id="safetyTitle">ALL SYSTEMS NOMINAL</strong>
+            <p id="safetyDesc">IEC 61508 Functional Safety Loops Active — No Hardware Faults.</p>
+          </div>
+        </div>
+        <div class="safety-metrics">
+          <div class="safety-chip" id="motorTempChip"><i class="fa-solid fa-temperature-half"></i> Motor: <span id="motorTempVal">24.0°C</span></div>
+          <div class="safety-chip" id="interlockCountChip"><i class="fa-solid fa-lock"></i> Interlocks: <span id="interlockVal">0 Active</span></div>
+        </div>
+      </section>
+
+      <!-- Field Micro-Plots Section -->
+      <section class="card field-grid-section" id="fieldSection">
+        <div class="card-head">
+          <h3><i class="fa-solid fa-border-all"></i> Field Micro-Plots &amp; Soil Heatmap</h3>
+          <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
+        </div>
+        <div class="zones-grid" id="zonesContainer">
+          <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
+          <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
+          <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
+          <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
+          <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
+          <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
+        </div>
+      </section>
+
+      <!-- Telemetry Gauges Grid -->
       <section class="card-grid" aria-label="Telemetry cards">
         <article class="glass-card gauge-card" id="vcwCard">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture Level</span><span class="card-unit">%</span></div>
@@ -76,6 +96,7 @@
           </div>
           <div class="card-values"><div><span>Current</span><strong id="vcwValueDisplay">--%</strong></div><div><span>Setpoint</span><strong id="vcwSetpointDisplay">SP: --%</strong></div></div>
         </article>
+
         <article class="glass-card gauge-card" id="actuatorCard">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Irrigation Pump Power</span><span class="card-unit">PWM %</span></div>
           <div class="gauge-wrap">
@@ -87,6 +108,7 @@
           </div>
           <div class="card-values"><div><span>Output</span><strong id="actuatorValueDisplay">--%</strong></div><div><span>Mode</span><strong id="pidMode">AUTO</strong></div></div>
         </article>
+
         <article class="glass-card gauge-card" id="flowCard">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-wave-square"></i> Water Flow Rate</span><span class="card-unit">L/min</span></div>
           <div class="gauge-wrap">
@@ -98,6 +120,7 @@
           </div>
           <div class="card-values"><div><span>Current</span><strong id="flowValueDisplay">-- L/min</strong></div><div><span>Temp</span><strong id="tempValue">-- C</strong></div></div>
         </article>
+
         <article class="glass-card gauge-card" id="conservationCard">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-recycle"></i> Water Saved</span><span class="card-unit">%</span></div>
           <div class="gauge-wrap">
@@ -107,9 +130,11 @@
             </svg>
             <div class="gauge-center"><strong id="conservationValue">--</strong><span>Saved %</span></div>
           </div>
-          <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters saved</span><strong id="savedLitersValue">-- L</strong></div></div>
+          <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters / ROI</span><strong id="savedLitersValue">-- L</strong></div></div>
         </article>
       </section>
+
+      <!-- Visual Twin Section -->
       <section class="glass-card twin-card" id="twin" aria-label="Physical system visual twin">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-cubes"></i> Visual Twin — Physical System</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span></div>
         <div class="twin-grid">
@@ -127,10 +152,14 @@
           </div>
         </div>
       </section>
+
+      <!-- Chart Section -->
       <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
         <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
       </section>
+
+      <!-- Controls & Disturbances -->
       <div class="two-col">
         <section class="glass-card pid-card" id="pid" aria-label="PID controls">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
@@ -143,6 +172,7 @@
           <div class="pid-row"><label for="setpointSlider">Target Moisture <output id="setpointValue">55.0%</output></label><input type="range" id="setpointSlider" min="0" max="100" step="0.5" value="55" /></div>
           <div class="pid-row manual-row" id="manualRow" hidden><label for="manualPwmSlider">Manual PWM <output id="manualPwmValue">0%</output></label><input type="range" id="manualPwmSlider" min="0" max="100" step="1" value="0" /></div>
         </section>
+
         <section class="glass-card jury-card" id="disturbance" aria-label="Weather simulation">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-cloud-sun"></i> Weather Simulation</span></div>
           <p class="muted">Simulate a weather event and watch the pump respond automatically.</p>
@@ -155,6 +185,8 @@
           <p class="muted small" id="juryBadge">Closed-loop PID recovery demo ready.</p>
         </section>
       </div>
+
+      <!-- Logs -->
       <section class="glass-card logs-card" id="logs" aria-label="System logs">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-terminal"></i> System Logs</span><span class="card-unit" id="logCount">0 events</span></div>
         <ul class="log-list" id="logList"></ul>
@@ -201,6 +233,7 @@
       <div class="modal-actions"><button class="btn ghost" data-close>Decline</button><button class="btn info" id="consentAccept"><i class="fa-solid fa-check"></i> Accept</button></div>
     </div>
   </div>
+
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
   <script src="app.js"></script>
 </body>
