@@ -510,7 +510,7 @@
       return;
     }
     try {
-      socket = io();
+      socket = io({ transports: ["websocket", "polling"], reconnectionAttempts: 10 });
     } catch (e) {
       log("Socket.io connection failed");
       return;

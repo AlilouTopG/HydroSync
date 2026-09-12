@@ -146,6 +146,13 @@ body {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(0,229,255,.5), transparent); opacity: .55;
 }
+/* Guaranteed visibility: crisp border + padding regardless of theme state */
+#fieldSection {
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  padding: 20px;
+  min-height: 180px;
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.08);
+}
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .card-head h3 { font-size: 14px; font-weight: 600; display: inline-flex; gap: 8px; align-items: center; }
 .card-head h3 i { color: var(--cyan); }
