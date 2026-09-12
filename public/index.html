@@ -159,7 +159,7 @@
         <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
       </section>
 
-      <!-- Controls & Disturbances -->
+      <!-- Controls & Live Weather Feed -->
       <div class="two-col">
         <section class="glass-card pid-card" id="pid" aria-label="PID controls">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
@@ -174,15 +174,37 @@
         </section>
 
         <section class="glass-card jury-card" id="disturbance" aria-label="Weather simulation">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-cloud-sun"></i> Weather Simulation</span></div>
-          <p class="muted">Simulate a weather event and watch the pump respond automatically.</p>
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-cloud-sun"></i> Live Climate &amp; Weather Twin</span>
+          </div>
+          
+          <!-- 🛰️ SATELLITE WEATHER FEED -->
+          <div class="weather-feed-box" id="weatherFeedBox">
+            <div class="weather-feed-head">
+              <span><i class="fa-solid fa-satellite-dish"></i> Satellite Telemetry</span>
+              <select id="locationSelect" class="location-select" aria-label="Select Farm Region">
+                <option value="setif" selected>Sétif (High Plains - Cereal)</option>
+                <option value="biskra">Biskra (Oasis - Greenhouse)</option>
+                <option value="eloued">El Oued (Desert Basin - Tubers)</option>
+                <option value="mitidja">Mitidja (Coastal Plains - Orchards)</option>
+              </select>
+            </div>
+            <div class="weather-feed-grid">
+              <div class="w-item"><span class="w-lbl">Atmosphere</span><strong id="wCondition"><i class="fa-solid fa-sun" style="color:#F59E0B"></i> Clear</strong></div>
+              <div class="w-item"><span class="w-lbl">Temperature</span><strong id="wTemp">-- °C</strong></div>
+              <div class="w-item"><span class="w-lbl">Air Humidity</span><strong id="wHumidity">-- %</strong></div>
+              <div class="w-item"><span class="w-lbl">Wind Speed</span><strong id="wWind">-- km/h</strong></div>
+            </div>
+          </div>
+
+          <p class="muted small" style="margin-top: 14px;">Manual Disturbance Injection (Testing Closed-Loop Recovery):</p>
           <div class="btn-row">
             <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
             <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
             <button class="btn shutoff" id="shutoffBtn"><i class="fa-solid fa-octagon-xmark"></i> Emergency Shutoff</button>
             <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
           </div>
-          <p class="muted small" id="juryBadge">Closed-loop PID recovery demo ready.</p>
+          <p class="muted small" id="juryBadge">Telemetry synchronizing with Open-Meteo satellite feed.</p>
         </section>
       </div>
 
