@@ -15,7 +15,7 @@
   var pwmSeries = [];
   var cumWaterL = 0; // client-side dispensed-liter estimate for analytics
   var booted = false;
-  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200 };
+  var state = { kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, manual: false, manualPwm: 0, soilType: "loam", tankCapacity: 200, maxFlow: 0 };
 
   function $(id) { return document.getElementById(id); }
 
@@ -78,9 +78,9 @@
     chart = new Chart(ctx, {
       type: "line",
       data: { labels: [], datasets: [
-        { label: "VWC %", data: [], borderColor: "#00E5FF", backgroundColor: grad,
+        { label: "Soil Moisture %", data: [], borderColor: "#00E5FF", backgroundColor: grad,
           fill: true, tension: 0.45, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2.5 },
-        { label: "Setpoint %", data: [], borderColor: "#F59E0B", borderDash: [8, 6],
+        { label: "Target %", data: [], borderColor: "#F59E0B", borderDash: [8, 6],
           fill: false, tension: 0, pointRadius: 0, borderWidth: 1.8 }
       ]},
       options: {
@@ -137,7 +137,7 @@
     setText("uptimeTimer", fmtUptime(d.uptimeSeconds));
     setText("vcwValue", vwc.toFixed(1));
     setText("vcwValueDisplay", vwc.toFixed(1) + "%");
-    setText("vcwSetpointDisplay", "SP: " + sp.toFixed(1) + "%");
+    setText("vcwSetpointDisplay", "Target: " + sp.toFixed(1) + "%");
     setRing("vcwProgress", vwc / 100);
 
     setText("actuatorValue", String(Math.round(pwm)));
@@ -278,6 +278,10 @@
       setText("pidMode", state.manual ? "MANUAL" : "AUTO");
       var row = $("manualRow");
       if (row) row.hidden = !state.manual;
+      var banner = $("manualBanner");
+      if (banner) banner.hidden = !state.manual;
+      var pidCard = document.querySelector(".pid-card");
+      if (pidCard) pidCard.classList.toggle("manual-active", state.manual);
       var shut = $("shutoffBtn");
       if (shut) shut.classList.toggle("armed", false);
       if (socket && socket.connected)
@@ -296,7 +300,7 @@
         if (socket && socket.connected) socket.emit("client:disturbance", type);
         var badge = $("juryBadge");
         if (badge) badge.textContent = label + " — watch recovery…";
-        log("[DISTURBANCE] " + label + " injected");
+        log("[WEATHER] " + label + " simulated");
       };
     }
     var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");
@@ -310,6 +314,9 @@
       var t = $("manualToggle"); if (t) t.checked = true;
       setText("modeLabel", "MANUAL"); setText("pidMode", "MANUAL");
       var row = $("manualRow"); if (row) { row.hidden = false; }
+      var banner = $("manualBanner"); if (banner) banner.hidden = false;
+      var pidCard = document.querySelector(".pid-card");
+      if (pidCard) pidCard.classList.add("manual-active");
       var pwm = $("manualPwmSlider"); if (pwm) pwm.value = 0;
       setText("manualPwmValue", "0%");
       if (socket && socket.connected) socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
@@ -328,6 +335,9 @@
       var t = $("manualToggle"); if (t) t.checked = false;
       setText("modeLabel", "AUTO"); setText("pidMode", "AUTO");
       var row = $("manualRow"); if (row) row.hidden = true;
+      var banner = $("manualBanner"); if (banner) banner.hidden = true;
+      var pidCard = document.querySelector(".pid-card");
+      if (pidCard) pidCard.classList.remove("manual-active");
       var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
       log("[SYSTEM] Normal reset — defaults restored");
     });
@@ -370,10 +380,11 @@
     m.setAttribute("aria-hidden", "true");
   }
   function syncSettingsForm() {
-    var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
+    var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType"), mf = $("settingsMaxFlow");
     if (s) s.value = state.setpoint;
     if (c) c.value = state.tankCapacity;
     if (soil) soil.value = state.soilType;
+    if (mf) mf.value = state.maxFlow;
   }
   function fillAnalytics() {
     function avg(a) {
@@ -414,20 +425,21 @@
     });
     var save = $("settingsSave");
     if (save) save.addEventListener("click", function () {
-      var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
+      var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType"), mf = $("settingsMaxFlow");
       var sp = s ? Math.max(0, Math.min(100, parseFloat(s.value) || state.setpoint)) : state.setpoint;
       var cap = c ? Math.max(20, Math.min(2000, parseFloat(c.value) || state.tankCapacity)) : state.tankCapacity;
       var st = soil && soil.value ? soil.value : state.soilType;
-      state.setpoint = sp; state.tankCapacity = cap; state.soilType = st;
+      var maxF = mf && mf.value !== "" ? Math.max(0, Math.min(50, parseFloat(mf.value) || 0)) : 0;
+      state.setpoint = sp; state.tankCapacity = cap; state.soilType = st; state.maxFlow = maxF;
       setText("setpointValue", sp.toFixed(1) + "%");
       var spSlider = $("setpointSlider");
       if (spSlider) spSlider.value = sp;
       if (socket && socket.connected) {
-        socket.emit("client:update_settings", { setpoint: sp, tankCapacityL: cap, soilType: st });
+        socket.emit("client:update_settings", { setpoint: sp, tankCapacityL: cap, soilType: st, maxFlowL: maxF });
         socket.emit("client:update_setpoint", sp);
       }
       closeModal("settingsModal");
-      log("[SETTINGS] SP=" + sp.toFixed(1) + "% · Tank=" + cap + "L · Soil=" + st);
+      log("[SETTINGS] Target=" + sp.toFixed(1) + "% · Tank=" + cap + "L · Soil=" + st + " · MaxFlow=" + (maxF > 0 ? maxF + "L/min" : "uncapped"));
     });
     var accept = $("consentAccept");
     if (accept) accept.addEventListener("click", function () {

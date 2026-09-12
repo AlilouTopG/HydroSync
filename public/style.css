@@ -175,6 +175,20 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
 input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #06222b; border: 2px solid var(--cyan); box-shadow: 0 0 14px rgba(0,229,255,.7); }
 .windup { margin-left: 10px; color: var(--amber); }
 .windup .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); margin-left: 4px; }
+.card-sub {
+  font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--muted);
+  border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; letter-spacing: 1px;
+}
+.manual-banner {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; font-weight: 600; letter-spacing: .6px; color: #fde68a;
+  background: linear-gradient(90deg, rgba(245,158,11,.18), rgba(245,158,11,.05));
+  border: 1px solid rgba(245,158,11,.5); border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 6px;
+  box-shadow: 0 0 20px rgba(245,158,11,.2);
+}
+.manual-banner[hidden] { display: none; }
+.pid-card.manual-active { border-color: rgba(245,158,11,.55); box-shadow: 0 0 34px rgba(245,158,11,.18); }
 .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 12px; color: var(--muted); }
 .switch input { display: none; }
 .switch .track { width: 46px; height: 24px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid var(--border-strong); position: relative; transition: background .2s ease; }

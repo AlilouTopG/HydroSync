@@ -39,6 +39,7 @@ const SOILS = {
 
 // --- === System State === ---
 let state = {
+  maxFlowL: 0,         // Optional flow cap (L/min, 0 = uncapped)
   vwc: 35.0,           // Current VWC (%)
   setpoint: 55.0,      // Target VWC (%)
   temp: 24.0,          // Root-zone temperature (°C)
@@ -75,6 +76,7 @@ let manualPwm = 0;
  */
 function init() {
   state = {
+    maxFlowL: 0,
     vwc: 35.0,
     setpoint: 55.0,
     temp: 24.0,
@@ -129,6 +131,7 @@ function getState() {
     tankCapacityL: state.tankCapacityL,
     tankVolumeL: state.tankVolumeL,
     soilType: state.soilType,
+    maxFlowL: state.maxFlowL,
     isManual,
     error: state.error,
     pTerm: state.pTerm,
@@ -176,11 +179,13 @@ function pidLoop() {
   // 4. Cavitation guard: empty tank cannot pump
   if (state.tankVolumeL <= 0) state.pumpDuty = 0;
 
-  // 5. Soil absorption: pump increases VWC per soil type
-  state.vwc = Math.min(100, state.vwc + state.pumpDuty * soil.absorption * dt);
-
-  // 6. Hydraulic orifice flow: Q = Cd * A * sqrt(2P/rho) * (PWM/100)
+  // 5. Hydraulic orifice flow, optionally capped by Max Flow setting
   state.flowRate = Q_FULL_LMIN * (state.pumpDuty / 100);
+  if (state.maxFlowL > 0) state.flowRate = Math.min(state.flowRate, state.maxFlowL);
+
+  // 6. Soil absorption follows effective delivered flow (not raw PWM)
+  const effDuty = (state.flowRate / Q_FULL_LMIN) * 100;
+  state.vwc = Math.min(100, state.vwc + effDuty * soil.absorption * dt);
 
   // 7. Reservoir + real-liter accounting vs flood-irrigation baseline
   const usedStep = (state.flowRate / 60) * dt;
@@ -246,8 +251,9 @@ function setManualMode(enabled, pwm) {
 /* ==========================================
  *  HANDLER: Physical system settings (from Settings modal)
  *  ========================================== */
-function setSettings({ setpoint, tankCapacityL, soilType }) {
+function setSettings({ setpoint, tankCapacityL, soilType, maxFlowL }) {
   if (typeof setpoint === 'number') setTargetSetpoint(setpoint);
+  if (typeof maxFlowL === 'number') state.maxFlowL = Math.max(0, Math.min(50, maxFlowL));
   if (typeof tankCapacityL === 'number' && tankCapacityL > 0) {
     const ratio = state.tankVolumeL / state.tankCapacityL;
     state.tankCapacityL = Math.min(2000, Math.max(20, tankCapacityL));

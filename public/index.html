@@ -30,7 +30,7 @@
       <a href="#overview" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
       <a href="#telemetry" class="nav-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics &amp; Telemetry</span></a>
       <a href="#pid" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
-      <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-flask-vial"></i><span>Disturbance Injector</span></a>
+      <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-cloud-sun"></i><span>Weather Simulation</span></a>
       <a href="#logs" class="nav-item" data-modal="termsModal"><i class="fa-solid fa-file-shield"></i><span>Terms &amp; Compliance</span></a>
     </nav>
     <div class="sidebar-footer">
@@ -51,29 +51,29 @@
     <main class="dashboard" id="overview">
       <section class="card-grid" aria-label="Telemetry cards">
         <article class="glass-card gauge-card" id="vcwCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture</span><span class="card-unit">VWC %</span></div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture Level</span><span class="card-unit">%</span></div>
           <div class="gauge-wrap">
             <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
               <circle class="gauge-bg" cx="100" cy="100" r="80" />
               <circle class="gauge-fg vwc" id="vcwProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
             </svg>
-            <div class="gauge-center"><strong id="vcwValue">--</strong><span>VWC %</span></div>
+            <div class="gauge-center"><strong id="vcwValue">--</strong><span>moisture</span></div>
           </div>
           <div class="card-values"><div><span>Current</span><strong id="vcwValueDisplay">--%</strong></div><div><span>Setpoint</span><strong id="vcwSetpointDisplay">SP: --%</strong></div></div>
         </article>
         <article class="glass-card gauge-card" id="actuatorCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Actuator PWM</span><span class="card-unit">%</span></div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Irrigation Pump Power</span><span class="card-unit">PWM %</span></div>
           <div class="gauge-wrap">
             <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
               <circle class="gauge-bg" cx="100" cy="100" r="80" />
               <circle class="gauge-fg pwm" id="actuatorProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
             </svg>
-            <div class="gauge-center"><strong id="actuatorValue">--</strong><span>PWM %</span></div>
+            <div class="gauge-center"><strong id="actuatorValue">--</strong><span>pump power</span></div>
           </div>
           <div class="card-values"><div><span>Output</span><strong id="actuatorValueDisplay">--%</strong></div><div><span>Mode</span><strong id="pidMode">AUTO</strong></div></div>
         </article>
         <article class="glass-card gauge-card" id="flowCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-wave-square"></i> Flow Rate</span><span class="card-unit">L/min</span></div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-wave-square"></i> Water Flow Rate</span><span class="card-unit">L/min</span></div>
           <div class="gauge-wrap">
             <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
               <circle class="gauge-bg" cx="100" cy="100" r="80" />
@@ -113,23 +113,24 @@
         </div>
       </section>
       <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
-        <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — VWC vs Setpoint</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
+        <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
         <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
       </section>
       <div class="two-col">
         <section class="glass-card pid-card" id="pid" aria-label="PID controls">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> PID Controls</span>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
             <label class="switch" title="Manual / Auto toggle"><input type="checkbox" id="manualToggle" /><span class="track"><span class="thumb"></span></span><span class="switch-label" id="modeLabel">AUTO</span></label>
           </div>
+          <div class="manual-banner" id="manualBanner" hidden><i class="fa-solid fa-triangle-exclamation"></i> MANUAL OVERRIDE ACTIVE — pump follows the manual slider</div>
           <div class="pid-row"><label for="KpSlider">Kp <output id="KpValue">2.00</output></label><input type="range" id="KpSlider" min="0" max="5" step="0.1" value="2" /><small>P-term: <span id="KpTerm">0.00</span></small></div>
           <div class="pid-row"><label for="KiSlider">Ki <output id="KiValue">0.1000</output></label><input type="range" id="KiSlider" min="0" max="0.5" step="0.01" value="0.1" /><small>I-term: <span id="KiTerm">0.00</span> <span class="windup" id="antiWindupIndicator">Anti-windup <i id="antiWindupLed" class="dot"></i></span></small></div>
           <div class="pid-row"><label for="KdSlider">Kd <output id="KdValue">0.50</output></label><input type="range" id="KdSlider" min="0" max="2" step="0.05" value="0.5" /><small>D-term: <span id="KdTerm">0.00</span></small></div>
-          <div class="pid-row"><label for="setpointSlider">Setpoint <output id="setpointValue">55.0%</output></label><input type="range" id="setpointSlider" min="0" max="100" step="0.5" value="55" /></div>
+          <div class="pid-row"><label for="setpointSlider">Target Moisture <output id="setpointValue">55.0%</output></label><input type="range" id="setpointSlider" min="0" max="100" step="0.5" value="55" /></div>
           <div class="pid-row manual-row" id="manualRow" hidden><label for="manualPwmSlider">Manual PWM <output id="manualPwmValue">0%</output></label><input type="range" id="manualPwmSlider" min="0" max="100" step="1" value="0" /></div>
         </section>
-        <section class="glass-card jury-card" id="disturbance" aria-label="Disturbance injector">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-flask-vial"></i> Jury Demo — Disturbance Injector</span></div>
-          <p class="muted">Inject a shock, watch the closed loop recover.</p>
+        <section class="glass-card jury-card" id="disturbance" aria-label="Weather simulation">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-cloud-sun"></i> Weather Simulation</span></div>
+          <p class="muted">Simulate a weather event and watch the pump respond automatically.</p>
           <div class="btn-row">
             <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
             <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
@@ -150,8 +151,9 @@
   <div class="modal-overlay" id="settingsModal" aria-hidden="true" role="dialog" aria-label="System settings">
     <div class="modal-card">
       <div class="modal-head"><span><i class="fa-solid fa-gear"></i> System Settings</span><button class="icon-btn modal-close" data-close aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="field"><label for="settingsSetpoint">Target Moisture Setpoint (%)</label><input type="number" id="settingsSetpoint" min="0" max="100" step="0.5" value="55" /></div>
+      <div class="field"><label for="settingsSetpoint">Target Moisture (%)</label><input type="number" id="settingsSetpoint" min="0" max="100" step="0.5" value="55" /></div>
       <div class="field"><label for="settingsTankCap">Tank Capacity (Liters)</label><input type="number" id="settingsTankCap" min="20" max="2000" step="10" value="200" /></div>
+      <div class="field"><label for="settingsMaxFlow">Max Flow (L/min, 0 = uncapped)</label><input type="number" id="settingsMaxFlow" min="0" max="50" step="0.5" value="0" /></div>
       <div class="field"><label for="soilType">Soil Type (absorption rate)</label>
         <select id="soilType"><option value="sandy">Sandy — fast drain</option><option value="loam" selected>Loam — balanced</option><option value="clay">Clay — slow drain</option></select>
       </div>
@@ -164,7 +166,7 @@
       <div class="modal-head"><span><i class="fa-solid fa-chart-line"></i> Analytics &amp; Telemetry</span><button class="icon-btn modal-close" data-close aria-label="Close analytics"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="stat-grid">
         <div><span>Samples</span><strong id="statSamples">--</strong></div>
-        <div><span>VWC avg / min / max</span><strong id="statVwc">--</strong></div>
+        <div><span>Moisture avg / min / max</span><strong id="statVwc">--</strong></div>
         <div><span>Avg PWM</span><strong id="statPwm">--</strong></div>
         <div><span>Water used</span><strong id="statWater">--</strong></div>
         <div><span>Session uptime</span><strong id="statUptime">--</strong></div>
