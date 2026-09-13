@@ -34,6 +34,8 @@
       <a href="#overview" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
       <!-- 🗺️ GIS FLEET MAP BUTTON -->
       <a href="#fleet" class="nav-item" data-view="fleet" id="navFleet"><i class="fa-solid fa-map-location-dot"></i><span>GIS Fleet Map</span></a>
+      <!-- 🧠 PREDICTIVE AI BUTTON -->
+      <a href="#predictive" class="nav-item" data-view="predictive" id="navPredictive"><i class="fa-solid fa-brain"></i><span>Predictive AI (MPC)</span></a>
       <a href="#telemetry" class="nav-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics &amp; Telemetry</span></a>
       <a href="#pid" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
       <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-cloud-sun"></i><span>Weather Simulation</span></a>
@@ -297,6 +299,70 @@
             <div class="focus-item"><span>Surface Area</span><strong id="focusArea">520 Hectares</strong></div>
             <div class="focus-item"><span>Local VWC Average</span><strong id="focusVwc" class="highlight-cyan">48.0%</strong></div>
             <div class="focus-item"><span>Pumping Power</span><strong id="focusPwm">Active PID (AUTO)</strong></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= VIEW 3: 🧠 PREDICTIVE AI & CLIMATE ANTICIPATION (MPC) ================= -->
+      <div id="viewPredictive" class="view-screen" hidden>
+        <!-- AI Horizon Top KPIs -->
+        <section class="fleet-kpi-bar">
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-robot"></i> MPC Decision State</span>
+            <strong class="kpi-val" id="aiDecisionKpi">ANALYZING...</strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-bullseye"></i> AI Confidence Rating</span>
+            <strong class="kpi-val highlight-cyan" id="aiConfidenceKpi">--%</strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-cloud-showers-water"></i> 12h Rain Probability Peak</span>
+            <strong class="kpi-val highlight-wind" id="aiRainPeakKpi">--%</strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-piggy-bank"></i> Anticipated Water Savings</span>
+            <strong class="kpi-val highlight-emerald" id="aiSavingsKpi">-- L</strong>
+          </div>
+        </section>
+
+        <!-- 24h Satellite Forecast Horizon Chart -->
+        <section class="glass-card chart-card">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-chart-area"></i> 24-Hour Satellite Precipitation &amp; Temperature Horizon</span>
+            <span class="live-pill"><span class="pulse-dot sm"></span> OPEN-METEO SATELLITE</span>
+          </div>
+          <div class="chart-wrap" style="height: 320px;">
+            <canvas id="horizonChart"></canvas>
+          </div>
+        </section>
+
+        <!-- Autonomous MPC Decision Matrix & Rationale -->
+        <section class="glass-card farm-focus-card">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-microchip"></i> Model Predictive Control (MPC) Autonomous Dispatch</span>
+            <span class="badge" id="aiModeBadge">Mode: Autonomous MPC</span>
+          </div>
+          <div class="focus-grid" style="margin-bottom: 16px;">
+            <div class="focus-item">
+              <span>Forecast Status</span>
+              <strong id="aiForecastStatus">Satellite Inflow Nominal</strong>
+            </div>
+            <div class="focus-item">
+              <span>Recommended Action</span>
+              <strong id="aiActionRecommend" class="highlight-cyan">Evaluating Horizon</strong>
+            </div>
+            <div class="focus-item">
+              <span>24h Expected Rain Vol</span>
+              <strong id="aiRainVolExpected">-- mm</strong>
+            </div>
+            <div class="focus-item">
+              <span>Irrigation Hold State</span>
+              <strong id="aiHoldStateBadge">INACTIVE</strong>
+            </div>
+          </div>
+          <div class="manual-banner" id="aiBannerRationale" style="background: rgba(0, 229, 255, 0.08); border-color: rgba(0, 229, 255, 0.35); color: var(--text);">
+            <i class="fa-solid fa-brain" style="color: var(--cyan); font-size: 16px;"></i>
+            <span id="aiRationaleText">Analyzing satellite micro-climate telemetry to optimize next irrigation cycle...</span>
           </div>
         </section>
       </div>

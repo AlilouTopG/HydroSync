@@ -1,7 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
-   Safety Interlocks & GIS Satellite Fleet Map Engine (Esri Zero-Auth)
+   Safety Interlocks, GIS Satellite Fleet Map & Predictive AI (MPC)
    ========================================================================== */
 (function () {
   "use strict";
@@ -85,6 +85,9 @@
       defaultVwc: 59.0
     }
   ];
+
+  // 🧠 Predictive AI (MPC) Horizon Chart Instance
+  var horizonChart = null;
 
   var CROP_PROFILES = {
     "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
@@ -321,6 +324,11 @@
         else if (code >= 80 && code <= 82) condEl.innerHTML = "<i class='fa-solid fa-cloud-showers-heavy' style='color:#3B82F6'></i> Showers";
         else condEl.innerHTML = "<i class='fa-solid fa-cloud' style='color:#94A3B8'></i> Overcast";
       }
+    }
+
+    // 🧠 Model Predictive Control (MPC) Telemetry Update
+    if (d.predictiveAI) {
+      updatePredictiveUI(d.predictiveAI);
     }
 
     pwmSeries.push(pwm);
@@ -572,23 +580,27 @@
   function switchView(viewName) {
     var dashView = $("viewDashboard");
     var fleetView = $("viewFleet");
+    var predView = $("viewPredictive");
     var navLinks = document.querySelectorAll(".sidebar-nav .nav-item");
 
     Array.prototype.forEach.call(navLinks, function (btn) {
       btn.classList.toggle("active", btn.getAttribute("data-view") === viewName);
     });
 
+    if (dashView) dashView.hidden = (viewName !== "dashboard");
+    if (fleetView) fleetView.hidden = (viewName !== "fleet");
+    if (predView) predView.hidden = (viewName !== "predictive");
+
     if (viewName === "fleet") {
-      if (dashView) dashView.hidden = true;
-      if (fleetView) fleetView.hidden = false;
-      // Slight delay guarantees the browser calculates DOM container dimensions
       setTimeout(function () {
         initFleetMap();
       }, 150);
       log("<strong style='color:var(--cyan)'><i class='fa-solid fa-map-location-dot'></i> [GIS FLEET]</strong> Switched to National Satellite Fleet Overview.");
-    } else {
-      if (dashView) dashView.hidden = false;
-      if (fleetView) fleetView.hidden = true;
+    } else if (viewName === "predictive") {
+      setTimeout(function () {
+        if (horizonChart) horizonChart.resize();
+      }, 150);
+      log("<strong style='color:var(--cyan)'><i class='fa-solid fa-brain'></i> [PREDICTIVE AI]</strong> Switched to Model Predictive Control (MPC) Climate Horizon.");
     }
   }
 
@@ -601,7 +613,6 @@
     var mapContainer = $("fleetMap");
     if (!mapContainer || typeof L === "undefined") return;
 
-    // Center map over Northern & Central Algeria
     mapInstance = L.map("fleetMap", {
       center: [34.9, 5.0],
       zoom: 6.2,
@@ -609,26 +620,21 @@
       attributionControl: false
     });
 
-    // 🛰️ Provider 1: True High-Resolution Satellite Imagery (Zero-Auth / No API Key)
     var satelliteTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
       maxZoom: 18
     });
 
-    // 🌑 Provider 2: Industrial Cyber Dark Canvas (Zero-Auth / No API Key)
     var darkTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
       maxZoom: 18
     });
 
-    // Default to Satellite View
     satelliteTiles.addTo(mapInstance);
 
-    // Layer Switcher Control in top-right
     L.control.layers({
       "🛰️ Satellite Imagery": satelliteTiles,
       "🌑 Cyber Dark Canvas": darkTiles
     }, null, { position: "topright" }).addTo(mapInstance);
 
-    // Plot Agricultural Hubs with Glowing SCADA Badges
     FLEET_FARMS.forEach(function (farm) {
       var isIrrigating = farm.status === "active";
       var color = isIrrigating ? "#00E5FF" : "#10B981";
@@ -656,7 +662,6 @@
       });
     });
 
-    // Invalidate size to guarantee crisp tile rendering
     setTimeout(function () {
       if (mapInstance) mapInstance.invalidateSize();
     }, 250);
@@ -675,6 +680,133 @@
     if (locSelect) locSelect.value = farm.id;
 
     log("<strong style='color:var(--emerald)'><i class='fa-solid fa-satellite'></i> [FLEET FOCUS]</strong> Linked SCADA to <strong>" + farm.name + "</strong>");
+  }
+
+  /* ==========================================================================
+   *  🧠 PREDICTIVE AI (MPC) HORIZON RENDERER
+   * ========================================================================== */
+  function updatePredictiveUI(p) {
+    if (!p) return;
+
+    var decEl = $("aiDecisionKpi");
+    if (decEl) {
+      decEl.textContent = p.rainHoldActive ? "AUTONOMOUS RAIN HOLD" : "NOMINAL DISPATCH";
+      decEl.className = "kpi-val " + (p.rainHoldActive ? "hold-active" : "nominal");
+    }
+
+    setText("aiConfidenceKpi", (p.confidence || 92) + "%");
+    setText("aiRainPeakKpi", (p.maxRainProb12h || 0) + "%");
+    setText("aiSavingsKpi", (p.waterSavedEstimateL || 0) + " L");
+
+    setText("aiForecastStatus", p.rainHoldActive ? "Impending Precipitation Front" : "Stable Micro-Climate Horizon");
+    setText("aiActionRecommend", p.rainHoldActive ? "Hold Irrigation (Anticipate Rain)" : "Standard Closed-Loop Dispatch");
+    setText("aiRainVolExpected", (p.totalRain24h || 0).toFixed(1) + " mm");
+
+    var holdBadge = $("aiHoldStateBadge");
+    if (holdBadge) {
+      holdBadge.textContent = p.rainHoldActive ? "ACTIVE (HELD)" : "INACTIVE";
+      holdBadge.className = p.rainHoldActive ? "active" : "inactive";
+    }
+
+    setText("aiRationaleText", p.rationale || "Micro-climate telemetry nominal.");
+
+    if (Array.isArray(p.horizon) && p.horizon.length) {
+      renderHorizonChart(p.horizon);
+    }
+  }
+
+  function renderHorizonChart(horizon) {
+    var canvas = $("horizonChart");
+    if (!canvas || typeof Chart === "undefined") return;
+
+    var hLabels = horizon.map(function (h) { return h.hour; });
+    var probData = horizon.map(function (h) { return h.prob; });
+    var rainData = horizon.map(function (h) { return h.rainMm; });
+    var tempData = horizon.map(function (h) { return h.temp; });
+
+    if (!horizonChart) {
+      var ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      horizonChart = new Chart(ctx, {
+        data: {
+          labels: hLabels,
+          datasets: [
+            {
+              type: "line",
+              label: "Rain Probability (%)",
+              data: probData,
+              borderColor: "#00E5FF",
+              backgroundColor: "rgba(0, 229, 255, 0.12)",
+              fill: true,
+              tension: 0.4,
+              yAxisID: "y",
+              borderWidth: 2.5,
+              pointRadius: 2
+            },
+            {
+              type: "bar",
+              label: "Precipitation (mm)",
+              data: rainData,
+              backgroundColor: "rgba(56, 189, 248, 0.65)",
+              borderColor: "#38BDF8",
+              borderWidth: 1,
+              yAxisID: "y1",
+              borderRadius: 4
+            },
+            {
+              type: "line",
+              label: "Air Temp (°C)",
+              data: tempData,
+              borderColor: "#F59E0B",
+              borderDash: [4, 4],
+              fill: false,
+              tension: 0.3,
+              yAxisID: "y",
+              borderWidth: 1.8,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          interaction: { intersect: false, mode: "index" },
+          scales: {
+            y: {
+              min: 0,
+              max: 100,
+              position: "left",
+              ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
+              grid: { color: "rgba(255,255,255,.05)" },
+              title: { display: true, text: "Probability % / Temp °C", color: "rgba(139,152,179,.8)", font: { size: 10 } }
+            },
+            y1: {
+              min: 0,
+              max: Math.max(10, Math.ceil(Math.max.apply(null, rainData.concat([0])) * 1.5)),
+              position: "right",
+              ticks: { color: "#38BDF8", font: { family: "JetBrains Mono", size: 10 } },
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: "Rain mm", color: "#38BDF8", font: { size: 10 } }
+            },
+            x: {
+              ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 12 },
+              grid: { color: "rgba(255,255,255,.04)" }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: "rgba(232,238,247,.75)", font: { size: 11 }, boxWidth: 14 } }
+          }
+        }
+      });
+    } else {
+      horizonChart.data.labels = hLabels;
+      horizonChart.data.datasets[0].data = probData;
+      horizonChart.data.datasets[1].data = rainData;
+      horizonChart.data.datasets[2].data = tempData;
+      horizonChart.options.scales.y1.max = Math.max(10, Math.ceil(Math.max.apply(null, rainData.concat([0])) * 1.5));
+      horizonChart.update("none");
+    }
   }
 
   /* ---------- Controls Binding ---------- */
@@ -722,6 +854,7 @@
     // 🗺️ Sidebar Multi-View Navigation
     var navDashboard = document.querySelector(".sidebar-nav [data-view='dashboard']");
     var navFleet = $("navFleet");
+    var navPredictive = $("navPredictive");
 
     if (navDashboard) {
       navDashboard.addEventListener("click", function (e) {
@@ -736,6 +869,14 @@
         e.preventDefault();
         playClick();
         switchView("fleet");
+      });
+    }
+
+    if (navPredictive) {
+      navPredictive.addEventListener("click", function (e) {
+        e.preventDefault();
+        playClick();
+        switchView("predictive");
       });
     }
 
@@ -991,6 +1132,7 @@
     window.addEventListener("resize", function () { 
       if (chart) chart.resize(); 
       if (mapInstance) mapInstance.invalidateSize();
+      if (horizonChart) horizonChart.resize();
     });
     document.addEventListener("click", function () { initAudio(); }, { once: true });
   }

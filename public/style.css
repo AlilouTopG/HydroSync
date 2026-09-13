@@ -347,6 +347,7 @@ body {
 .c-stat strong { font-family: var(--mono); font-size: 14px; color: var(--text); }
 .highlight-cyan { color: var(--cyan) !important; font-weight: 700; }
 .highlight-wind { color: #38BDF8 !important; font-weight: 700; }
+.highlight-emerald { color: var(--emerald) !important; font-weight: 700; }
 
 /* ---------- Field Micro-Plots Section ---------- */
 .card.field-grid-section {
@@ -605,7 +606,6 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   color: var(--muted);
   font-weight: 400;
 }
-.highlight-emerald { color: var(--emerald) !important; }
 
 /* Fleet Map Container */
 .fleet-map-card { padding: 16px; }
@@ -677,6 +677,101 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   font-family: var(--sans);
 }
 .leaflet-popup-tip { background: rgba(13, 19, 34, 0.95) !important; }
+
+/* Leaflet Dark Theme Controls (Zoom Buttons & Layer Switcher) */
+.leaflet-bar {
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.6) !important;
+}
+.leaflet-bar a {
+  background: rgba(13, 19, 34, 0.95) !important;
+  color: var(--cyan) !important;
+  border-bottom: 1px solid var(--border) !important;
+  transition: all 0.2s ease !important;
+}
+.leaflet-bar a:hover {
+  background: rgba(0, 229, 255, 0.15) !important;
+  color: #FFF !important;
+}
+.leaflet-control-layers {
+  background: rgba(13, 19, 34, 0.95) !important;
+  border: 1px solid var(--border-strong) !important;
+  color: var(--text) !important;
+  border-radius: 10px !important;
+  font-family: var(--sans) !important;
+  font-size: 12px !important;
+  backdrop-filter: blur(8px);
+  padding: 8px 12px !important;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.15) !important;
+}
+.leaflet-control-layers label {
+  color: var(--text) !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.leaflet-control-layers input[type="radio"] {
+  accent-color: var(--cyan);
+}
+
+/* ===================================================
+   🧠 PREDICTIVE AI (MPC) MODULE STYLES
+   =================================================== */
+#aiDecisionKpi {
+  transition: color 0.3s ease;
+  font-size: 20px;
+}
+#aiDecisionKpi.hold-active {
+  color: var(--amber) !important;
+  text-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
+}
+#aiDecisionKpi.nominal {
+  color: var(--emerald) !important;
+  text-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+}
+
+#aiHoldStateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+#aiHoldStateBadge.active {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: var(--amber);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.3);
+  animation: pulseWarn 1.6s infinite;
+}
+#aiHoldStateBadge.inactive {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: var(--emerald);
+}
+
+#aiBannerRationale {
+  background: linear-gradient(90deg, rgba(0, 229, 255, 0.08), rgba(13, 19, 34, 0.85)) !important;
+  border: 1px solid rgba(0, 229, 255, 0.35) !important;
+  border-radius: 12px;
+  padding: 14px 18px;
+  color: var(--text) !important;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.06);
+}
+#aiBannerRationale i {
+  color: var(--cyan);
+  font-size: 20px;
+  filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.6));
+}
 
 /* ---------- Modals ---------- */
 .modal-overlay {
