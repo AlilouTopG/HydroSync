@@ -482,15 +482,48 @@
     </div>
   </div>
 
+  <!-- 🛡️ TERMS & COMPLIANCE MODAL (MANDATORY AGREEMENT PROTOCOL) -->
   <div class="modal-overlay" id="termsModal" aria-hidden="true" role="dialog" aria-label="Terms of service and compliance">
-    <div class="modal-card">
-      <div class="modal-head"><span><i class="fa-solid fa-file-shield"></i> Terms of Service &amp; Compliance</span><button class="icon-btn modal-close" data-close aria-label="Close terms"><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="terms-body">
-        <p>HydroSync Enterprise OS processes irrigation telemetry locally for system operation. By enabling data logging you consent to retention of operational metrics (VWC, flow, actuator output) for diagnostics and compliance auditing.</p>
-        <p>No personal data is collected. Logs remain on the deployment host unless export is explicitly triggered by an operator.</p>
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-head">
+        <span><i class="fa-solid fa-file-shield"></i> HydroSync Enterprise Terms &amp; Compliance Protocol</span>
+        <button class="icon-btn modal-close" data-close aria-label="Close terms"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <label class="consent"><input type="checkbox" id="consentCheck" /> I consent to operational data logging</label>
-      <div class="modal-actions"><button class="btn ghost" data-close>Decline</button><button class="btn info" id="consentAccept"><i class="fa-solid fa-check"></i> Accept</button></div>
+
+      <div class="terms-body" style="max-height: 250px; overflow-y: auto; padding-right: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: rgba(0,0,0,0.35); font-size: 12px; line-height: 1.6;">
+        <p style="margin-bottom: 10px;">
+          <strong style="color:var(--cyan);">1. نطاق التشغيل والسلامة الوظيفية (IEC 61508)</strong><br/>
+          منصة HydroSync هي نظام تشغيل وتحكم سيبراني-صناعي (SCADA). يلتزم المشغل بعدم إلغاء حمايات السلامة الذاتية (Thermal Derating، منع الجفاف، وحماية التكهف) إلا في الحالات الميدانية المصرح بها وتحت مسؤوليته المباشرة.
+        </p>
+        <p style="margin-bottom: 10px;">
+          <strong style="color:var(--cyan);">2. حوكمة المياه والمقاييس البيئية (UN SDG 6.4 &amp; ESG)</strong><br/>
+          يتم احتساب كميات المياه والطاقة الموفرة بناءً على خوارزميات التوأم الرقمي ومحرك التنبؤ المناخي (MPC). يُقر المشغل بأن هذه البيانات تشكل سجلاً معتمداً لتدقيق استهلاك الموارد المائية ومطابقة الأهداف البيئية.
+        </p>
+        <p style="margin-bottom: 10px;">
+          <strong style="color:var(--cyan);">3. حماية البيانات والاتصال الصناعي (Modbus / Web Serial)</strong><br/>
+          تتم معالجة تدفقات التيليميتري وسجلات الـ PLC محلياً على المضيف (Local Host) مع عزل كامل لمنع أي اختراق، ولا يتم تصدير أي سجلات تشغيلية إلا بتصريح يدوي عبر تقارير الـ CSV المعتمدة.
+        </p>
+        <p>
+          <strong style="color:var(--cyan);">4. مسؤولية المشغل وصيانة الأصول (ISO 10816)</strong><br/>
+          يتحمل المشغل الميداني مسؤولية الاستجابة لتحذيرات طيف الاهتزاز الميكانيكي (Zone C و Zone D) وإجراء الصيانة الميدانية في المواعيد المقترحة لتفادي انهيار المضخات.
+        </p>
+      </div>
+
+      <label class="consent" style="margin-top: 14px; font-size: 13px; display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text);">
+        <input type="checkbox" id="consentCheck" style="width: 18px; height: 18px; accent-color: var(--emerald); cursor: pointer;" />
+        <span>أقر بأنني قرأت وفهمت بنود التشغيل وبروتوكول الامتثال وأوافق على الالتزام بها بالكامل.</span>
+      </label>
+
+      <p id="consentErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-top: 8px;">
+        <i class="fa-solid fa-circle-exclamation"></i> يجب عليك تحديد مربع الموافقة أولاً لتفعيل الترخيص والتشغيل.
+      </p>
+
+      <div class="modal-actions" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn ghost" id="consentDecline" data-close>رفض الشروط</button>
+        <button class="btn info" id="consentAccept" disabled style="opacity: 0.45; cursor: not-allowed;">
+          <i class="fa-solid fa-check"></i> موافقة واعتماد الترخيص
+        </button>
+      </div>
     </div>
   </div>
 
