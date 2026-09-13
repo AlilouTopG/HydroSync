@@ -719,7 +719,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 
 /* ===================================================
-   🧠 PREDICTIVE AI (MPC) MODULE STYLES
+   🧠 PREDICTIVE AI (MPC) & ⚙️ ASSET HEALTH STYLES
    =================================================== */
 #aiDecisionKpi {
   transition: color 0.3s ease;
@@ -772,6 +772,40 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   font-size: 20px;
   filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.6));
 }
+
+/* ISO 10816 Zone Badges */
+.live-pill.zone-a {
+  color: var(--emerald);
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+}
+.live-pill.zone-a .pulse-dot { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+
+.live-pill.zone-b {
+  color: var(--cyan);
+  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.12);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.25);
+}
+.live-pill.zone-b .pulse-dot { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+.live-pill.zone-c {
+  color: var(--amber);
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+}
+.live-pill.zone-c .pulse-dot { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+.live-pill.zone-d {
+  color: #FECACA;
+  border-color: rgba(239, 68, 68, 0.8);
+  background: rgba(239, 68, 68, 0.22);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+  animation: emergencyFlash 1.2s infinite alternate;
+}
+.live-pill.zone-d .pulse-dot { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
 
 /* ---------- Modals ---------- */
 .modal-overlay {

@@ -1,7 +1,7 @@
 /**
  * server.js - HydroSync SCADA Server (Hardened Production Release)
  * Security Hardening: Anti-SSRF, Strict CORS, CSP, Timing-Safe Auth, Rate-Limiter
- * Features: Live Satellite Weather Ingestion, GIS Fleet Map, & 24h Predictive AI Horizon
+ * Features: Live Satellite Weather Ingestion, GIS Fleet Map, 24h Predictive AI Horizon & ISO 10816 Asset Health
  */
 const express = require('express');
 const http = require('http');
@@ -197,7 +197,6 @@ async function fetchSatelliteWeather(key = 'setif') {
         }
       }
 
-      // Model Predictive Control Decision Matrix
       const willRainSoon = maxRainProb12h >= 60 || totalRain24h >= 4.0;
       const expectedSaving = willRainSoon ? Math.round(1800 + totalRain24h * 450) : 0;
 
@@ -348,6 +347,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 9. ⚙️ Predictive Maintenance Service Log (Authorized Operator)
+  socket.on('client:service_asset', () => {
+    if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
+    simulator.servicePumpAsset();
+    broadcastTelemetry();
+  });
+
   socket.on('disconnect', () => {
     clientFirewallState.delete(socket.id);
   });
@@ -381,4 +387,5 @@ server.listen(PORT, () => {
   console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
   console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Anti-SSRF, Rate-Limiting`);
   console.log(`🧠 Predictive AI MPC Horizon Ingestion Online`);
+  console.log(`⚙️ ISO 10816 Asset Health & Vibration Diagnostics Engine Online`);
 });

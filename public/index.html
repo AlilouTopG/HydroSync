@@ -36,6 +36,8 @@
       <a href="#fleet" class="nav-item" data-view="fleet" id="navFleet"><i class="fa-solid fa-map-location-dot"></i><span>GIS Fleet Map</span></a>
       <!-- 🧠 PREDICTIVE AI BUTTON -->
       <a href="#predictive" class="nav-item" data-view="predictive" id="navPredictive"><i class="fa-solid fa-brain"></i><span>Predictive AI (MPC)</span></a>
+      <!-- ⚙️ ASSET HEALTH & PREDICTIVE MAINTENANCE BUTTON -->
+      <a href="#health" class="nav-item" data-view="health" id="navHealth"><i class="fa-solid fa-screwdriver-wrench"></i><span>Asset Health (ISO 10816)</span></a>
       <a href="#telemetry" class="nav-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics &amp; Telemetry</span></a>
       <a href="#pid" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
       <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-cloud-sun"></i><span>Weather Simulation</span></a>
@@ -360,9 +362,73 @@
               <strong id="aiHoldStateBadge">INACTIVE</strong>
             </div>
           </div>
-          <div class="manual-banner" id="aiBannerRationale" style="background: rgba(0, 229, 255, 0.08); border-color: rgba(0, 229, 255, 0.35); color: var(--text);">
+          <div class="manual-banner" id="aiBannerRationale">
             <i class="fa-solid fa-brain" style="color: var(--cyan); font-size: 16px;"></i>
             <span id="aiRationaleText">Analyzing satellite micro-climate telemetry to optimize next irrigation cycle...</span>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= VIEW 4: ⚙️ ASSET HEALTH & PREDICTIVE MAINTENANCE (ISO 10816) ================= -->
+      <div id="viewHealth" class="view-screen" hidden>
+        <!-- Asset Health Top KPI Bar -->
+        <section class="fleet-kpi-bar">
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-heart-pulse"></i> Overall Asset Health</span>
+            <strong class="kpi-val highlight-emerald" id="healthIndexKpi">98.4%</strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span>
+            <strong class="kpi-val highlight-cyan" id="vibRmsKpi">0.22 <small>mm/s</small></strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Cavitation Strain</span>
+            <strong class="kpi-val highlight-wind" id="cavitationKpi">2.1%</strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span>
+            <strong class="kpi-val" id="rulHoursKpi">6,580 <small>Hours</small></strong>
+          </div>
+        </section>
+
+        <!-- ISO 10816 Vibration Spectrum Real-Time Chart -->
+        <section class="glass-card chart-card">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span>
+            <span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span>
+          </div>
+          <div class="chart-wrap" style="height: 300px;">
+            <canvas id="vibrationChart"></canvas>
+          </div>
+        </section>
+
+        <!-- Maintenance Diagnostics & Action Panel -->
+        <section class="glass-card farm-focus-card">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span>
+            <button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button>
+          </div>
+          <div class="focus-grid" style="margin-bottom: 16px;">
+            <div class="focus-item">
+              <span>Bearing &amp; Bushing Wear</span>
+              <strong id="bearingWearVal" class="highlight-cyan">4.8%</strong>
+            </div>
+            <div class="focus-item">
+              <span>Lifetime Run Time</span>
+              <strong id="operatingHoursVal">1,420.4 Hours</strong>
+            </div>
+            <div class="focus-item">
+              <span>Prognostics Decision</span>
+              <strong id="maintActionVal" class="highlight-emerald">NOMINAL_OPERATION</strong>
+            </div>
+            <div class="focus-item">
+              <span>Winding Thermals</span>
+              <strong id="maintMotorTempVal">24.0°C</strong>
+            </div>
+          </div>
+          <div class="manual-banner" id="maintRationaleBanner" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); color: var(--text);">
+            <i class="fa-solid fa-clipboard-check" style="color: var(--emerald); font-size: 20px;"></i>
+            <span id="maintRationaleText">Hydraulic impeller, winding thermals, and acoustic signature are within optimal operating baseline.</span>
           </div>
         </section>
       </div>

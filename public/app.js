@@ -1,7 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
-   Safety Interlocks, GIS Satellite Fleet Map & Predictive AI (MPC)
+   Safety Interlocks, GIS Satellite Fleet, Predictive AI (MPC) & ISO 10816 Asset Health
    ========================================================================== */
 (function () {
   "use strict";
@@ -12,7 +12,6 @@
   var WATER_PRICE = 0.045;
 
   var socket = null;
-  var twinTank = 85; 
   var chart = null;
   var labels = [];
   var vwcSeries = [];
@@ -86,8 +85,11 @@
     }
   ];
 
-  // 🧠 Predictive AI (MPC) Horizon Chart Instance
+  // 🧠 Predictive AI & ⚙️ Asset Health Chart Instances
   var horizonChart = null;
+  var vibrationChart = null;
+  var vibLabels = [];
+  var vibSeries = [];
 
   var CROP_PROFILES = {
     "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
@@ -329,6 +331,11 @@
     // 🧠 Model Predictive Control (MPC) Telemetry Update
     if (d.predictiveAI) {
       updatePredictiveUI(d.predictiveAI);
+    }
+
+    // ⚙️ ISO 10816 Asset Health Telemetry Update
+    if (d.assetHealth) {
+      updateHealthUI(d.assetHealth, mTemp);
     }
 
     pwmSeries.push(pwm);
@@ -575,12 +582,13 @@
   }
 
   /* ==========================================================================
-   *  🗺️ GIS SATELLITE FLEET MAP & MULTI-VIEW NAVIGATION ENGINE (ESRI ZERO-AUTH)
+   *  🗺️ MULTI-VIEW NAVIGATION ENGINE (DASHBOARD / FLEET / PREDICTIVE / HEALTH)
    * ========================================================================== */
   function switchView(viewName) {
     var dashView = $("viewDashboard");
     var fleetView = $("viewFleet");
     var predView = $("viewPredictive");
+    var healthView = $("viewHealth");
     var navLinks = document.querySelectorAll(".sidebar-nav .nav-item");
 
     Array.prototype.forEach.call(navLinks, function (btn) {
@@ -590,17 +598,20 @@
     if (dashView) dashView.hidden = (viewName !== "dashboard");
     if (fleetView) fleetView.hidden = (viewName !== "fleet");
     if (predView) predView.hidden = (viewName !== "predictive");
+    if (healthView) healthView.hidden = (viewName !== "health");
 
     if (viewName === "fleet") {
-      setTimeout(function () {
-        initFleetMap();
-      }, 150);
+      setTimeout(function () { initFleetMap(); }, 150);
       log("<strong style='color:var(--cyan)'><i class='fa-solid fa-map-location-dot'></i> [GIS FLEET]</strong> Switched to National Satellite Fleet Overview.");
     } else if (viewName === "predictive") {
-      setTimeout(function () {
-        if (horizonChart) horizonChart.resize();
-      }, 150);
+      setTimeout(function () { if (horizonChart) horizonChart.resize(); }, 150);
       log("<strong style='color:var(--cyan)'><i class='fa-solid fa-brain'></i> [PREDICTIVE AI]</strong> Switched to Model Predictive Control (MPC) Climate Horizon.");
+    } else if (viewName === "health") {
+      setTimeout(function () { 
+        if (!vibrationChart) initVibrationChart();
+        else vibrationChart.resize(); 
+      }, 150);
+      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-screwdriver-wrench'></i> [ASSET HEALTH]</strong> Switched to ISO 10816 Mechanical Diagnostics Console.");
     }
   }
 
@@ -620,13 +631,8 @@
       attributionControl: false
     });
 
-    var satelliteTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-      maxZoom: 18
-    });
-
-    var darkTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-      maxZoom: 18
-    });
+    var satelliteTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18 });
+    var darkTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18 });
 
     satelliteTiles.addTo(mapInstance);
 
@@ -656,15 +662,10 @@
         "</div>";
 
       marker.bindPopup(popupHtml);
-
-      marker.on("click", function () {
-        selectFarmHub(farm);
-      });
+      marker.on("click", function () { selectFarmHub(farm); });
     });
 
-    setTimeout(function () {
-      if (mapInstance) mapInstance.invalidateSize();
-    }, 250);
+    setTimeout(function () { if (mapInstance) mapInstance.invalidateSize(); }, 250);
   }
 
   function selectFarmHub(farm) {
@@ -673,9 +674,7 @@
     setText("focusArea", farm.area);
     setText("focusVwc", farm.defaultVwc.toFixed(1) + "%");
 
-    if (socket && socket.connected) {
-      socket.emit("client:set_location", farm.id);
-    }
+    if (socket && socket.connected) socket.emit("client:set_location", farm.id);
     var locSelect = $("locationSelect");
     if (locSelect) locSelect.value = farm.id;
 
@@ -809,6 +808,139 @@
     }
   }
 
+  /* ==========================================================================
+   *  ⚙️ ISO 10816 PREDICTIVE MAINTENANCE & VIBRATION CHART ENGINE
+   * ========================================================================== */
+  function initVibrationChart() {
+    var canvas = $("vibrationChart");
+    if (!canvas || typeof Chart === "undefined") return;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    var grad = ctx.createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, "rgba(0, 229, 255, 0.35)");
+    grad.addColorStop(1, "rgba(0, 229, 255, 0.02)");
+
+    vibrationChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: "Vibration RMS (mm/s)",
+            data: [],
+            borderColor: "#00E5FF",
+            backgroundColor: grad,
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.2,
+            pointRadius: 0
+          },
+          {
+            label: "ISO Zone B Limit (1.8 mm/s)",
+            data: [],
+            borderColor: "#10B981",
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            fill: false,
+            pointRadius: 0
+          },
+          {
+            label: "ISO Zone C Warning (2.8 mm/s)",
+            data: [],
+            borderColor: "#F59E0B",
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            fill: false,
+            pointRadius: 0
+          },
+          {
+            label: "ISO Zone D Critical (4.5 mm/s)",
+            data: [],
+            borderColor: "#EF4444",
+            borderDash: [4, 4],
+            borderWidth: 1.8,
+            fill: false,
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 0 },
+        scales: {
+          y: {
+            min: 0,
+            max: 6.0,
+            ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
+            grid: { color: "rgba(255,255,255,.06)" },
+            title: { display: true, text: "Velocity RMS (mm/s)", color: "rgba(139,152,179,.8)", font: { size: 10 } }
+          },
+          x: {
+            ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 8 },
+            grid: { color: "rgba(255,255,255,.04)" }
+          }
+        },
+        plugins: {
+          legend: { labels: { color: "rgba(232,238,247,.7)", font: { size: 10 }, boxWidth: 14 } }
+        }
+      }
+    });
+  }
+
+  function updateHealthUI(ah, motorTemp) {
+    if (!ah) return;
+
+    setText("healthIndexKpi", (ah.healthIndex || 98.4).toFixed(1) + "%");
+    setText("vibRmsKpi", (ah.vibrationRms || 0.22).toFixed(2) + " <small>mm/s</small>");
+    setText("cavitationKpi", (ah.cavitationIndex || 2.1).toFixed(1) + "%");
+    setText("rulHoursKpi", Math.round(ah.rulHours || 6580).toLocaleString() + " <small>Hours</small>");
+
+    setText("bearingWearVal", (ah.bearingWearPct || 4.8).toFixed(1) + "%");
+    setText("operatingHoursVal", (ah.operatingHoursTotal || 1420.4).toFixed(1) + " Hours");
+    setText("maintActionVal", ah.recommendedAction || "NOMINAL_OPERATION");
+    setText("maintMotorTempVal", (motorTemp || 24.0).toFixed(1) + "°C");
+    setText("maintRationaleText", ah.rationale || "Optimal baseline.");
+
+    // Update ISO Badge
+    var zoneBadge = $("isoZoneBadge");
+    if (zoneBadge) {
+      zoneBadge.className = "live-pill";
+      if (ah.vibrationIsoZone === 'ZONE_A') {
+        zoneBadge.classList.add("zone-a");
+        zoneBadge.innerHTML = "<span class='pulse-dot sm'></span> ISO ZONE A (OPTIMAL)";
+      } else if (ah.vibrationIsoZone === 'ZONE_B') {
+        zoneBadge.classList.add("zone-b");
+        zoneBadge.innerHTML = "<span class='pulse-dot sm'></span> ISO ZONE B (ACCEPTABLE)";
+      } else if (ah.vibrationIsoZone === 'ZONE_C') {
+        zoneBadge.classList.add("zone-c");
+        zoneBadge.innerHTML = "<span class='pulse-dot sm'></span> ISO ZONE C (DEGRADATION WARNING)";
+      } else {
+        zoneBadge.classList.add("zone-d");
+        zoneBadge.innerHTML = "<span class='pulse-dot sm'></span> ISO ZONE D (CRITICAL TRIP RISK)";
+      }
+    }
+
+    // Push point to Vibration Chart
+    var now = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    vibLabels.push(now);
+    vibSeries.push(ah.vibrationRms);
+    while (vibLabels.length > FIFO_MAX) {
+      vibLabels.shift();
+      vibSeries.shift();
+    }
+
+    if (vibrationChart) {
+      vibrationChart.data.labels = vibLabels;
+      vibrationChart.data.datasets[0].data = vibSeries;
+      vibrationChart.data.datasets[1].data = vibLabels.map(function () { return 1.8; });
+      vibrationChart.data.datasets[2].data = vibLabels.map(function () { return 2.8; });
+      vibrationChart.data.datasets[3].data = vibLabels.map(function () { return 4.5; });
+      vibrationChart.update("none");
+    }
+  }
+
   /* ---------- Controls Binding ---------- */
   function bindControls() {
     function slider(id, fn) {
@@ -855,28 +987,29 @@
     var navDashboard = document.querySelector(".sidebar-nav [data-view='dashboard']");
     var navFleet = $("navFleet");
     var navPredictive = $("navPredictive");
+    var navHealth = $("navHealth");
 
     if (navDashboard) {
       navDashboard.addEventListener("click", function (e) {
-        e.preventDefault();
-        playClick();
-        switchView("dashboard");
+        e.preventDefault(); playClick(); switchView("dashboard");
       });
     }
 
     if (navFleet) {
       navFleet.addEventListener("click", function (e) {
-        e.preventDefault();
-        playClick();
-        switchView("fleet");
+        e.preventDefault(); playClick(); switchView("fleet");
       });
     }
 
     if (navPredictive) {
       navPredictive.addEventListener("click", function (e) {
-        e.preventDefault();
-        playClick();
-        switchView("predictive");
+        e.preventDefault(); playClick(); switchView("predictive");
+      });
+    }
+
+    if (navHealth) {
+      navHealth.addEventListener("click", function (e) {
+        e.preventDefault(); playClick(); switchView("health");
       });
     }
 
@@ -884,8 +1017,25 @@
     var jumpBtn = $("jumpToControlBtn");
     if (jumpBtn) {
       jumpBtn.addEventListener("click", function () {
+        playClick(); switchView("dashboard");
+      });
+    }
+
+    // ⚙️ Service Asset Button (Authorized Operator Action)
+    var serviceBtn = $("serviceAssetBtn");
+    if (serviceBtn) {
+      serviceBtn.addEventListener("click", function () {
         playClick();
-        switchView("dashboard");
+        pressFlash(serviceBtn);
+        if (!isOperatorAuthorized) {
+          openModal("authModal");
+          log("<strong style='color:var(--amber)'>[ACCESS DENIED]</strong> Operator authorization required to log preventive maintenance.");
+          return;
+        }
+        if (socket && socket.connected) {
+          socket.emit("client:service_asset");
+        }
+        log("<strong style='color:var(--emerald)'><i class='fa-solid fa-wrench'></i> [MAINTENANCE LOGGED]</strong> Pump overhaul complete: Rotor bearings recalibrated and fatigue reset.");
       });
     }
 
@@ -1133,6 +1283,7 @@
       if (chart) chart.resize(); 
       if (mapInstance) mapInstance.invalidateSize();
       if (horizonChart) horizonChart.resize();
+      if (vibrationChart) vibrationChart.resize();
     });
     document.addEventListener("click", function () { initAudio(); }, { once: true });
   }
