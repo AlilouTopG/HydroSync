@@ -1,6 +1,7 @@
 /**
  * server.js - HydroSync SCADA Server (Hardened Production Release)
  * Security Hardening: Anti-SSRF, Strict CORS, CSP, Timing-Safe Auth, Rate-Limiter
+ * Features: Live Satellite Weather Ingestion (Open-Meteo Current + Daily ET0)
  */
 const express = require('express');
 const http = require('http');
@@ -43,9 +44,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, same-origin)
       if (!origin) return callback(null, true);
-      // In production, restrict to Render deployment domain or localhost
       if (!isProduction || origin.includes('onrender.com') || origin.includes('localhost')) {
         return callback(null, true);
       }
@@ -62,15 +61,13 @@ const OPERATOR_PIN = process.env.OPERATOR_PIN || '8492';
  *  SECURITY ENGINE: RATE LIMITING & TIMING-SAFE AUTH
  * ========================================================================== */
 const clientFirewallState = new Map();
-const failedAttemptsByIp = new Map(); // IP Brute-Force tracking
+const failedAttemptsByIp = new Map();
 let totalThreatsBlocked = 0;
 
-// Safe constant-time string comparison to defeat Timing Attacks
 function safeCompare(a, b) {
   const bufA = Buffer.from(String(a));
   const bufB = Buffer.from(String(b));
   if (bufA.length !== bufB.length) {
-    // Artificial comparison to maintain equal timing
     crypto.timingSafeEqual(bufA, bufA);
     return false;
   }
@@ -117,21 +114,19 @@ function verifyOperatorAuth(socket) {
 }
 
 /* ==========================================================================
- *  SSRF-SAFE SATELLITE WEATHER INGESTION
+ *  SSRF-SAFE SATELLITE WEATHER INGESTION (Corrected Open-Meteo Spec)
  * ========================================================================== */
-// Strictly locked dictionary — prevents SSRF injection of internal URLs/IPs
 const LOCATION_COORDINATES = Object.freeze({
   'setif': Object.freeze({ lat: 36.19, lon: 5.41, name: 'Sétif (High Plains - Cereal)' }),
-  'biskra': Object.freeze({ lat: 34.85, lon: 5.73, name: 'Biskra (Oasis - Greenhouse)' }),
+  'biskra': Object.freeze({ lat: 34.85, lon: 5.73, name: 'Biskra (Oasis - Palms/Greenhouse)' }),
   'eloued': Object.freeze({ lat: 33.37, lon: 6.86, name: 'El Oued (Desert Basin - Tubers)' }),
-  'mitidja': Object.freeze({ lat: 36.47, lon: 2.83, name: 'Mitidja (Coastal Plains - Orchards)' })
+  'mitidja': Object.freeze({ lat: 36.56, lon: 2.91, name: 'Mitidja (Coastal Plains - Citrus)' })
 });
 
 let activeLocationKey = 'setif';
 
 async function fetchSatelliteWeather(key = 'setif') {
   try {
-    // Reject unknown keys strictly (Anti-SSRF)
     if (!Object.prototype.hasOwnProperty.call(LOCATION_COORDINATES, key)) {
       key = 'setif';
     }
@@ -141,22 +136,31 @@ async function fetchSatelliteWeather(key = 'setif') {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude', loc.lat.toString());
     url.searchParams.set('longitude', loc.lon.toString());
-    url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code,et0_fao_evapotranspiration');
+    url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code');
+    url.searchParams.set('daily', 'et0_fao_evapotranspiration');
+    url.searchParams.set('timezone', 'auto');
     
-    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(6000) });
+    if (!response.ok) throw new Error(`Open-Meteo HTTP ${response.status}`);
+    
     const data = await response.json();
     const cur = data.current || {};
+    const daily = data.daily || {};
 
-    simulator.setLiveWeather({
+    const liveData = {
       location: loc.name,
-      temp: cur.temperature_2m ?? 24.0,
-      humidity: cur.relative_humidity_2m ?? 50,
-      rain: cur.precipitation ?? 0.0,
-      windSpeed: cur.wind_speed_10m ?? 8.0,
-      weatherCode: cur.weather_code ?? 0,
-      et0: cur.et0_fao_evapotranspiration ?? 4.2
-    });
+      temp: typeof cur.temperature_2m === 'number' ? cur.temperature_2m : 24.0,
+      humidity: typeof cur.relative_humidity_2m === 'number' ? cur.relative_humidity_2m : 50,
+      rain: typeof cur.precipitation === 'number' ? cur.precipitation : 0.0,
+      windSpeed: typeof cur.wind_speed_10m === 'number' ? cur.wind_speed_10m : 8.0,
+      weatherCode: typeof cur.weather_code === 'number' ? cur.weather_code : 0,
+      et0: (Array.isArray(daily.et0_fao_evapotranspiration) && daily.et0_fao_evapotranspiration.length > 0)
+        ? Number(daily.et0_fao_evapotranspiration[0])
+        : 4.2
+    };
+
+    simulator.setLiveWeather(liveData);
+    console.log(`🛰️ [SATELLITE LIVE] ${loc.name} -> ${liveData.temp}°C | Wind: ${liveData.windSpeed} km/h | RH: ${liveData.humidity}% | ET0: ${liveData.et0} mm/day`);
   } catch (err) {
     console.warn(`⚠️ Weather API fallback: ${err.message}`);
   }
@@ -184,7 +188,7 @@ io.on('connection', (socket) => {
 
     if (lockData.lockedUntil > now) {
       const waitSecs = Math.ceil((lockData.lockedUntil - now) / 1000);
-      socket.emit('auth:failed', { msg: `Account locked due to multiple failed attempts. Try again in ${waitSecs}s.` });
+      socket.emit('auth:failed', { msg: `Console locked due to multiple failed attempts. Wait ${waitSecs}s.` });
       return;
     }
 
@@ -197,7 +201,7 @@ io.on('connection', (socket) => {
       totalThreatsBlocked++;
       lockData.count++;
       if (lockData.count >= 5) {
-        lockData.lockedUntil = now + 15 * 60 * 1000; // 15-minute lock
+        lockData.lockedUntil = now + 15 * 60 * 1000;
       }
       failedAttemptsByIp.set(clientIp, lockData);
       socket.emit('auth:failed', { msg: 'Invalid Operator Passcode.' });
@@ -290,9 +294,9 @@ io.on('connection', (socket) => {
   });
 });
 
-/* ==========================================
+/* ==========================================================================
  *  BROADCAST LOOP
- * ========================================== */
+ * ========================================================================== */
 const TELEMETRY_INTERVAL = 1000;
 setInterval(() => {
   broadcastTelemetry();
