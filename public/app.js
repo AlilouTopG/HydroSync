@@ -1,7 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
-   ISA 5.1 P&ID Scheme, Modbus TCP Mapping, AI MPC & ESG Accounting
+   ISA 5.1 P&ID Screen, Modbus TCP Mapping, AI MPC & ESG Accounting
    ========================================================================== */
 (function () {
   "use strict";
@@ -416,11 +416,17 @@
         tankRect.setAttribute("y", (208 - h).toFixed(0));
       }
 
+      var pressureBar = (1.2 + (pwm / 100) * 2.6).toFixed(1);
       setText("pidTankVal", Math.round(pct) + "%");
       setText("pidPumpPwmTag", Math.round(pwm) + "% PWM");
       setText("pidFtVal", flow.toFixed(1) + " L/m");
-      setText("pidPtVal", (1.2 + (pwm / 100) * 2.6).toFixed(1) + " bar");
+      setText("pidPtVal", pressureBar + " bar");
       setText("pidSoilVal", vwc.toFixed(1) + "% VWC");
+
+      // Screen KPIs
+      setText("pidKpiPressure", pressureBar + " <small>bar</small>");
+      setText("pidKpiFlow", flow.toFixed(1) + " <small>L/min</small>");
+      setText("pidKpiValve", isRunning ? "OPEN" : "CLOSED");
 
       var xvTag = $("pidXvState");
       if (xvTag) {
@@ -616,7 +622,8 @@
     var predView = $("viewPredictive");
     var healthView = $("viewHealth");
     var analyticsView = $("viewAnalytics");
-    var navLinks = document.querySelectorAll(".sidebar-nav .nav-item");
+    var pidView = $("viewPid");
+    var navLinks = document.querySelectorAll(".sidebar-nav .nav-item[data-view]");
 
     Array.prototype.forEach.call(navLinks, function (btn) {
       btn.classList.toggle("active", btn.getAttribute("data-view") === viewName);
@@ -627,6 +634,7 @@
     if (predView) predView.hidden = (viewName !== "predictive");
     if (healthView) healthView.hidden = (viewName !== "health");
     if (analyticsView) analyticsView.hidden = (viewName !== "analytics");
+    if (pidView) pidView.hidden = (viewName !== "pidView");
 
     if (viewName === "fleet") {
       setTimeout(function () { initFleetMap(); }, 150);
@@ -645,6 +653,8 @@
         if (zoneWaterChart) zoneWaterChart.resize();
       }, 150);
       log("<strong style='color:var(--emerald)'><i class='fa-solid fa-chart-pie'></i> [ANALYTICS]</strong> Switched to Agronomic Accounting & ESG Impact Console.");
+    } else if (viewName === "pidView") {
+      log("<strong style='color:var(--cyan)'><i class='fa-solid fa-diagram-project'></i> [P&amp;ID PROCESS]</strong> Switched to ISA 5.1 &amp; Modbus TCP Live Register Overview.");
     }
   }
 
@@ -979,50 +989,30 @@
       }
     });
 
-    // 🗺️ Sidebar Multi-View Navigation
+    // 🗺️ Sidebar Multi-View Navigation Bindings
     var navDashboard = document.querySelector(".sidebar-nav [data-view='dashboard']");
     var navFleet = $("navFleet");
     var navPredictive = $("navPredictive");
     var navHealth = $("navHealth");
+    var navPidView = $("navPidView");
     var navAnalytics = $("navAnalytics");
 
     if (navDashboard) navDashboard.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("dashboard"); });
     if (navFleet) navFleet.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("fleet"); });
     if (navPredictive) navPredictive.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("predictive"); });
     if (navHealth) navHealth.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("health"); });
+    if (navPidView) navPidView.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("pidView"); });
     if (navAnalytics) navAnalytics.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("analytics"); });
 
-    // 📐 Toggle Synoptic vs ISA 5.1 P&ID View
-    var btnSynoptic = $("btnSynopticView");
-    var btnPid = $("btnPidView");
-    var synopticBox = $("twinSynopticContainer");
-    var pidBox = $("twinPidContainer");
-
-    if (btnSynoptic && btnPid) {
-      btnSynoptic.addEventListener("click", function () {
+    // Weather Simulation quick-scroll
+    var weatherScrollBtn = document.querySelector(".sidebar-nav [data-scroll='disturbance']");
+    if (weatherScrollBtn) {
+      weatherScrollBtn.addEventListener("click", function (e) {
+        e.preventDefault();
         playClick();
-        btnSynoptic.classList.add("active");
-        btnPid.classList.remove("active");
-        if (synopticBox) synopticBox.hidden = false;
-        if (pidBox) pidBox.hidden = true;
-      });
-
-      btnPid.addEventListener("click", function () {
-        playClick();
-        btnPid.classList.add("active");
-        btnSynoptic.classList.remove("active");
-        if (synopticBox) synopticBox.hidden = true;
-        if (pidBox) pidBox.hidden = false;
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-diagram-project'></i> [P&amp;ID]</strong> Displaying ISA 5.1 Process Instrumentation Flowsheet.");
-      });
-    }
-
-    // 🔌 Modbus TCP Matrix Modal
-    var openModbusBtn = $("openModbusBtn");
-    if (openModbusBtn) {
-      openModbusBtn.addEventListener("click", function () {
-        playClick();
-        openModal("modbusModal");
+        switchView("dashboard");
+        var distCard = $("disturbanceCard");
+        if (distCard) distCard.scrollIntoView({ behavior: "smooth" });
       });
     }
 
@@ -1227,7 +1217,20 @@
     if (soil) soil.value = state.soilType;
   }
   
+  /* ---------- 🛠️ Modal Activation & Trigger Binder ---------- */
   function bindModals() {
+    // 1. Bind all sidebar/page links that have [data-modal]
+    var modalTriggers = document.querySelectorAll("[data-modal]");
+    Array.prototype.forEach.call(modalTriggers, function (trigger) {
+      trigger.addEventListener("click", function (e) {
+        e.preventDefault();
+        playClick();
+        var targetId = trigger.getAttribute("data-modal");
+        if (targetId) openModal(targetId);
+      });
+    });
+
+    // 2. Overlay click-outside & [data-close] buttons
     var overlays = document.querySelectorAll(".modal-overlay");
     Array.prototype.forEach.call(overlays, function (o) {
       o.addEventListener("click", function (e) { if (e.target === o) closeModal(o); });
@@ -1237,6 +1240,7 @@
       });
     });
     
+    // 3. Settings Form Submit
     var save = $("settingsSave");
     if (save) save.addEventListener("click", function () {
       pressFlash(save);
@@ -1254,6 +1258,7 @@
       closeModal("settingsModal");
     });
     
+    // 4. Terms Accept
     var accept = $("consentAccept");
     if (accept) accept.addEventListener("click", function () {
       closeModal("termsModal");
