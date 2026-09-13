@@ -44,15 +44,15 @@
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle sidebar"><i class="fa-solid fa-bars"></i></button>
       <div class="header-title"><h1>HydroSync Digital Twin</h1><p>Smart Irrigation &amp; Water Management Operating Console</p></div>
       <div class="header-meta">
+        <div class="firewall-chip" id="firewallChip" title="SCADA Firewall Active"><i class="fa-solid fa-shield-virus"></i> Firewall: <span id="threatsBlockedVal">0 Blocked</span></div>
+        <button class="auth-btn lock" id="authBtn" title="Authorize SCADA Operator Mode"><i class="fa-solid fa-lock" id="authIcon"></i> <span id="authLabel">OBSERVER</span></button>
         <button class="audio-btn" id="audioToggleBtn" title="Toggle Safety Audio Alarms" aria-label="Toggle Audio"><i class="fa-solid fa-volume-high" id="audioIcon"></i></button>
         <div class="uptime-chip" title="System uptime"><i class="fa-regular fa-clock"></i><span id="uptimeTimer">00:00:00</span></div>
-        <div class="nominal-chip"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
-        <div class="showcase-tag"><i class="fa-solid fa-building"></i> HydroSync Enterprise OS</div>
       </div>
     </header>
 
     <main class="dashboard" id="overview">
-      <!-- 🛡️ INDUSTRIAL SAFETY & INTERLOCK MATRIX BAR -->
+      <!-- 🛡️ 1. INDUSTRIAL SAFETY & INTERLOCK MATRIX BAR -->
       <section class="safety-banner nominal" id="safetyBanner" aria-label="Safety status">
         <div class="safety-status">
           <i class="fa-solid fa-shield-halved" id="safetyIcon"></i>
@@ -67,7 +67,48 @@
         </div>
       </section>
 
-      <!-- Field Micro-Plots Section -->
+      <!-- 🛰️ 2. PROMINENT REAL-TIME SATELLITE CLIMATE & WEATHER BAR -->
+      <section class="climate-banner" id="climateBanner" aria-label="Real-time satellite weather">
+        <div class="climate-region">
+          <i class="fa-solid fa-satellite-dish pulse-satellite"></i>
+          <div>
+            <span class="climate-sub">OPEN-METEO SATELLITE FEED</span>
+            <div class="select-wrapper">
+              <select id="locationSelect" class="location-select" aria-label="Select Farm Region">
+                <option value="setif" selected>Sétif (High Plains - Cereal)</option>
+                <option value="biskra">Biskra (Oasis - Greenhouse/Palms)</option>
+                <option value="eloued">El Oued (Desert Basin - Tubers)</option>
+                <option value="mitidja">Mitidja (Coastal Plains - Orchards)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <div class="climate-telemetry-grid">
+          <div class="c-stat">
+            <span class="c-label"><i class="fa-solid fa-cloud-sun"></i> ATMOSPHERE</span>
+            <strong id="wCondition"><i class="fa-solid fa-sun" style="color:#F59E0B"></i> Clear</strong>
+          </div>
+          <div class="c-stat">
+            <span class="c-label"><i class="fa-solid fa-temperature-three-quarters"></i> AIR TEMP</span>
+            <strong id="wTemp" class="highlight-cyan">-- °C</strong>
+          </div>
+          <div class="c-stat">
+            <span class="c-label"><i class="fa-solid fa-wind"></i> WIND SPEED</span>
+            <strong id="wWind" class="highlight-wind">-- km/h</strong>
+          </div>
+          <div class="c-stat">
+            <span class="c-label"><i class="fa-solid fa-droplet"></i> AIR HUMIDITY</span>
+            <strong id="wHumidity">-- %</strong>
+          </div>
+          <div class="c-stat">
+            <span class="c-label"><i class="fa-solid fa-sun-plant-wilt"></i> ET₀ EVAP</span>
+            <strong id="wET0">-- mm/d</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 🌾 3. FIELD MICRO-PLOTS SECTION -->
       <section class="card field-grid-section" id="fieldSection">
         <div class="card-head">
           <h3><i class="fa-solid fa-border-all"></i> Field Micro-Plots &amp; Soil Heatmap</h3>
@@ -83,7 +124,7 @@
         </div>
       </section>
 
-      <!-- Telemetry Gauges Grid -->
+      <!-- 4. TELEMETRY GAUGES GRID -->
       <section class="card-grid" aria-label="Telemetry cards">
         <article class="glass-card gauge-card" id="vcwCard">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture Level</span><span class="card-unit">%</span></div>
@@ -118,7 +159,7 @@
             </svg>
             <div class="gauge-center"><strong id="flowValue">--</strong><span>L/min</span></div>
           </div>
-          <div class="card-values"><div><span>Current</span><strong id="flowValueDisplay">-- L/min</strong></div><div><span>Temp</span><strong id="tempValue">-- C</strong></div></div>
+          <div class="card-values"><div><span>Current</span><strong id="flowValueDisplay">-- L/min</strong></div><div><span>Satellite Temp</span><strong id="tempValue">-- C</strong></div></div>
         </article>
 
         <article class="glass-card gauge-card" id="conservationCard">
@@ -134,7 +175,7 @@
         </article>
       </section>
 
-      <!-- Visual Twin Section -->
+      <!-- 5. VISUAL TWIN -->
       <section class="glass-card twin-card" id="twin" aria-label="Physical system visual twin">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-cubes"></i> Visual Twin — Physical System</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span></div>
         <div class="twin-grid">
@@ -153,13 +194,13 @@
         </div>
       </section>
 
-      <!-- Chart Section -->
+      <!-- 6. CHART -->
       <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
         <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
       </section>
 
-      <!-- Controls & Live Weather Feed -->
+      <!-- 7. CONTROLS & WEATHER SIMULATION -->
       <div class="two-col">
         <section class="glass-card pid-card" id="pid" aria-label="PID controls">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
@@ -175,29 +216,9 @@
 
         <section class="glass-card jury-card" id="disturbance" aria-label="Weather simulation">
           <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-cloud-sun"></i> Live Climate &amp; Weather Twin</span>
+            <span class="card-title"><i class="fa-solid fa-cloud-bolt"></i> Manual Disturbance Injection</span>
           </div>
-          
-          <!-- 🛰️ SATELLITE WEATHER FEED -->
-          <div class="weather-feed-box" id="weatherFeedBox">
-            <div class="weather-feed-head">
-              <span><i class="fa-solid fa-satellite-dish"></i> Satellite Telemetry</span>
-              <select id="locationSelect" class="location-select" aria-label="Select Farm Region">
-                <option value="setif" selected>Sétif (High Plains - Cereal)</option>
-                <option value="biskra">Biskra (Oasis - Greenhouse)</option>
-                <option value="eloued">El Oued (Desert Basin - Tubers)</option>
-                <option value="mitidja">Mitidja (Coastal Plains - Orchards)</option>
-              </select>
-            </div>
-            <div class="weather-feed-grid">
-              <div class="w-item"><span class="w-lbl">Atmosphere</span><strong id="wCondition"><i class="fa-solid fa-sun" style="color:#F59E0B"></i> Clear</strong></div>
-              <div class="w-item"><span class="w-lbl">Temperature</span><strong id="wTemp">-- °C</strong></div>
-              <div class="w-item"><span class="w-lbl">Air Humidity</span><strong id="wHumidity">-- %</strong></div>
-              <div class="w-item"><span class="w-lbl">Wind Speed</span><strong id="wWind">-- km/h</strong></div>
-            </div>
-          </div>
-
-          <p class="muted small" style="margin-top: 14px;">Manual Disturbance Injection (Testing Closed-Loop Recovery):</p>
+          <p class="muted small">Inject acute physical disruptions to test closed-loop PID self-recovery:</p>
           <div class="btn-row">
             <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
             <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
@@ -208,7 +229,7 @@
         </section>
       </div>
 
-      <!-- Logs -->
+      <!-- 8. LOGS -->
       <section class="glass-card logs-card" id="logs" aria-label="System logs">
         <div class="card-top"><span class="card-title"><i class="fa-solid fa-terminal"></i> System Logs</span><span class="card-unit" id="logCount">0 events</span></div>
         <ul class="log-list" id="logList"></ul>
@@ -217,30 +238,28 @@
   </div>
 
   <!-- ============ MODALS ============ -->
+  <div class="modal-overlay" id="authModal" aria-hidden="true" role="dialog" aria-label="Operator Authorization">
+    <div class="modal-card" style="max-width: 380px;">
+      <div class="modal-head"><span><i class="fa-solid fa-user-shield"></i> SCADA Master Authorization</span><button class="icon-btn modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
+      <p class="muted" style="margin-bottom: 12px; font-size: 13px;">Enter industrial operator passcode to unlock manual actuators, PID tuning, and system overrides.</p>
+      <div class="field">
+        <label for="operatorPinInput">Operator PIN (Default: 8492)</label>
+        <input type="password" id="operatorPinInput" placeholder="••••" maxlength="8" style="text-align: center; font-size: 20px; letter-spacing: 4px;" />
+      </div>
+      <p id="authErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-bottom: 10px;"><i class="fa-solid fa-circle-exclamation"></i> Invalid Passcode. Attempt logged.</p>
+      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn info" id="submitAuthBtn"><i class="fa-solid fa-unlock"></i> Unlock Console</button></div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="settingsModal" aria-hidden="true" role="dialog" aria-label="System settings">
     <div class="modal-card">
       <div class="modal-head"><span><i class="fa-solid fa-gear"></i> System Settings</span><button class="icon-btn modal-close" data-close aria-label="Close settings"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="field"><label for="settingsSetpoint">Target Moisture (%)</label><input type="number" id="settingsSetpoint" min="0" max="100" step="0.5" value="55" /></div>
       <div class="field"><label for="settingsTankCap">Tank Capacity (Liters)</label><input type="number" id="settingsTankCap" min="20" max="2000" step="10" value="200" /></div>
-      <div class="field"><label for="settingsMaxFlow">Max Flow (L/min, 0 = uncapped)</label><input type="number" id="settingsMaxFlow" min="0" max="50" step="0.5" value="0" /></div>
       <div class="field"><label for="soilType">Soil Type (absorption rate)</label>
         <select id="soilType"><option value="sandy">Sandy — fast drain</option><option value="loam" selected>Loam — balanced</option><option value="clay">Clay — slow drain</option></select>
       </div>
       <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn info" id="settingsSave"><i class="fa-solid fa-check"></i> Apply Settings</button></div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="analyticsModal" aria-hidden="true" role="dialog" aria-label="Analytics and telemetry">
-    <div class="modal-card">
-      <div class="modal-head"><span><i class="fa-solid fa-chart-line"></i> Analytics &amp; Telemetry</span><button class="icon-btn modal-close" data-close aria-label="Close analytics"><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="stat-grid">
-        <div><span>Samples</span><strong id="statSamples">--</strong></div>
-        <div><span>Moisture avg / min / max</span><strong id="statVwc">--</strong></div>
-        <div><span>Avg PWM</span><strong id="statPwm">--</strong></div>
-        <div><span>Water used</span><strong id="statWater">--</strong></div>
-        <div><span>Session uptime</span><strong id="statUptime">--</strong></div>
-      </div>
-      <div class="modal-actions"><button class="btn ghost" data-close>Close</button></div>
     </div>
   </div>
 

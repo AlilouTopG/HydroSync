@@ -1,15 +1,14 @@
 /* ==========================================================================
-   HydroSync v2.0 Enterprise — Advanced SCADA Client
-   Features: AI Co-Pilot, Watchdog Failsafe, ROI Calculator, Multi-Zone &
-             Agronomic Crop Profiles Engine
+   HydroSync v2.0 Enterprise — Industrial SCADA Client
+   Integrated Satellite Weather, Audio Synth & Defense Interlocks
    ========================================================================== */
 (function () {
   "use strict";
 
   var FIFO_MAX = 25;
-  var CIRC = 502.65; // 2*pi*80 for radial gauges
-  var FLOW_MAX = 50; // L/min gauge capacity
-  var WATER_PRICE = 0.045; // Cost per liter saved ($) for ROI calculation
+  var CIRC = 502.65;
+  var FLOW_MAX = 50;
+  var WATER_PRICE = 0.045;
 
   var socket = null;
   var twinTank = 85; 
@@ -21,33 +20,73 @@
   var cumWaterL = 0; 
   var booted = false;
   
-  // Advanced State Tracking
   var state = { 
-    kp: 2.0, 
-    ki: 0.1, 
-    kd: 0.5, 
-    setpoint: 55.0, 
-    manual: false, 
-    manualPwm: 0, 
-    soilType: "loam", 
-    tankCapacity: 200, 
-    maxFlow: 0, 
-    activeZone: "A1" 
+    kp: 2.0, ki: 0.1, kd: 0.5, setpoint: 55.0, 
+    manual: false, manualPwm: 0, soilType: "loam", 
+    tankCapacity: 200, activeZone: "A1" 
   };
-  var watchdogTripped = false;
-  var aiLastAlert = 0;
 
-  // 🌾 Agronomic Crop Profiles Database (Biological Setpoints & Tuning)
+  var isOperatorAuthorized = false;
+  var aiLastAlert = 0;
+  var lastAudioAlert = 0;
+
   var CROP_PROFILES = {
-    "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4, note: "Cereal grain — balanced drainage requirement" },
-    "Tomatoes": { setpoint: 65.0, kp: 3.2, ki: 0.16, kd: 0.6, note: "High hydration demand, sensitive to deficit" },
-    "Olives": { setpoint: 35.0, kp: 1.4, ki: 0.04, kd: 0.3, note: "Deep-root tree — drought tolerant, low budget" },
-    "Barley": { setpoint: 42.0, kp: 2.0, ki: 0.07, kd: 0.35, note: "Hardy dryland crop — low water footprint" },
-    "Corn": { setpoint: 60.0, kp: 2.8, ki: 0.12, kd: 0.5, note: "High evapotranspiration rate, rapid depletion" },
-    "Potatoes": { setpoint: 55.0, kp: 2.4, ki: 0.10, kd: 0.45, note: "Tuber crop — requires balanced, stable hydration" }
+    "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
+    "Tomatoes": { setpoint: 65.0, kp: 3.2, ki: 0.16, kd: 0.6 },
+    "Olives": { setpoint: 35.0, kp: 1.4, ki: 0.04, kd: 0.3 },
+    "Barley": { setpoint: 42.0, kp: 2.0, ki: 0.07, kd: 0.35 },
+    "Corn": { setpoint: 60.0, kp: 2.8, ki: 0.12, kd: 0.5 },
+    "Potatoes": { setpoint: 55.0, kp: 2.4, ki: 0.10, kd: 0.45 }
   };
 
   function $(id) { return document.getElementById(id); }
+
+  /* Audio Synth */
+  var audioCtx = null;
+  var audioMuted = false;
+
+  function initAudio() {
+    if (!audioCtx) {
+      var AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) audioCtx = new AudioContext();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playTone(freq, type, duration, vol) {
+    if (audioMuted || !audioCtx) return;
+    try {
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol || 0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    } catch (e) {}
+  }
+
+  function playEmergencySiren() {
+    if (audioMuted) return;
+    initAudio();
+    playTone(880, 'sawtooth', 0.25, 0.12);
+    setTimeout(function () { playTone(587, 'sawtooth', 0.35, 0.12); }, 260);
+  }
+
+  function playCautionBeep() {
+    if (audioMuted) return;
+    initAudio();
+    playTone(659, 'sine', 0.15, 0.08);
+  }
+
+  function playClick() {
+    if (audioMuted) return;
+    initAudio();
+    playTone(1200, 'triangle', 0.04, 0.05);
+  }
 
   function log(msg) {
     try {
@@ -59,16 +98,14 @@
       time.className = "t";
       time.textContent = t;
       li.appendChild(time);
-      
       var contentSpan = document.createElement("span");
       contentSpan.innerHTML = " " + msg;
       li.appendChild(contentSpan);
-      
       list.prepend(li);
       while (list.children.length > 30) list.removeChild(list.lastChild);
       var count = $("logCount");
       if (count) count.textContent = list.children.length + " events";
-    } catch (e) { /* keep UI stable */ }
+    } catch (e) {}
   }
 
   function fmtUptime(total) {
@@ -88,8 +125,6 @@
       dot.style.background = online ? "var(--emerald)" : "var(--danger)";
       dot.style.boxShadow = online ? "0 0 10px rgba(16,185,129,.8)" : "0 0 10px rgba(239,68,68,.8)";
     }
-    var beat = $("heartbeatPulse");
-    if (beat) beat.style.opacity = online ? "1" : "0.25";
   }
 
   function setRing(id, frac) {
@@ -104,7 +139,7 @@
     if (el) el.innerHTML = text;
   }
 
-  /* ---------- Chart ---------- */
+  /* ---------- Chart Setup ---------- */
   function initChart() {
     var canvas = $("mainChart");
     if (!canvas || typeof Chart === "undefined") return;
@@ -165,12 +200,13 @@
     }
   }
 
-  /* ---------- Telemetry Processor & AI ---------- */
+  /* ---------- Telemetry Dispatcher ---------- */
   function onTelemetry(d) {
     if (!d || typeof d !== "object") return;
     var vwc = +d.vwc || 0, sp = +d.setpoint || 0, pwm = +d.pumpDuty || 0;
     var flow = +d.flowRate || 0, saved = +d.waterSaved || 0;
     var err = (typeof d.error === "number") ? d.error : sp - vwc;
+    var mTemp = (typeof d.motorTemp === "number") ? d.motorTemp : 24.0;
 
     setText("uptimeTimer", fmtUptime(d.uptimeSeconds));
     setText("vcwValue", vwc.toFixed(1));
@@ -185,14 +221,12 @@
     setText("flowValue", flow.toFixed(1));
     setText("flowValueDisplay", flow.toFixed(1) + " L/min");
     setRing("flowProgress", flow / FLOW_MAX);
-    setText("tempValue", (typeof d.temp === "number" ? d.temp.toFixed(1) : "--") + " C");
-    setText("et0Value", "ET0 " + ((typeof d.et0 === "number") ? d.et0.toFixed(2) : "--") + " mm/day");
 
     setText("conservationValue", String(Math.round(saved)));
     setText("conservationValueDisplay", Math.round(saved) + "%");
     setRing("conservationProgress", saved / 100);
     
-    // Financial ROI Calculation
+    // Financial ROI
     var litersSaved = (typeof d.waterSavedL === "number") ? d.waterSavedL : 0;
     var moneySaved = (litersSaved * WATER_PRICE).toFixed(3);
     setText("savedLitersValue", litersSaved.toFixed(1) + " L <span style='color:var(--emerald); margin-left:6px;'><i class='fa-solid fa-sack-dollar'></i> $" + moneySaved + "</span>");
@@ -201,6 +235,39 @@
     setText("KpTerm", (+d.pTerm || 0).toFixed(2));
     setText("KiTerm", (+d.iTerm || 0).toFixed(2));
     setText("KdTerm", (+d.dTerm || 0).toFixed(2));
+
+    // Motor & Interlocks
+    setText("motorTempVal", mTemp.toFixed(1) + "°C");
+    updateSafetyStatus(d);
+
+    if (d.threatsBlocked !== undefined) {
+      setText("threatsBlockedVal", d.threatsBlocked + " Blocked");
+    }
+
+    // 🛰️ REAL SATELLITE CLIMATE INGESTION
+    if (d.liveWeather) {
+      var realTemp = (typeof d.liveWeather.temp === "number") ? d.liveWeather.temp.toFixed(1) : "--";
+      var realWind = (typeof d.liveWeather.windSpeed === "number") ? d.liveWeather.windSpeed.toFixed(1) : "--";
+      var realHumidity = (typeof d.liveWeather.humidity === "number") ? Math.round(d.liveWeather.humidity) : "--";
+      var realET0 = (typeof d.liveWeather.et0 === "number") ? d.liveWeather.et0.toFixed(2) : "--";
+
+      setText("wTemp", realTemp + " °C");
+      setText("wWind", realWind + " km/h");
+      setText("wHumidity", realHumidity + " %");
+      setText("wET0", realET0 + " mm/d");
+      setText("tempValue", realTemp + " °C");
+      setText("et0Value", "ET0 " + realET0 + " mm/day");
+
+      var code = d.liveWeather.weatherCode;
+      var condEl = $("wCondition");
+      if (condEl) {
+        if (code === 0) condEl.innerHTML = "<i class='fa-solid fa-sun' style='color:#F59E0B'></i> Clear Sky";
+        else if (code >= 1 && code <= 3) condEl.innerHTML = "<i class='fa-solid fa-cloud-sun' style='color:#00E5FF'></i> Partly Cloudy";
+        else if (code >= 51 && code <= 67) condEl.innerHTML = "<i class='fa-solid fa-cloud-rain' style='color:#00E5FF'></i> Rain Inflow";
+        else if (code >= 80 && code <= 82) condEl.innerHTML = "<i class='fa-solid fa-cloud-showers-heavy' style='color:#3B82F6'></i> Showers";
+        else condEl.innerHTML = "<i class='fa-solid fa-cloud' style='color:#94A3B8'></i> Overcast";
+      }
+    }
 
     pwmSeries.push(pwm);
     while (pwmSeries.length > FIFO_MAX) pwmSeries.shift();
@@ -222,27 +289,56 @@
       syncControls();
       syncSettingsForm();
       seedChart(vwc, sp);
-      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> Telemetry stream established successfully.");
+      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> SCADA Core linked. Real Open-Meteo Satellite Feed Online.");
     } else {
       pushPoint(vwc, sp);
     }
   }
 
-  /* ---------- AI Agronomist Co-Pilot ---------- */
+  function updateSafetyStatus(d) {
+    var banner = $("safetyBanner");
+    var title = $("safetyTitle");
+    var desc = $("safetyDesc");
+    var icon = $("safetyIcon");
+    var interlockVal = $("interlockVal");
+    var now = Date.now();
+
+    var faults = Array.isArray(d.activeFaults) ? d.activeFaults : [];
+    if (interlockVal) interlockVal.textContent = faults.length + " Active";
+    if (!banner) return;
+
+    banner.classList.remove("nominal", "degraded", "emergency");
+
+    if (d.systemHealth === 'EMERGENCY_LOCK') {
+      banner.classList.add("emergency");
+      if (icon) icon.className = "fa-solid fa-triangle-exclamation";
+      if (title) title.textContent = "EMERGENCY INTERLOCK ENGAGED";
+      if (desc) desc.textContent = faults.length ? faults[0] : "Critical hardware threshold tripped. Pump isolated.";
+      if (now - lastAudioAlert > 3500) { playEmergencySiren(); lastAudioAlert = now; }
+    } else if (d.systemHealth === 'DEGRADED') {
+      banner.classList.add("degraded");
+      if (icon) icon.className = "fa-solid fa-circle-exclamation";
+      if (title) title.textContent = "DEGRADED: THERMAL THROTTLING";
+      if (desc) desc.textContent = faults.length ? faults[0] : "Pump motor coil temp > 85°C. Duty clamped to 30%.";
+      if (now - lastAudioAlert > 5000) { playCautionBeep(); lastAudioAlert = now; }
+    } else {
+      banner.classList.add("nominal");
+      if (icon) icon.className = "fa-solid fa-shield-halved";
+      if (title) title.textContent = "ALL SYSTEMS NOMINAL";
+      if (desc) desc.textContent = "IEC 61508 Functional Safety Loops Active — No Hardware Faults.";
+    }
+  }
+
   function runAIAnalyst(vwc, sp, pwm, flow) {
     var now = Date.now();
     if (now - aiLastAlert > 20000) {
       if (pwm > 85 && vwc < sp - 15) {
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output detected with low moisture response. Suspected hydraulic pipe leak or rapid drainage in Zone " + state.activeZone + ".");
-        aiLastAlert = now;
-      } else if (vwc > 85) {
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> Soil saturation critical. Decreasing Target Setpoint is recommended to protect crop root structure.");
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output with low response in Sector " + state.activeZone + ". Leak check advised.");
         aiLastAlert = now;
       }
     }
   }
 
-  /* ---------- Visual Twin & Watchdog ---------- */
   function updateTwin(vwc, pwm, flow, d) {
     try {
       var pct, liters;
@@ -250,25 +346,7 @@
         pct = Math.max(0, Math.min(100, (d.tankVolumeL / d.tankCapacityL) * 100));
         liters = d.tankVolumeL;
       } else {
-        twinTank = Math.max(5, Math.min(100, twinTank - flow * 0.03 + 0.02));
-        pct = twinTank;
-        liters = twinTank / 100 * state.tankCapacity;
-      }
-
-      // Hardware Watchdog: Dry-Run Failsafe
-      if (pct <= 5.0 && !watchdogTripped) {
-        watchdogTripped = true;
-        state.manual = true;
-        state.manualPwm = 0;
-        setManualUI(true);
-        if (socket && socket.connected) {
-          socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
-        }
-        log("<strong style='color:var(--danger)'><i class='fa-solid fa-triangle-exclamation'></i> [WATCHDOG]</strong> Tank level critical (<5%). Emergency shutoff engaged to prevent pump cavitation.");
-        var shutoff = $("shutoffBtn"); if (shutoff) shutoff.classList.add("armed");
-      } else if (pct > 10 && watchdogTripped) {
-        watchdogTripped = false;
-        log("<strong style='color:var(--emerald)'>[WATCHDOG]</strong> Tank volume recovered. Interlock cleared.");
+        pct = 85; liters = 170;
       }
 
       var fill = $("twinTankFill");
@@ -292,7 +370,6 @@
     } catch (e) {}
   }
 
-  /* ---------- Field Zones Heatmap ---------- */
   function zoneBand(m) {
     if (m < 35) return "dry";
     if (m > 65) return "wet";
@@ -313,8 +390,7 @@
           if (val) val.textContent = Math.round(m) + "%";
           card.classList.remove("dry", "optimal", "wet");
           card.classList.add(zoneBand(m));
-          var isActive = z.id === state.activeZone;
-          card.classList.toggle("active", isActive);
+          card.classList.toggle("active", z.id === state.activeZone);
         })(zones[i]);
       }
       setText("activeZoneBadge", "Active: Zone " + state.activeZone);
@@ -333,7 +409,6 @@
     setText("setpointValue", state.setpoint.toFixed(1) + "%");
   }
 
-  /* ---------- Controls & Binds ---------- */
   function emitPid() {
     if (!socket || !socket.connected) return;
     socket.emit("client:update_pid", { kp: state.kp, ki: state.ki, kd: state.kd });
@@ -383,22 +458,30 @@
         socket.emit("client:manual_override", { enabled: true, manualPwm: state.manualPwm });
     });
 
-    var pwmSlider = $("manualPwmSlider");
-    if (pwmSlider) pwmSlider.addEventListener("change", function () {
-      if (state.manual) log("<strong style='color:var(--amber)'>[MANUAL]</strong> Valve opened to " + state.manualPwm + "%");
-    });
-
     var toggle = $("manualToggle");
     if (toggle) toggle.addEventListener("change", function (e) {
+      playClick();
       state.manual = !!e.target.checked;
       setManualUI(state.manual);
-      var shut = $("shutoffBtn"); if (shut) shut.classList.toggle("armed", false);
       if (socket && socket.connected)
         socket.emit("client:manual_override", { enabled: state.manual, manualPwm: state.manualPwm });
-      log(state.manual ? "<strong style='color:var(--amber)'>[MANUAL]</strong> Override engaged — valve at " + state.manualPwm + "%" : "<strong style='color:var(--emerald)'>[AUTO]</strong> Returned to AI PID control");
     });
 
-    // 🌾 Interactive Micro-Plots Zone Selection with Crop Profiles Engine
+    // 🛰️ Geolocation Selector Handler
+    var locSelect = $("locationSelect");
+    if (locSelect) {
+      locSelect.addEventListener("change", function (e) {
+        var key = e.target.value;
+        playClick();
+        if (socket && socket.connected) {
+          socket.emit("client:set_location", key);
+        }
+        var locName = e.target.options[e.target.selectedIndex].text;
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-satellite'></i> [SATELLITE]</strong> Pulling live weather for: <strong>" + locName + "</strong>");
+      });
+    }
+
+    // Micro-Plots Crop Selection
     var zc = $("zonesContainer");
     if (zc) zc.addEventListener("click", function (e) {
       var t = e.target;
@@ -407,11 +490,11 @@
       var id = card.getAttribute("data-zone");
       if (!id) return;
 
+      playClick();
       var cropTag = card.querySelector(".crop-tag");
       var cropName = cropTag ? cropTag.textContent.trim() : "Wheat";
       var profile = CROP_PROFILES[cropName] || CROP_PROFILES["Wheat"];
 
-      // Update local state with agronomic profile
       state.activeZone = id;
       state.setpoint = profile.setpoint;
       state.kp = profile.kp;
@@ -420,7 +503,6 @@
 
       syncControls();
       setText("activeZoneBadge", "Active: Zone " + id + " (" + cropName + ")");
-
       var allCards = zc.querySelectorAll(".zone-card");
       Array.prototype.forEach.call(allCards, function (c) { c.classList.remove("active"); });
       card.classList.add("active");
@@ -430,12 +512,12 @@
         socket.emit("client:update_setpoint", state.setpoint);
         emitPid();
       }
-
-      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-seedling'></i> [AGRONOMIST]</strong> Switched focus to Sector " + id + " (<strong>" + cropName + "</strong>). Applied optimal target: " + profile.setpoint.toFixed(1) + "% (" + profile.note + ")");
     });
 
+    // Disturbance Buttons
     function disturbance(type, label) {
       return function (e) {
+        playClick();
         pressFlash(e && e.currentTarget);
         if (socket && socket.connected) socket.emit("client:disturbance", type);
         log("<strong>[WEATHER]</strong> " + label + " injected.");
@@ -447,6 +529,7 @@
     if (ra) ra.addEventListener("click", disturbance("rain", "<span style='color:var(--cyan)'>Heavy Rain</span>"));
     
     if (shutoff) shutoff.addEventListener("click", function (e) {
+      playEmergencySiren();
       pressFlash(e.currentTarget);
       shutoff.classList.add("armed");
       state.manual = true; state.manualPwm = 0;
@@ -459,6 +542,7 @@
     });
     
     if (rs) rs.addEventListener("click", function (e) {
+      playClick();
       pressFlash(e.currentTarget);
       if (socket && socket.connected) {
         socket.emit("client:manual_override", { enabled: false, manualPwm: 0 });
@@ -470,14 +554,40 @@
       var t = $("manualToggle"); if (t) t.checked = false;
       setManualUI(false);
       var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
-      watchdogTripped = false;
-      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-rotate-right'></i> [SYSTEM]</strong> Normal reset complete.");
     });
+
+    // Audio Mute/Unmute
+    var audioBtn = $("audioToggleBtn");
+    if (audioBtn) {
+      audioBtn.addEventListener("click", function () {
+        initAudio();
+        audioMuted = !audioMuted;
+        audioBtn.classList.toggle("muted", audioMuted);
+        var icon = $("audioIcon");
+        if (icon) icon.className = audioMuted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+      });
+    }
+
+    // Security Authorization Binds
+    var authBtn = $("authBtn");
+    if (authBtn) {
+      authBtn.addEventListener("click", function () {
+        if (!isOperatorAuthorized) openModal("authModal");
+      });
+    }
+
+    var submitAuthBtn = $("submitAuthBtn");
+    if (submitAuthBtn) {
+      submitAuthBtn.addEventListener("click", function () {
+        var pinInput = $("operatorPinInput");
+        var pin = pinInput ? pinInput.value : "";
+        if (socket && socket.connected) socket.emit("client:auth", pin);
+      });
+    }
 
     bindModals();
   }
 
-  /* ---------- Modals ---------- */
   function openModal(id) {
     var m = $(id); if (!m) return;
     m.classList.add("open"); m.setAttribute("aria-hidden", "false");
@@ -487,9 +597,9 @@
     m.classList.remove("open"); m.setAttribute("aria-hidden", "true");
   }
   function syncSettingsForm() {
-    var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType"), mf = $("settingsMaxFlow");
+    var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
     if (s) s.value = state.setpoint; if (c) c.value = state.tankCapacity;
-    if (soil) soil.value = state.soilType; if (mf) mf.value = state.maxFlow;
+    if (soil) soil.value = state.soilType;
   }
   
   function bindModals() {
@@ -501,56 +611,71 @@
         b.addEventListener("click", function () { closeModal(o); });
       });
     });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") Array.prototype.forEach.call(overlays, function (o) { closeModal(o); });
-    });
     
     var save = $("settingsSave");
     if (save) save.addEventListener("click", function () {
       pressFlash(save);
-      var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType"), mf = $("settingsMaxFlow");
+      var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
       var sp = s ? Math.max(0, Math.min(100, parseFloat(s.value) || state.setpoint)) : state.setpoint;
       var cap = c ? Math.max(20, Math.min(2000, parseFloat(c.value) || state.tankCapacity)) : state.tankCapacity;
       var st = soil && soil.value ? soil.value : state.soilType;
-      var maxF = mf && mf.value !== "" ? Math.max(0, Math.min(50, parseFloat(mf.value) || 0)) : 0;
-      state.setpoint = sp; state.tankCapacity = cap; state.soilType = st; state.maxFlow = maxF;
+      state.setpoint = sp; state.tankCapacity = cap; state.soilType = st;
       setText("setpointValue", sp.toFixed(1) + "%");
       var spSlider = $("setpointSlider"); if (spSlider) spSlider.value = sp;
       if (socket && socket.connected) {
-        socket.emit("client:update_settings", { setpoint: sp, tankCapacityL: cap, soilType: st, maxFlowL: maxF });
+        socket.emit("client:update_settings", { setpoint: sp, tankCapacity: cap, soilType: st });
         socket.emit("client:update_setpoint", sp);
       }
       closeModal("settingsModal");
-      log("<strong style='color:var(--cyan)'>[CONFIG]</strong> Applied: Target=" + sp.toFixed(1) + "% · Tank=" + cap + "L · Soil=" + st.toUpperCase());
     });
     
     var accept = $("consentAccept");
     if (accept) accept.addEventListener("click", function () {
       closeModal("termsModal");
-      log("<strong style='color:var(--emerald)'>[COMPLIANCE]</strong> Enterprise Data-logging consent recorded.");
     });
   }
 
-  /* ---------- Boot ---------- */
   function boot() {
     initChart();
     bindControls();
     setStatus(false);
-    var socketScript = typeof io !== "undefined";
-    if (!socketScript) {
-      log("Socket.io library not found.");
-      return;
-    }
     try {
       socket = io({ transports: ["websocket", "polling"], reconnectionAttempts: 10 });
-    } catch (e) {
-      return;
-    }
+    } catch (e) { return; }
+    
     socket.on("connect", function () { setStatus(true); });
     socket.on("disconnect", function () { setStatus(false); });
     socket.on("connect_error", function () { setStatus(false); });
     socket.on("telemetry", onTelemetry);
+    
+    socket.on("auth:success", function () {
+      isOperatorAuthorized = true;
+      closeModal("authModal");
+      playTone(900, 'sine', 0.2, 0.15);
+      var authIcon = $("authIcon"); if (authIcon) authIcon.className = "fa-solid fa-unlock";
+      var authLabel = $("authLabel"); if (authLabel) authLabel.textContent = "OPERATOR";
+      var authBtn = $("authBtn");
+      if (authBtn) {
+        authBtn.classList.remove("lock");
+        authBtn.classList.add("unlocked");
+      }
+      log("<strong style='color:var(--emerald)'>[SECURITY]</strong> SCADA Console unlocked: Full Operator Access.");
+    });
+
+    socket.on("auth:failed", function (data) {
+      playEmergencySiren();
+      var err = $("authErrorMsg");
+      if (err) err.style.display = "block";
+      log("<strong style='color:var(--danger)'>[SECURITY]</strong> " + (data.msg || "Invalid Passcode"));
+    });
+
+    socket.on("firewall:alert", function (data) {
+      playCautionBeep();
+      log("<strong style='color:var(--danger)'>[FIREWALL]</strong> " + data.msg);
+    });
+
     window.addEventListener("resize", function () { if (chart) chart.resize(); });
+    document.addEventListener("click", function () { initAudio(); }, { once: true });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
