@@ -1,6 +1,6 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
-   Integrated Satellite Weather, Audio Synth & Defense Interlocks
+   Full Integration: Open-Meteo Satellite, Web Serial USB Edge, Safety Interlocks
    ========================================================================== */
 (function () {
   "use strict";
@@ -30,6 +30,12 @@
   var aiLastAlert = 0;
   var lastAudioAlert = 0;
 
+  // 🔌 Web Serial API Variables
+  var usbPort = null;
+  var usbReader = null;
+  var isHardwareMode = false;
+  var serialLineBuffer = "";
+
   var CROP_PROFILES = {
     "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
     "Tomatoes": { setpoint: 65.0, kp: 3.2, ki: 0.16, kd: 0.6 },
@@ -41,7 +47,7 @@
 
   function $(id) { return document.getElementById(id); }
 
-  /* Audio Synth */
+  /* ---------- Audio Synthesizer ---------- */
   var audioCtx = null;
   var audioMuted = false;
 
@@ -226,7 +232,6 @@
     setText("conservationValueDisplay", Math.round(saved) + "%");
     setRing("conservationProgress", saved / 100);
     
-    // Financial ROI
     var litersSaved = (typeof d.waterSavedL === "number") ? d.waterSavedL : 0;
     var moneySaved = (litersSaved * WATER_PRICE).toFixed(3);
     setText("savedLitersValue", litersSaved.toFixed(1) + " L <span style='color:var(--emerald); margin-left:6px;'><i class='fa-solid fa-sack-dollar'></i> $" + moneySaved + "</span>");
@@ -236,7 +241,6 @@
     setText("KiTerm", (+d.iTerm || 0).toFixed(2));
     setText("KdTerm", (+d.dTerm || 0).toFixed(2));
 
-    // Motor & Interlocks
     setText("motorTempVal", mTemp.toFixed(1) + "°C");
     updateSafetyStatus(d);
 
@@ -244,7 +248,7 @@
       setText("threatsBlockedVal", d.threatsBlocked + " Blocked");
     }
 
-    // 🛰️ REAL SATELLITE CLIMATE INGESTION
+    // 🛰️ Real Satellite Climate Rendering
     if (d.liveWeather) {
       var realTemp = (typeof d.liveWeather.temp === "number") ? d.liveWeather.temp.toFixed(1) : "--";
       var realWind = (typeof d.liveWeather.windSpeed === "number") ? d.liveWeather.windSpeed.toFixed(1) : "--";
@@ -289,7 +293,7 @@
       syncControls();
       syncSettingsForm();
       seedChart(vwc, sp);
-      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> SCADA Core linked. Real Open-Meteo Satellite Feed Online.");
+      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> SCADA Core linked. Open-Meteo Satellite Feed Online.");
     } else {
       pushPoint(vwc, sp);
     }
@@ -313,13 +317,13 @@
       banner.classList.add("emergency");
       if (icon) icon.className = "fa-solid fa-triangle-exclamation";
       if (title) title.textContent = "EMERGENCY INTERLOCK ENGAGED";
-      if (desc) desc.textContent = faults.length ? faults[0] : "Critical hardware threshold tripped. Pump isolated.";
+      if (desc) desc.textContent = faults.length ? faults[0] : "Critical threshold tripped. Pump isolated.";
       if (now - lastAudioAlert > 3500) { playEmergencySiren(); lastAudioAlert = now; }
     } else if (d.systemHealth === 'DEGRADED') {
       banner.classList.add("degraded");
       if (icon) icon.className = "fa-solid fa-circle-exclamation";
-      if (title) title.textContent = "DEGRADED: THERMAL THROTTLING";
-      if (desc) desc.textContent = faults.length ? faults[0] : "Pump motor coil temp > 85°C. Duty clamped to 30%.";
+      if (title) title.textContent = "DEGRADED: THERMAL DERATING";
+      if (desc) desc.textContent = faults.length ? faults[0] : "Motor temp > 85°C. Duty clamped to 30%.";
       if (now - lastAudioAlert > 5000) { playCautionBeep(); lastAudioAlert = now; }
     } else {
       banner.classList.add("nominal");
@@ -429,6 +433,90 @@
     if (pidCard) pidCard.classList.toggle("manual-active", manual);
   }
 
+  /* ==========================================================================
+   *  🔌 WEB SERIAL API ENGINE (DIRECT USB HARDWARE INTEGRATION)
+   * ========================================================================== */
+  async function connectUSBHardware() {
+    if (!("serial" in navigator)) {
+      alert("Web Serial API is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    try {
+      usbPort = await navigator.serial.requestPort();
+      await usbPort.open({ baudRate: 115200 });
+
+      var linkBtn = $("usbConnectBtn");
+      var statusChip = $("usbStatusChip");
+      var statusText = $("usbStatusText");
+
+      if (linkBtn) linkBtn.hidden = true;
+      if (statusChip) statusChip.hidden = false;
+      if (statusText) statusText.textContent = "USB Connected (115200)";
+
+      log("<strong style='color:var(--emerald)'><i class='fa-brands fa-usb'></i> [USB HW]</strong> Serial COM Port linked successfully at 115200 baud.");
+      playTone(1000, 'sine', 0.2, 0.1);
+
+      readUSBStream();
+    } catch (err) {
+      log("<strong style='color:var(--danger)'>[USB ERROR]</strong> Failed to open COM port: " + err.message);
+    }
+  }
+
+  async function readUSBStream() {
+    var textDecoder = new TextDecoderStream();
+    usbPort.readable.pipeTo(textDecoder.writable);
+    var reader = textDecoder.readable.getReader();
+    usbReader = reader;
+
+    try {
+      while (true) {
+        var result = await reader.read();
+        if (result.done) break;
+        if (result.value) {
+          serialLineBuffer += result.value;
+          var lines = serialLineBuffer.split("\n");
+          serialLineBuffer = lines.pop();
+
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (line.startsWith("{") && line.endsWith("}")) {
+              parseHardwarePacket(line);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      log("<strong style='color:var(--danger)'>[USB DISCONNECT]</strong> Hardware link terminated.");
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  function parseHardwarePacket(jsonStr) {
+    try {
+      var hw = JSON.parse(jsonStr);
+      if (isHardwareMode) {
+        onTelemetry({
+          ...hw,
+          systemHealth: hw.systemHealth || 'NOMINAL',
+          uptimeSeconds: Math.floor(performance.now() / 1000)
+        });
+      }
+    } catch (e) {}
+  }
+
+  async function writeToUSB(commandString) {
+    if (!usbPort || !usbPort.writable) return;
+    try {
+      var encoder = new TextEncoder();
+      var writer = usbPort.writable.getWriter();
+      await writer.write(encoder.encode(commandString + "\n"));
+      writer.releaseLock();
+    } catch (e) {}
+  }
+
+  /* ---------- Controls Binding ---------- */
   function bindControls() {
     function slider(id, fn) {
       var el = $(id); if (el) el.addEventListener("input", fn);
@@ -454,8 +542,10 @@
     slider("manualPwmSlider", function (e) {
       state.manualPwm = Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0));
       setText("manualPwmValue", state.manualPwm + "%");
-      if (state.manual && socket && socket.connected)
+      if (state.manual && socket && socket.connected) {
         socket.emit("client:manual_override", { enabled: true, manualPwm: state.manualPwm });
+      }
+      if (isHardwareMode) writeToUSB("PWM:" + state.manualPwm);
     });
 
     var toggle = $("manualToggle");
@@ -463,11 +553,44 @@
       playClick();
       state.manual = !!e.target.checked;
       setManualUI(state.manual);
-      if (socket && socket.connected)
+      if (socket && socket.connected) {
         socket.emit("client:manual_override", { enabled: state.manual, manualPwm: state.manualPwm });
+      }
     });
 
-    // 🛰️ Geolocation Selector Handler
+    // 🔌 Hardware Mode Dual-Toggle
+    var simBtn = $("srcSimBtn");
+    var usbBtn = $("srcUsbBtn");
+    var connectBtn = $("usbConnectBtn");
+    var statusChip = $("usbStatusChip");
+
+    if (simBtn && usbBtn) {
+      simBtn.addEventListener("click", function () {
+        playClick();
+        isHardwareMode = false;
+        simBtn.classList.add("active");
+        usbBtn.classList.remove("active");
+        if (connectBtn) connectBtn.hidden = true;
+        if (statusChip) statusChip.hidden = true;
+        log("<strong style='color:var(--cyan)'>[MODE]</strong> Switched to Digital Twin Virtual Simulator.");
+      });
+
+      usbBtn.addEventListener("click", function () {
+        playClick();
+        isHardwareMode = true;
+        usbBtn.classList.add("active");
+        simBtn.classList.remove("active");
+        if (connectBtn && !usbPort) connectBtn.hidden = false;
+        if (statusChip && usbPort) statusChip.hidden = false;
+        log("<strong style='color:var(--emerald)'><i class='fa-brands fa-usb'></i> [MODE]</strong> Physical Hardware Ingestion engaged. Ready for live sensors.");
+      });
+    }
+
+    if (connectBtn) {
+      connectBtn.addEventListener("click", connectUSBHardware);
+    }
+
+    // Geolocation Selector
     var locSelect = $("locationSelect");
     if (locSelect) {
       locSelect.addEventListener("change", function (e) {
@@ -514,7 +637,7 @@
       }
     });
 
-    // Disturbance Buttons
+    // Disturbance & Emergency
     function disturbance(type, label) {
       return function (e) {
         playClick();
@@ -538,6 +661,7 @@
       var pwm = $("manualPwmSlider"); if (pwm) pwm.value = 0;
       setText("manualPwmValue", "0%");
       if (socket && socket.connected) socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
+      if (isHardwareMode) writeToUSB("EMERGENCY:1");
       log("<strong style='color:var(--danger)'><i class='fa-solid fa-octagon-xmark'></i> [EMERGENCY]</strong> Manual shutoff engaged!");
     });
     

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HydroSync | Precision Agri-Twin SCADA</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <meta name="description" content="HydroSync Enterprise OS — Smart Irrigation and Water Management console." />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
@@ -45,6 +45,14 @@
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="Toggle sidebar"><i class="fa-solid fa-bars"></i></button>
       <div class="header-title"><h1>HydroSync Digital Twin</h1><p>Smart Irrigation &amp; Water Management Operating Console</p></div>
       <div class="header-meta">
+        <!-- 🔌 REAL HARDWARE / DUAL MODE SELECTOR -->
+        <div class="telemetry-source-group" title="Select Telemetry Source">
+          <button class="source-toggle active" id="srcSimBtn"><i class="fa-solid fa-microchip"></i> TWIN SIM</button>
+          <button class="source-toggle" id="srcUsbBtn"><i class="fa-brands fa-usb"></i> USB HW</button>
+        </div>
+        <button class="btn-usb-link" id="usbConnectBtn" hidden><i class="fa-solid fa-plug"></i> Connect USB</button>
+        <div class="usb-status-chip" id="usbStatusChip" hidden><span class="pulse-dot sm"></span> <span id="usbStatusText">COM Offline</span></div>
+
         <div class="firewall-chip" id="firewallChip" title="SCADA Firewall Active"><i class="fa-solid fa-shield-virus"></i> Firewall: <span id="threatsBlockedVal">0 Blocked</span></div>
         <button class="auth-btn lock" id="authBtn" title="Authorize SCADA Operator Mode"><i class="fa-solid fa-lock" id="authIcon"></i> <span id="authLabel">OBSERVER</span></button>
         <button class="audio-btn" id="audioToggleBtn" title="Toggle Safety Audio Alarms" aria-label="Toggle Audio"><i class="fa-solid fa-volume-high" id="audioIcon"></i></button>
