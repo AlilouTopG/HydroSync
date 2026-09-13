@@ -263,14 +263,12 @@ body {
   color: var(--text); display: inline-flex; align-items: center; gap: 6px;
 }
 
-/* Nominal State (Green) */
 .safety-banner.nominal {
   border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 20px rgba(16, 185, 129, 0.08);
 }
 .safety-banner.nominal .safety-status i { color: var(--emerald); }
 .safety-banner.nominal strong { color: var(--emerald); }
 
-/* Degraded State (Amber) */
 .safety-banner.degraded {
   border-color: rgba(245, 158, 11, 0.6);
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(13, 19, 34, 0.9));
@@ -279,7 +277,6 @@ body {
 .safety-banner.degraded .safety-status i { color: var(--amber); animation: pulseWarn 1.2s infinite; }
 .safety-banner.degraded strong { color: var(--amber); }
 
-/* Emergency State (Red Glowing) */
 .safety-banner.emergency {
   border-color: rgba(239, 68, 68, 0.8);
   background: linear-gradient(90deg, rgba(239, 68, 68, 0.25), rgba(13, 19, 34, 0.95));
@@ -299,7 +296,7 @@ body {
 }
 
 /* ===================================================
-   🛰️ PROMINENT SATELLITE CLIMATE BANNER (TOP VIEW)
+   🛰️ PROMINENT SATELLITE CLIMATE BANNER
    =================================================== */
 .climate-banner {
   display: flex; justify-content: space-between; align-items: center;
@@ -436,7 +433,47 @@ body {
 .card-values span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
 .card-values strong { font-family: var(--mono); font-size: 15px; }
 
-/* ---------- Visual Twin ---------- */
+/* ---------- Visual Twin & ISA 5.1 P&ID Elements ---------- */
+.twin-mode-selector {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 4px;
+}
+.twin-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+.twin-toggle-btn.active {
+  background: rgba(0, 229, 255, 0.18);
+  color: var(--cyan);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+}
+.twin-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-sm {
+  padding: 6px 12px !important;
+  font-size: 11px !important;
+  font-family: var(--mono) !important;
+}
+
 .twin-grid { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 18px; align-items: stretch; }
 .twin-unit { display: grid; gap: 10px; align-content: start; }
 .twin-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
@@ -479,6 +516,172 @@ body {
 .plant { font-size: 54px; color: var(--emerald); filter: drop-shadow(0 0 12px rgba(16,185,129,.6)); transition: color .6s ease, transform .6s ease; }
 .soil.dry .plant { color: var(--amber); transform: scale(.92) rotate(-4deg); }
 .soil.wet .plant { color: var(--cyan); transform: scale(1.05); }
+
+/* ---------- 📐 ISA 5.1 P&ID Vector Scheme Styles ---------- */
+.pid-schematic-wrap {
+  width: 100%;
+  height: 270px;
+  background: radial-gradient(circle at center, rgba(0, 229, 255, 0.03), transparent 75%), #070B16;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pid-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 270px;
+}
+.pid-pipe {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.3s ease;
+}
+.pid-pipe.active-flow {
+  stroke: var(--cyan);
+  stroke-dasharray: 10, 8;
+  animation: pidFlowAnim 1.2s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.7));
+}
+@keyframes pidFlowAnim {
+  from { stroke-dashoffset: 36; }
+  to { stroke-dashoffset: 0; }
+}
+.pid-vessel {
+  fill: rgba(0, 0, 0, 0.55);
+  stroke: var(--border-strong);
+  stroke-width: 2.5;
+}
+.pid-pump {
+  fill: #0B1528;
+  stroke: var(--cyan);
+  stroke-width: 3;
+  transition: all 0.3s ease;
+}
+.pid-pump.running {
+  stroke: var(--emerald);
+  filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.8));
+}
+.pid-impeller {
+  fill: var(--cyan);
+  transition: fill 0.3s ease;
+}
+.pid-pump.running .pid-impeller {
+  fill: var(--emerald);
+}
+.pid-signal-line {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.5;
+  stroke-dasharray: 3, 3;
+}
+.pid-bubble {
+  fill: #090F1E;
+  stroke: var(--cyan);
+  stroke-width: 2;
+}
+.pid-bubble-text {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  fill: var(--cyan);
+  text-anchor: middle;
+}
+.pid-tag-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text);
+  text-anchor: middle;
+}
+.pid-sub-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  fill: var(--muted);
+  text-anchor: middle;
+}
+.pid-val-text {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--text);
+  text-anchor: middle;
+}
+.pid-val-text.sm {
+  font-size: 10px;
+  fill: var(--cyan);
+}
+.pid-valve-body {
+  fill: #0B1528;
+  stroke: var(--cyan);
+  stroke-width: 2;
+}
+.pid-solenoid {
+  fill: #060913;
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+.pid-solenoid-letter {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--cyan);
+  text-anchor: middle;
+}
+.pid-soil-block {
+  fill: rgba(16, 185, 129, 0.15);
+  stroke: rgba(16, 185, 129, 0.5);
+  stroke-width: 2;
+}
+
+/* ---------- 🔌 Modbus TCP Table Styles ---------- */
+.modbus-table-wrap {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.modbus-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: left;
+}
+.modbus-table th {
+  background: rgba(13, 19, 34, 0.95);
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-strong);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  position: sticky;
+  top: 0;
+}
+.modbus-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.modbus-table tr:hover td {
+  background: rgba(0, 229, 255, 0.05);
+}
+.modbus-status-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--emerald);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
 
 /* ---------- Chart ---------- */
 .chart-card { padding: 22px; }
@@ -607,7 +810,6 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   font-weight: 400;
 }
 
-/* Fleet Map Container */
 .fleet-map-card { padding: 16px; }
 .fleet-map-container {
   height: 520px;
@@ -634,7 +836,6 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .legend-dot.nominal { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
 .legend-dot.active { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
 
-/* Focus Farm Detail Card */
 .farm-focus-card {
   border-color: rgba(0, 229, 255, 0.35);
   box-shadow: 0 0 25px rgba(0, 229, 255, 0.08);
@@ -666,7 +867,6 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   color: var(--text);
 }
 
-/* Custom Cyber Leaflet Markers & Popups */
 .leaflet-popup-content-wrapper {
   background: rgba(13, 19, 34, 0.95) !important;
   color: var(--text) !important;
@@ -678,7 +878,6 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 .leaflet-popup-tip { background: rgba(13, 19, 34, 0.95) !important; }
 
-/* Leaflet Dark Theme Controls */
 .leaflet-bar {
   border: 1px solid var(--border-strong) !important;
   border-radius: 8px !important;

@@ -35,7 +35,6 @@
       <a href="#fleet" class="nav-item" data-view="fleet" id="navFleet"><i class="fa-solid fa-map-location-dot"></i><span>GIS Fleet Map</span></a>
       <a href="#predictive" class="nav-item" data-view="predictive" id="navPredictive"><i class="fa-solid fa-brain"></i><span>Predictive AI (MPC)</span></a>
       <a href="#health" class="nav-item" data-view="health" id="navHealth"><i class="fa-solid fa-screwdriver-wrench"></i><span>Asset Health (ISO 10816)</span></a>
-      <!-- 📊 AGRONOMIC ANALYTICS & ESG BUTTON -->
       <a href="#analytics" class="nav-item" data-view="analytics" id="navAnalytics"><i class="fa-solid fa-chart-pie"></i><span>Analytics &amp; ESG</span></a>
       <a href="#pid" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
       <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-cloud-sun"></i><span>Weather Simulation</span></a>
@@ -188,9 +187,21 @@
           </article>
         </section>
 
+        <!-- 5. 🛠️ VISUAL TWIN & ISA 5.1 P&ID PROCESS SCHEME -->
         <section class="glass-card twin-card" id="twin" aria-label="Physical system visual twin">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-cubes"></i> Visual Twin — Physical System</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span></div>
-          <div class="twin-grid">
+          <div class="card-top">
+            <div class="twin-mode-selector">
+              <button class="twin-toggle-btn active" id="btnSynopticView"><i class="fa-solid fa-cubes"></i> Synoptic Twin</button>
+              <button class="twin-toggle-btn" id="btnPidView"><i class="fa-solid fa-diagram-project"></i> ISA 5.1 P&amp;ID</button>
+            </div>
+            <div class="twin-actions">
+              <button class="btn ghost btn-sm" id="openModbusBtn" title="Inspect Live Modbus TCP Registers"><i class="fa-solid fa-network-wired"></i> Modbus TCP</button>
+              <span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span>
+            </div>
+          </div>
+
+          <!-- View A: Realistic Synoptic Visual Twin -->
+          <div class="twin-grid" id="twinSynopticContainer">
             <div class="twin-unit">
               <span class="twin-label">Water Tank</span>
               <div class="tank" role="img" aria-label="Water tank level"><div class="tank-fill" id="twinTankFill"></div><span class="tank-pct" id="twinTankLevel">85%</span></div>
@@ -204,13 +215,95 @@
               <div class="soil" id="twinSoil"><div class="plant" id="twinPlant"><i class="fa-solid fa-seedling"></i></div></div>
             </div>
           </div>
+
+          <!-- View B: Engineering ISA 5.1 P&ID Process Flow Schematic -->
+          <div class="pid-schematic-wrap" id="twinPidContainer" hidden>
+            <svg class="pid-svg" viewBox="0 0 920 280" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="pidWaterGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+                  <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.75" />
+                  <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.15" />
+                </linearGradient>
+              </defs>
+
+              <!-- Process Lines (Piping) -->
+              <!-- Line 1: Tank Discharge to Pump Suction -->
+              <path class="pid-pipe" id="pidLine1" d="M 120 180 L 250 180" />
+              <!-- Line 2: Pump Discharge to Manifold -->
+              <path class="pid-pipe" id="pidLine2" d="M 310 180 L 460 180 L 460 140 L 760 140 L 760 190" />
+
+              <!-- Tank TK-101 -->
+              <rect x="40" y="60" width="80" height="150" rx="6" class="pid-vessel" />
+              <rect x="42" y="100" width="76" height="108" id="pidTankFillRect" fill="url(#pidWaterGrad)" />
+              <text x="80" y="50" class="pid-tag-title">TK-101</text>
+              <text x="80" y="140" class="pid-val-text" id="pidTankVal">85%</text>
+
+              <!-- Instrument Bubble: LT-101 (Level Transmitter) -->
+              <line x1="80" y1="60" x2="80" y2="24" class="pid-signal-line" />
+              <circle cx="80" cy="20" r="16" class="pid-bubble" />
+              <text x="80" y="24" class="pid-bubble-text">LT-101</text>
+
+              <!-- Pump P-101 (Centrifugal) -->
+              <g transform="translate(280, 180)">
+                <circle cx="0" cy="0" r="28" class="pid-pump" id="pidPumpBody" />
+                <polygon points="0,-24 24,0 0,24" class="pid-impeller" />
+                <text x="0" y="44" class="pid-tag-title">P-101</text>
+                <text x="0" y="-36" class="pid-sub-tag" id="pidPumpPwmTag">0% PWM</text>
+              </g>
+
+              <!-- Instrument Bubble: TT-101 (Motor Temp) -->
+              <line x1="280" y1="152" x2="280" y2="104" class="pid-signal-line" />
+              <circle cx="280" cy="96" r="16" class="pid-bubble" />
+              <text x="280" y="100" class="pid-bubble-text">TT-101</text>
+
+              <!-- Check Valve CKV-101 -->
+              <g transform="translate(365, 180)">
+                <polygon points="-12,-10 12,0 -12,10" class="pid-valve-body" />
+                <line x1="12" y1="-10" x2="12" y2="10" stroke="var(--cyan)" stroke-width="2" />
+                <text x="0" y="26" class="pid-sub-tag">CKV-101</text>
+              </g>
+
+              <!-- Instrument Bubble: PT-101 (Pressure Transmitter) -->
+              <line x1="430" y1="180" x2="430" y2="114" class="pid-signal-line" />
+              <circle cx="430" cy="98" r="16" class="pid-bubble" />
+              <text x="430" y="102" class="pid-bubble-text">PT-101</text>
+              <text x="430" y="74" class="pid-val-text sm" id="pidPtVal">3.2 bar</text>
+
+              <!-- Instrument Bubble: FT-101 (Flow Transmitter) -->
+              <line x1="560" y1="140" x2="560" y2="76" class="pid-signal-line" />
+              <circle cx="560" cy="60" r="16" class="pid-bubble" />
+              <text x="560" y="64" class="pid-bubble-text">FT-101</text>
+              <text x="560" y="36" class="pid-val-text sm" id="pidFtVal">0.0 L/m</text>
+
+              <!-- Solenoid Valve XV-101 -->
+              <g transform="translate(660, 140)">
+                <polygon points="-14,-10 0,0 -14,10" class="pid-valve-body" />
+                <polygon points="14,-10 0,0 14,10" class="pid-valve-body" />
+                <rect x="-8" y="-22" width="16" height="12" class="pid-solenoid" />
+                <text x="0" y="-13" class="pid-solenoid-letter">S</text>
+                <text x="0" y="24" class="pid-sub-tag" id="pidXvState">XV-101 [AUTO]</text>
+              </g>
+
+              <!-- Field Root Zone / Crop Field (Manifold) -->
+              <rect x="730" y="190" width="150" height="60" rx="8" class="pid-soil-block" />
+              <text x="805" y="222" class="pid-tag-title">ROOT ZONE A1</text>
+              <text x="805" y="240" class="pid-val-text" id="pidSoilVal">48.0% VWC</text>
+
+              <!-- Instrument Bubble: MT-101 (Moisture Transmitter) -->
+              <line x1="805" y1="190" x2="805" y2="124" class="pid-signal-line" />
+              <circle cx="805" cy="110" r="16" class="pid-bubble" />
+              <text x="805" y="114" class="pid-bubble-text">MT-101</text>
+            </svg>
+          </div>
         </section>
 
+        <!-- 6. CHART -->
         <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
           <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
         </section>
 
+        <!-- 7. CONTROLS & WEATHER SIMULATION -->
         <div class="two-col">
           <section class="glass-card pid-card" id="pid" aria-label="PID controls">
             <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
@@ -239,6 +332,7 @@
           </section>
         </div>
 
+        <!-- 8. LOGS -->
         <section class="glass-card logs-card" id="logs" aria-label="System logs">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-terminal"></i> System Logs</span><span class="card-unit" id="logCount">0 events</span></div>
           <ul class="log-list" id="logList"></ul>
@@ -248,40 +342,17 @@
       <!-- ================= VIEW 2: 🗺️ ENTERPRISE GIS SATELLITE FLEET VIEW ================= -->
       <div id="viewFleet" class="view-screen" hidden>
         <section class="fleet-kpi-bar">
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-earth-africa"></i> Total Monitored Area</span>
-            <strong class="kpi-val">1,450 <small>Hectares</small></strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-tower-broadcast"></i> Active Telemetry Hubs</span>
-            <strong class="kpi-val highlight-cyan">4 / 4 <small>Online</small></strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-droplet"></i> Fleet Water Reserve</span>
-            <strong class="kpi-val highlight-emerald">84.2% <small>Capacity</small></strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-shield-heart"></i> National Fleet Health</span>
-            <strong class="kpi-val highlight-cyan">99.4% <small>Optimal</small></strong>
-          </div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-earth-africa"></i> Total Monitored Area</span><strong class="kpi-val">1,450 <small>Hectares</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-tower-broadcast"></i> Active Telemetry Hubs</span><strong class="kpi-val highlight-cyan">4 / 4 <small>Online</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-droplet"></i> Fleet Water Reserve</span><strong class="kpi-val highlight-emerald">84.2% <small>Capacity</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-shield-heart"></i> National Fleet Health</span><strong class="kpi-val highlight-cyan">99.4% <small>Optimal</small></strong></div>
         </section>
-
         <section class="glass-card fleet-map-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-satellite"></i> National Agro-Hub Fleet Map (Algeria)</span>
-            <div class="map-legend">
-              <span class="legend-dot nominal"></span> Nominal
-              <span class="legend-dot active"></span> Irrigating
-            </div>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-satellite"></i> National Agro-Hub Fleet Map (Algeria)</span><div class="map-legend"><span class="legend-dot nominal"></span> Nominal <span class="legend-dot active"></span> Irrigating</div></div>
           <div id="fleetMap" class="fleet-map-container"></div>
         </section>
-
         <section class="glass-card farm-focus-card" id="farmFocusCard">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-building-wheat"></i> Selected Production Sector: <span id="focusFarmName" class="highlight-cyan">Sétif High Plains Hub</span></span>
-            <button class="btn info" id="jumpToControlBtn"><i class="fa-solid fa-sliders"></i> Open SCADA Console for This Farm</button>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-building-wheat"></i> Selected Production Sector: <span id="focusFarmName" class="highlight-cyan">Sétif High Plains Hub</span></span><button class="btn info" id="jumpToControlBtn"><i class="fa-solid fa-sliders"></i> Open SCADA Console for This Farm</button></div>
           <div class="focus-grid">
             <div class="focus-item"><span>Primary Crop</span><strong id="focusCrop">Durum Wheat &amp; Cereals</strong></div>
             <div class="focus-item"><span>Surface Area</span><strong id="focusArea">520 Hectares</strong></div>
@@ -294,157 +365,70 @@
       <!-- ================= VIEW 3: 🧠 PREDICTIVE AI & CLIMATE ANTICIPATION (MPC) ================= -->
       <div id="viewPredictive" class="view-screen" hidden>
         <section class="fleet-kpi-bar">
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-robot"></i> MPC Decision State</span>
-            <strong class="kpi-val" id="aiDecisionKpi">ANALYZING...</strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-bullseye"></i> AI Confidence Rating</span>
-            <strong class="kpi-val highlight-cyan" id="aiConfidenceKpi">--%</strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-cloud-showers-water"></i> 12h Rain Probability Peak</span>
-            <strong class="kpi-val highlight-wind" id="aiRainPeakKpi">--%</strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-piggy-bank"></i> Anticipated Water Savings</span>
-            <strong class="kpi-val highlight-emerald" id="aiSavingsKpi">-- L</strong>
-          </div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-robot"></i> MPC Decision State</span><strong class="kpi-val" id="aiDecisionKpi">ANALYZING...</strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-bullseye"></i> AI Confidence Rating</span><strong class="kpi-val highlight-cyan" id="aiConfidenceKpi">--%</strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-cloud-showers-water"></i> 12h Rain Probability Peak</span><strong class="kpi-val highlight-wind" id="aiRainPeakKpi">--%</strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-piggy-bank"></i> Anticipated Water Savings</span><strong class="kpi-val highlight-emerald" id="aiSavingsKpi">-- L</strong></div>
         </section>
-
         <section class="glass-card chart-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-chart-area"></i> 24-Hour Satellite Precipitation &amp; Temperature Horizon</span>
-            <span class="live-pill"><span class="pulse-dot sm"></span> OPEN-METEO SATELLITE</span>
-          </div>
-          <div class="chart-wrap" style="height: 320px;">
-            <canvas id="horizonChart"></canvas>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-area"></i> 24-Hour Satellite Precipitation &amp; Temperature Horizon</span><span class="live-pill"><span class="pulse-dot sm"></span> OPEN-METEO SATELLITE</span></div>
+          <div class="chart-wrap" style="height: 320px;"><canvas id="horizonChart"></canvas></div>
         </section>
-
         <section class="glass-card farm-focus-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-microchip"></i> Model Predictive Control (MPC) Autonomous Dispatch</span>
-            <span class="badge" id="aiModeBadge">Mode: Autonomous MPC</span>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Model Predictive Control (MPC) Autonomous Dispatch</span><span class="badge" id="aiModeBadge">Mode: Autonomous MPC</span></div>
           <div class="focus-grid" style="margin-bottom: 16px;">
             <div class="focus-item"><span>Forecast Status</span><strong id="aiForecastStatus">Satellite Inflow Nominal</strong></div>
             <div class="focus-item"><span>Recommended Action</span><strong id="aiActionRecommend" class="highlight-cyan">Evaluating Horizon</strong></div>
             <div class="focus-item"><span>24h Expected Rain Vol</span><strong id="aiRainVolExpected">-- mm</strong></div>
             <div class="focus-item"><span>Irrigation Hold State</span><strong id="aiHoldStateBadge">INACTIVE</strong></div>
           </div>
-          <div class="manual-banner" id="aiBannerRationale">
-            <i class="fa-solid fa-brain" style="color: var(--cyan); font-size: 16px;"></i>
-            <span id="aiRationaleText">Analyzing satellite micro-climate telemetry to optimize next irrigation cycle...</span>
-          </div>
+          <div class="manual-banner" id="aiBannerRationale"><i class="fa-solid fa-brain" style="color: var(--cyan); font-size: 16px;"></i><span id="aiRationaleText">Analyzing satellite micro-climate telemetry to optimize next irrigation cycle...</span></div>
         </section>
       </div>
 
       <!-- ================= VIEW 4: ⚙️ ASSET HEALTH & PREDICTIVE MAINTENANCE (ISO 10816) ================= -->
       <div id="viewHealth" class="view-screen" hidden>
         <section class="fleet-kpi-bar">
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-heart-pulse"></i> Overall Asset Health</span>
-            <strong class="kpi-val highlight-emerald" id="healthIndexKpi">98.4%</strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span>
-            <strong class="kpi-val highlight-cyan" id="vibRmsKpi">0.22 <small>mm/s</small></strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Cavitation Strain</span>
-            <strong class="kpi-val highlight-wind" id="cavitationKpi">2.1%</strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span>
-            <strong class="kpi-val" id="rulHoursKpi">6,580 <small>Hours</small></strong>
-          </div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-heart-pulse"></i> Overall Asset Health</span><strong class="kpi-val highlight-emerald" id="healthIndexKpi">98.4%</strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span><strong class="kpi-val highlight-cyan" id="vibRmsKpi">0.22 <small>mm/s</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Cavitation Strain</span><strong class="kpi-val highlight-wind" id="cavitationKpi">2.1%</strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span><strong class="kpi-val" id="rulHoursKpi">6,580 <small>Hours</small></strong></div>
         </section>
-
         <section class="glass-card chart-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span>
-            <span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span>
-          </div>
-          <div class="chart-wrap" style="height: 300px;">
-            <canvas id="vibrationChart"></canvas>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
+          <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
         </section>
-
         <section class="glass-card farm-focus-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span>
-            <button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span><button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button></div>
           <div class="focus-grid" style="margin-bottom: 16px;">
             <div class="focus-item"><span>Bearing &amp; Bushing Wear</span><strong id="bearingWearVal" class="highlight-cyan">4.8%</strong></div>
             <div class="focus-item"><span>Lifetime Run Time</span><strong id="operatingHoursVal">1,420.4 Hours</strong></div>
             <div class="focus-item"><span>Prognostics Decision</span><strong id="maintActionVal" class="highlight-emerald">NOMINAL_OPERATION</strong></div>
             <div class="focus-item"><span>Winding Thermals</span><strong id="maintMotorTempVal">24.0°C</strong></div>
           </div>
-          <div class="manual-banner" id="maintRationaleBanner" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); color: var(--text);">
-            <i class="fa-solid fa-clipboard-check" style="color: var(--emerald); font-size: 20px;"></i>
-            <span id="maintRationaleText">Hydraulic impeller, winding thermals, and acoustic signature are within optimal operating baseline.</span>
-          </div>
+          <div class="manual-banner" id="maintRationaleBanner" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); color: var(--text);"><i class="fa-solid fa-clipboard-check" style="color: var(--emerald); font-size: 20px;"></i><span id="maintRationaleText">Hydraulic impeller, winding thermals, and acoustic signature are within optimal operating baseline.</span></div>
         </section>
       </div>
 
       <!-- ================= VIEW 5: 📊 AGRONOMIC ANALYTICS & ESG WATER ACCOUNTING ================= -->
       <div id="viewAnalytics" class="view-screen" hidden>
-        <!-- ESG & SDG 6 Top KPI Bar -->
         <section class="fleet-kpi-bar">
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-hand-holding-droplet"></i> SDG 6.4 Water Efficiency</span>
-            <strong class="kpi-val highlight-emerald" id="esgEfficiencyKpi">93.8%</strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-bolt"></i> Energy Saved (Pumping)</span>
-            <strong class="kpi-val highlight-cyan" id="esgEnergyKpi">64.1 <small>kWh</small></strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-smog"></i> Carbon Offset Avoided</span>
-            <strong class="kpi-val highlight-wind" id="esgCarbonKpi">33.3 <small>kg CO₂</small></strong>
-          </div>
-          <div class="kpi-box">
-            <span class="kpi-label"><i class="fa-solid fa-coins"></i> Total Financial Value</span>
-            <strong class="kpi-val highlight-emerald" id="esgMoneyDzdKpi">19,166 <small>DZD</small></strong>
-          </div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hand-holding-droplet"></i> SDG 6.4 Water Efficiency</span><strong class="kpi-val highlight-emerald" id="esgEfficiencyKpi">93.8%</strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-bolt"></i> Energy Saved (Pumping)</span><strong class="kpi-val highlight-cyan" id="esgEnergyKpi">64.1 <small>kWh</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-smog"></i> Carbon Offset Avoided</span><strong class="kpi-val highlight-wind" id="esgCarbonKpi">33.3 <small>kg CO₂</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-coins"></i> Total Financial Value</span><strong class="kpi-val highlight-emerald" id="esgMoneyDzdKpi">19,166 <small>DZD</small></strong></div>
         </section>
-
-        <!-- Cumulative Water Consumption by Sector Bar Chart -->
         <section class="glass-card chart-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-chart-column"></i> Sectoral Water Accounting by Crop Micro-Plot (Cumulative Liters)</span>
-            <button class="btn info" id="exportCsvBtn"><i class="fa-solid fa-file-arrow-down"></i> Export Industrial Audit (CSV)</button>
-          </div>
-          <div class="chart-wrap" style="height: 320px;">
-            <canvas id="zoneWaterChart"></canvas>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-column"></i> Sectoral Water Accounting by Crop Micro-Plot (Cumulative Liters)</span><button class="btn info" id="exportCsvBtn"><i class="fa-solid fa-file-arrow-down"></i> Export Industrial Audit (CSV)</button></div>
+          <div class="chart-wrap" style="height: 320px;"><canvas id="zoneWaterChart"></canvas></div>
         </section>
-
-        <!-- ESG & Carbon Accounting Summary Ledger -->
         <section class="glass-card farm-focus-card">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span>
-            <span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Certified</span>
-          </div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Certified</span></div>
           <div class="focus-grid">
-            <div class="focus-item">
-              <span>Baseline Traditional Volume</span>
-              <strong>18.0 L/min (Continuous Flood)</strong>
-            </div>
-            <div class="focus-item">
-              <span>Precision Dynamic Savings</span>
-              <strong id="esgTotalSavedLiters" class="highlight-cyan">142.5 Liters</strong>
-            </div>
-            <div class="focus-item">
-              <span>Dollar Equivalent (USD)</span>
-              <strong id="esgMoneyUsdVal" class="highlight-emerald">$6.41 USD</strong>
-            </div>
-            <div class="focus-item">
-              <span>Data Audit Compliance</span>
-              <strong>150 Historical Cycles Buffered</strong>
-            </div>
+            <div class="focus-item"><span>Baseline Traditional Volume</span><strong>18.0 L/min (Continuous Flood)</strong></div>
+            <div class="focus-item"><span>Precision Dynamic Savings</span><strong id="esgTotalSavedLiters" class="highlight-cyan">142.5 Liters</strong></div>
+            <div class="focus-item"><span>Dollar Equivalent (USD)</span><strong id="esgMoneyUsdVal" class="highlight-emerald">$6.41 USD</strong></div>
+            <div class="focus-item"><span>Data Audit Compliance</span><strong>150 Historical Cycles Buffered</strong></div>
           </div>
         </section>
       </div>
@@ -452,6 +436,38 @@
   </div>
 
   <!-- ============ MODALS ============ -->
+  <!-- 🔌 MODBUS TCP LIVE REGISTERS MODAL -->
+  <div class="modal-overlay" id="modbusModal" aria-hidden="true" role="dialog" aria-label="Modbus TCP Registers">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-head">
+        <span><i class="fa-solid fa-network-wired"></i> Modbus TCP / PLC Register Mapping (Port 502)</span>
+        <button class="icon-btn modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="muted" style="margin-bottom: 12px; font-size: 13px;">Live holding registers and coils synchronized with hardware PLC memory blocks:</p>
+      
+      <div class="modbus-table-wrap">
+        <table class="modbus-table">
+          <thead>
+            <tr>
+              <th>Register</th>
+              <th>Type</th>
+              <th>ISA Tag / Function</th>
+              <th>Raw (HEX)</th>
+              <th>Engineered Value</th>
+            </tr>
+          </thead>
+          <tbody id="modbusTableBody">
+            <!-- Populated dynamically by app.js -->
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <span class="modbus-status-tag"><span class="pulse-dot sm"></span> Polling Rate: 1000ms</span>
+        <button class="btn ghost" data-close>Close Window</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="authModal" aria-hidden="true" role="dialog" aria-label="Operator Authorization">
     <div class="modal-card" style="max-width: 380px;">
       <div class="modal-head"><span><i class="fa-solid fa-user-shield"></i> SCADA Master Authorization</span><button class="icon-btn modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>

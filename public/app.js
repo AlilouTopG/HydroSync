@@ -1,7 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
-   Safety Interlocks, GIS Satellite Fleet, AI MPC, ISO 10816 & ESG Accounting
+   ISA 5.1 P&ID Scheme, Modbus TCP Mapping, AI MPC & ESG Accounting
    ========================================================================== */
 (function () {
   "use strict";
@@ -39,50 +39,10 @@
   // 🗺️ GIS Fleet Map Engine Variables
   var mapInstance = null;
   var FLEET_FARMS = [
-    {
-      id: "setif",
-      name: "Sétif High Plains Agro-Hub",
-      region: "Sétif Province",
-      crop: "Durum Wheat & Cereals",
-      area: "520 Hectares",
-      lat: 36.19,
-      lon: 5.41,
-      status: "nominal",
-      defaultVwc: 48.0
-    },
-    {
-      id: "biskra",
-      name: "Ziban Oasis Greenhouse Complex",
-      region: "Biskra Province",
-      crop: "Deglet Nour Dates & Early Tomatoes",
-      area: "340 Hectares",
-      lat: 34.85,
-      lon: 5.73,
-      status: "active",
-      defaultVwc: 64.0
-    },
-    {
-      id: "eloued",
-      name: "Oued Souf Pivot Basin",
-      region: "El Oued Province",
-      crop: "Desert Pivot Tubers (Potatoes)",
-      area: "390 Hectares",
-      lat: 33.37,
-      lon: 6.86,
-      status: "nominal",
-      defaultVwc: 54.0
-    },
-    {
-      id: "mitidja",
-      name: "Mitidja Valley Citrus Orchards",
-      region: "Blida / Algiers Province",
-      crop: "Citrus Fruits & Olive Groves",
-      area: "200 Hectares",
-      lat: 36.56,
-      lon: 2.91,
-      status: "nominal",
-      defaultVwc: 59.0
-    }
+    { id: "setif", name: "Sétif High Plains Agro-Hub", region: "Sétif Province", crop: "Durum Wheat & Cereals", area: "520 Hectares", lat: 36.19, lon: 5.41, status: "nominal", defaultVwc: 48.0 },
+    { id: "biskra", name: "Ziban Oasis Greenhouse Complex", region: "Biskra Province", crop: "Deglet Nour Dates & Early Tomatoes", area: "340 Hectares", lat: 34.85, lon: 5.73, status: "active", defaultVwc: 64.0 },
+    { id: "eloued", name: "Oued Souf Pivot Basin", region: "El Oued Province", crop: "Desert Pivot Tubers (Potatoes)", area: "390 Hectares", lat: 33.37, lon: 6.86, status: "nominal", defaultVwc: 54.0 },
+    { id: "mitidja", name: "Mitidja Valley Citrus Orchards", region: "Blida / Algiers Province", crop: "Citrus Fruits & Olive Groves", area: "200 Hectares", lat: 36.56, lon: 2.91, status: "nominal", defaultVwc: 59.0 }
   ];
 
   // 🧠 Chart Instances
@@ -341,6 +301,8 @@
     if (typeof d.soilType === "string") state.soilType = d.soilType;
     
     updateTwin(vwc, pwm, flow, d);
+    updatePidSchematic(vwc, pwm, flow, d);
+    updateModbusTable(vwc, sp, pwm, flow, mTemp, d);
     renderZones(d.zones, d.activeZoneId);
     runAIAnalyst(vwc, sp, pwm, flow);
 
@@ -353,7 +315,7 @@
       syncControls();
       syncSettingsForm();
       seedChart(vwc, sp);
-      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> SCADA Core linked. Open-Meteo Satellite Feed Online.");
+      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> SCADA Core linked. ISA 5.1 &amp; Modbus mapping active.");
     } else {
       pushPoint(vwc, sp);
     }
@@ -432,6 +394,75 @@
       }
       setText("twinStatus", vwc < 30 ? "DRY — IRRIGATING" : vwc > 65 ? "SATURATED" : "HYDRATED");
     } catch (e) {}
+  }
+
+  /* ---------- 📐 ISA 5.1 P&ID Vector Scheme Update ---------- */
+  function updatePidSchematic(vwc, pwm, flow, d) {
+    try {
+      var isRunning = pwm > 0.5;
+      var line1 = $("pidLine1");
+      var line2 = $("pidLine2");
+      var pumpBody = $("pidPumpBody");
+
+      if (line1) line1.classList.toggle("active-flow", isRunning);
+      if (line2) line2.classList.toggle("active-flow", isRunning);
+      if (pumpBody) pumpBody.classList.toggle("running", isRunning);
+
+      var pct = (d && typeof d.tankVolumePct === "number") ? d.tankVolumePct : 85;
+      var tankRect = $("pidTankFillRect");
+      if (tankRect) {
+        var h = Math.max(5, Math.min(146, (pct / 100) * 146));
+        tankRect.setAttribute("height", h.toFixed(0));
+        tankRect.setAttribute("y", (208 - h).toFixed(0));
+      }
+
+      setText("pidTankVal", Math.round(pct) + "%");
+      setText("pidPumpPwmTag", Math.round(pwm) + "% PWM");
+      setText("pidFtVal", flow.toFixed(1) + " L/m");
+      setText("pidPtVal", (1.2 + (pwm / 100) * 2.6).toFixed(1) + " bar");
+      setText("pidSoilVal", vwc.toFixed(1) + "% VWC");
+
+      var xvTag = $("pidXvState");
+      if (xvTag) {
+        xvTag.textContent = isRunning ? "XV-101 [OPEN]" : "XV-101 [CLOSED]";
+      }
+    } catch (e) {}
+  }
+
+  /* ---------- 🔌 Modbus TCP Table Live Update ---------- */
+  function updateModbusTable(vwc, sp, pwm, flow, mTemp, d) {
+    var tbody = $("modbusTableBody");
+    if (!tbody) return;
+
+    var ah = d && d.assetHealth ? d.assetHealth : { vibrationRms: 0.22, healthIndex: 98.4 };
+    var isEmergency = d && d.systemHealth === 'EMERGENCY_LOCK';
+
+    var registers = [
+      { reg: "00001", type: "Coil (0x)", tag: "P-101 Command", raw: pwm > 0 ? "0x01" : "0x00", val: pwm > 0 ? "RUNNING (1)" : "STOPPED (0)" },
+      { reg: "00002", type: "Coil (0x)", tag: "Control Mode", raw: state.manual ? "0x01" : "0x00", val: state.manual ? "MANUAL (1)" : "AUTO (0)" },
+      { reg: "00003", type: "Coil (0x)", tag: "Emergency Interlock", raw: isEmergency ? "0x01" : "0x00", val: isEmergency ? "TRIPPED (1)" : "NORMAL (0)" },
+      { reg: "00004", type: "Coil (0x)", tag: "XV-101 Solenoid", raw: pwm > 0 ? "0x01" : "0x00", val: pwm > 0 ? "OPEN (1)" : "CLOSED (0)" },
+      { reg: "40001", type: "Holding (4x)", tag: "MT-101 Soil VWC", raw: "0x" + Math.round(vwc * 10).toString(16).toUpperCase().padStart(4, "0"), val: vwc.toFixed(1) + " %" },
+      { reg: "40002", type: "Holding (4x)", tag: "Target Setpoint SP", raw: "0x" + Math.round(sp * 10).toString(16).toUpperCase().padStart(4, "0"), val: sp.toFixed(1) + " %" },
+      { reg: "40003", type: "Holding (4x)", tag: "P-101 PWM Duty", raw: "0x" + Math.round(pwm).toString(16).toUpperCase().padStart(4, "0"), val: Math.round(pwm) + " %" },
+      { reg: "40004", type: "Holding (4x)", tag: "FT-101 Flow Rate", raw: "0x" + Math.round(flow * 10).toString(16).toUpperCase().padStart(4, "0"), val: flow.toFixed(1) + " L/min" },
+      { reg: "40005", type: "Holding (4x)", tag: "LT-101 Tank Level", raw: "0x" + Math.round(d && d.tankVolumePct ? d.tankVolumePct : 85).toString(16).toUpperCase().padStart(4, "0"), val: (d && d.tankVolumePct ? d.tankVolumePct : 85).toFixed(0) + " %" },
+      { reg: "40006", type: "Holding (4x)", tag: "TT-101 Motor Stator", raw: "0x" + Math.round(mTemp * 10).toString(16).toUpperCase().padStart(4, "0"), val: mTemp.toFixed(1) + " °C" },
+      { reg: "40007", type: "Holding (4x)", tag: "ISO 10816 Vibration", raw: "0x" + Math.round(ah.vibrationRms * 100).toString(16).toUpperCase().padStart(4, "0"), val: ah.vibrationRms.toFixed(2) + " mm/s" }
+    ];
+
+    var html = "";
+    for (var i = 0; i < registers.length; i++) {
+      var r = registers[i];
+      html += "<tr>" +
+        "<td style='color:var(--cyan); font-weight:700;'>" + r.reg + "</td>" +
+        "<td style='color:var(--muted);'>" + r.type + "</td>" +
+        "<td>" + r.tag + "</td>" +
+        "<td style='color:#38BDF8; font-weight:600;'>" + r.raw + "</td>" +
+        "<td style='color:var(--emerald); font-weight:600;'>" + r.val + "</td>" +
+        "</tr>";
+    }
+    tbody.innerHTML = html;
   }
 
   function zoneBand(m) {
@@ -732,69 +763,19 @@
         data: {
           labels: hLabels,
           datasets: [
-            {
-              type: "line",
-              label: "Rain Probability (%)",
-              data: probData,
-              borderColor: "#00E5FF",
-              backgroundColor: "rgba(0, 229, 255, 0.12)",
-              fill: true,
-              tension: 0.4,
-              yAxisID: "y",
-              borderWidth: 2.5,
-              pointRadius: 2
-            },
-            {
-              type: "bar",
-              label: "Precipitation (mm)",
-              data: rainData,
-              backgroundColor: "rgba(56, 189, 248, 0.65)",
-              borderColor: "#38BDF8",
-              borderWidth: 1,
-              yAxisID: "y1",
-              borderRadius: 4
-            },
-            {
-              type: "line",
-              label: "Air Temp (°C)",
-              data: tempData,
-              borderColor: "#F59E0B",
-              borderDash: [4, 4],
-              fill: false,
-              tension: 0.3,
-              yAxisID: "y",
-              borderWidth: 1.8,
-              pointRadius: 0
-            }
+            { type: "line", label: "Rain Probability (%)", data: probData, borderColor: "#00E5FF", backgroundColor: "rgba(0, 229, 255, 0.12)", fill: true, tension: 0.4, yAxisID: "y", borderWidth: 2.5, pointRadius: 2 },
+            { type: "bar", label: "Precipitation (mm)", data: rainData, backgroundColor: "rgba(56, 189, 248, 0.65)", borderColor: "#38BDF8", borderWidth: 1, yAxisID: "y1", borderRadius: 4 },
+            { type: "line", label: "Air Temp (°C)", data: tempData, borderColor: "#F59E0B", borderDash: [4, 4], fill: false, tension: 0.3, yAxisID: "y", borderWidth: 1.8, pointRadius: 0 }
           ]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 0 },
+          responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
           scales: {
-            y: {
-              min: 0,
-              max: 100,
-              position: "left",
-              ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
-              grid: { color: "rgba(255,255,255,.05)" }
-            },
-            y1: {
-              min: 0,
-              max: Math.max(10, Math.ceil(Math.max.apply(null, rainData.concat([0])) * 1.5)),
-              position: "right",
-              ticks: { color: "#38BDF8", font: { family: "JetBrains Mono", size: 10 } },
-              grid: { drawOnChartArea: false }
-            },
-            x: {
-              ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 12 },
-              grid: { color: "rgba(255,255,255,.04)" }
-            }
+            y: { min: 0, max: 100, position: "left", ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(255,255,255,.05)" } },
+            y1: { min: 0, max: Math.max(10, Math.ceil(Math.max.apply(null, rainData.concat([0])) * 1.5)), position: "right", ticks: { color: "#38BDF8", font: { family: "JetBrains Mono", size: 10 } }, grid: { drawOnChartArea: false } },
+            x: { ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 12 }, grid: { color: "rgba(255,255,255,.04)" } }
           },
-          plugins: {
-            legend: { labels: { color: "rgba(232,238,247,.75)", font: { size: 11 }, boxWidth: 14 } }
-          }
+          plugins: { legend: { labels: { color: "rgba(232,238,247,.75)", font: { size: 11 }, boxWidth: 14 } } }
         }
       });
     } else {
@@ -824,64 +805,19 @@
       data: {
         labels: [],
         datasets: [
-          {
-            label: "Vibration RMS (mm/s)",
-            data: [],
-            borderColor: "#00E5FF",
-            backgroundColor: grad,
-            fill: true,
-            tension: 0.35,
-            borderWidth: 2.2,
-            pointRadius: 0
-          },
-          {
-            label: "Zone B (1.8 mm/s)",
-            data: [],
-            borderColor: "#10B981",
-            borderDash: [5, 5],
-            borderWidth: 1.5,
-            fill: false,
-            pointRadius: 0
-          },
-          {
-            label: "Zone C (2.8 mm/s)",
-            data: [],
-            borderColor: "#F59E0B",
-            borderDash: [5, 5],
-            borderWidth: 1.5,
-            fill: false,
-            pointRadius: 0
-          },
-          {
-            label: "Zone D Critical (4.5 mm/s)",
-            data: [],
-            borderColor: "#EF4444",
-            borderDash: [4, 4],
-            borderWidth: 1.8,
-            fill: false,
-            pointRadius: 0
-          }
+          { label: "Vibration RMS (mm/s)", data: [], borderColor: "#00E5FF", backgroundColor: grad, fill: true, tension: 0.35, borderWidth: 2.2, pointRadius: 0 },
+          { label: "Zone B (1.8 mm/s)", data: [], borderColor: "#10B981", borderDash: [5, 5], borderWidth: 1.5, fill: false, pointRadius: 0 },
+          { label: "Zone C (2.8 mm/s)", data: [], borderColor: "#F59E0B", borderDash: [5, 5], borderWidth: 1.5, fill: false, pointRadius: 0 },
+          { label: "Zone D Critical (4.5 mm/s)", data: [], borderColor: "#EF4444", borderDash: [4, 4], borderWidth: 1.8, fill: false, pointRadius: 0 }
         ]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 0 },
+        responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
         scales: {
-          y: {
-            min: 0,
-            max: 6.0,
-            ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
-            grid: { color: "rgba(255,255,255,.06)" }
-          },
-          x: {
-            ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 8 },
-            grid: { color: "rgba(255,255,255,.04)" }
-          }
+          y: { min: 0, max: 6.0, ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(255,255,255,.06)" } },
+          x: { ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 8 }, grid: { color: "rgba(255,255,255,.04)" } }
         },
-        plugins: {
-          legend: { labels: { color: "rgba(232,238,247,.7)", font: { size: 10 }, boxWidth: 14 } }
-        }
+        plugins: { legend: { labels: { color: "rgba(232,238,247,.7)", font: { size: 10 }, boxWidth: 14 } } }
       }
     });
   }
@@ -986,24 +922,12 @@
           }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 0 },
+          responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
           scales: {
-            y: {
-              beginAtZero: true,
-              ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
-              grid: { color: "rgba(255,255,255,.06)" },
-              title: { display: true, text: "Liters Consumed (L)", color: "rgba(139,152,179,.8)", font: { size: 10 } }
-            },
-            x: {
-              ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 10 } },
-              grid: { display: false }
-            }
+            y: { beginAtZero: true, ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(255,255,255,.06)" } },
+            x: { ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 10 } }, grid: { display: false } }
           },
-          plugins: {
-            legend: { display: false }
-          }
+          plugins: { legend: { display: false } }
         }
       });
     } else {
@@ -1068,7 +992,41 @@
     if (navHealth) navHealth.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("health"); });
     if (navAnalytics) navAnalytics.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("analytics"); });
 
-    // Jump from Map directly to Dashboard Control
+    // 📐 Toggle Synoptic vs ISA 5.1 P&ID View
+    var btnSynoptic = $("btnSynopticView");
+    var btnPid = $("btnPidView");
+    var synopticBox = $("twinSynopticContainer");
+    var pidBox = $("twinPidContainer");
+
+    if (btnSynoptic && btnPid) {
+      btnSynoptic.addEventListener("click", function () {
+        playClick();
+        btnSynoptic.classList.add("active");
+        btnPid.classList.remove("active");
+        if (synopticBox) synopticBox.hidden = false;
+        if (pidBox) pidBox.hidden = true;
+      });
+
+      btnPid.addEventListener("click", function () {
+        playClick();
+        btnPid.classList.add("active");
+        btnSynoptic.classList.remove("active");
+        if (synopticBox) synopticBox.hidden = true;
+        if (pidBox) pidBox.hidden = false;
+        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-diagram-project'></i> [P&amp;ID]</strong> Displaying ISA 5.1 Process Instrumentation Flowsheet.");
+      });
+    }
+
+    // 🔌 Modbus TCP Matrix Modal
+    var openModbusBtn = $("openModbusBtn");
+    if (openModbusBtn) {
+      openModbusBtn.addEventListener("click", function () {
+        playClick();
+        openModal("modbusModal");
+      });
+    }
+
+    // Jump from Map to Dashboard Control
     var jumpBtn = $("jumpToControlBtn");
     if (jumpBtn) {
       jumpBtn.addEventListener("click", function () {
@@ -1094,7 +1052,7 @@
       });
     }
 
-    // 📊 Export Industrial Audit CSV Button
+    // 📊 Export CSV Button
     var exportBtn = $("exportCsvBtn");
     if (exportBtn) {
       exportBtn.addEventListener("click", function () {
