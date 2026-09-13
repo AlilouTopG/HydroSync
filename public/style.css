@@ -678,7 +678,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 .leaflet-popup-tip { background: rgba(13, 19, 34, 0.95) !important; }
 
-/* Leaflet Dark Theme Controls (Zoom Buttons & Layer Switcher) */
+/* Leaflet Dark Theme Controls */
 .leaflet-bar {
   border: 1px solid var(--border-strong) !important;
   border-radius: 8px !important;
@@ -806,6 +806,29 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   animation: emergencyFlash 1.2s infinite alternate;
 }
 .live-pill.zone-d .pulse-dot { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+/* ===================================================
+   📊 AGRONOMIC ANALYTICS & ESG ACCOUNTING STYLES
+   =================================================== */
+#exportCsvBtn {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(16, 185, 129, 0.15));
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  color: #E0F2FE;
+  cursor: pointer;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+#exportCsvBtn:hover {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.35), rgba(16, 185, 129, 0.25));
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+  transform: translateY(-1px);
+}
 
 /* ---------- Modals ---------- */
 .modal-overlay {

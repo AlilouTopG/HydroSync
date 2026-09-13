@@ -1,7 +1,7 @@
 /**
  * server.js - HydroSync SCADA Server (Hardened Production Release)
  * Security Hardening: Anti-SSRF, Strict CORS, CSP, Timing-Safe Auth, Rate-Limiter
- * Features: Live Satellite Weather Ingestion, GIS Fleet Map, 24h Predictive AI Horizon & ISO 10816 Asset Health
+ * Features: Live Weather, GIS Fleet Map, 24h AI MPC, Asset Health & CSV Audit Endpoint
  */
 const express = require('express');
 const http = require('http');
@@ -12,10 +12,8 @@ const simulator = require('./simulator');
 const app = express();
 const server = http.createServer(app);
 
-// 1. Information Disclosure Mitigation
 app.disable('x-powered-by');
 
-// 2. Strict Security Headers & Content Security Policy
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -33,13 +31,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// 3. Prevent Path Traversal on static serving
+// CSV Industrial Audit Export Route
+app.get('/api/export-audit.csv', (req, res) => {
+  const history = simulator.getAuditHistory();
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="hydrosync-scada-audit.csv"');
+
+  let csvContent = 'Timestamp,ActiveZone,VWC_Pct,Setpoint_Pct,PumpDuty_Pct,FlowRate_Lmin,MotorTemp_C,Vibration_RMS_mms,HealthIndex_Pct,Status_Faults\r\n';
+  history.forEach(row => {
+    csvContent += `"${row.time}","${row.zone}",${row.vwc},${row.target},${row.pumpDuty},${row.flowRate},${row.motorTemp},${row.vibrationRms},${row.healthIndex},"${row.faults}"\r\n`;
+  });
+
+  res.send(csvContent);
+});
+
 app.use(express.static('public', {
   dotfiles: 'ignore',
   index: ['index.html']
 }));
 
-// 4. Tighten CORS for Socket.io
 const isProduction = process.env.NODE_ENV === 'production';
 const io = new Server(server, {
   cors: {
@@ -57,9 +67,6 @@ const io = new Server(server, {
 let serverStartTime = Date.now();
 const OPERATOR_PIN = process.env.OPERATOR_PIN || '8492';
 
-/* ==========================================================================
- *  SECURITY ENGINE: RATE LIMITING & TIMING-SAFE AUTH
- * ========================================================================== */
 const clientFirewallState = new Map();
 const failedAttemptsByIp = new Map();
 let totalThreatsBlocked = 0;
@@ -113,9 +120,6 @@ function verifyOperatorAuth(socket) {
   return true;
 }
 
-/* ==========================================================================
- *  SSRF-SAFE SATELLITE WEATHER & 24H PREDICTIVE AI ENGINE (Open-Meteo)
- * ========================================================================== */
 const LOCATION_COORDINATES = Object.freeze({
   'setif': Object.freeze({ lat: 36.19, lon: 5.41, name: 'Sétif (High Plains - Cereal)' }),
   'biskra': Object.freeze({ lat: 34.85, lon: 5.73, name: 'Biskra (Oasis - Palms/Greenhouse)' }),
@@ -172,7 +176,6 @@ async function fetchSatelliteWeather(key = 'setif') {
 
     simulator.setLiveWeather(liveData);
 
-    // 🧠 Evaluate 24-Hour Horizon for Predictive AI Controller (MPC)
     if (hourly.time && Array.isArray(hourly.time)) {
       const currentHourStr = cur.time ? cur.time.substring(0, 13) : '';
       let startIndex = hourly.time.findIndex(t => t.startsWith(currentHourStr));
@@ -213,8 +216,6 @@ async function fetchSatelliteWeather(key = 'setif') {
           : `Clear atmospheric outlook across next 24h. Soil moisture depletion will follow standard PID setpoint.`
       };
     }
-
-    console.log(`🛰️ [SATELLITE LIVE] ${loc.name} -> ${liveData.temp}°C | Rain Prob 12h: ${latestAIPrediction.maxRainProb12h || 0}% | Rain Hold: ${latestAIPrediction.rainHoldActive}`);
   } catch (err) {
     console.warn(`⚠️ Weather API fallback: ${err.message}`);
   }
@@ -223,9 +224,6 @@ async function fetchSatelliteWeather(key = 'setif') {
 fetchSatelliteWeather('setif');
 setInterval(() => fetchSatelliteWeather(activeLocationKey), 10 * 60 * 1000);
 
-/* ==========================================================================
- *  EVENT DISPATCHER WITH STRICT INPUT VALIDATION
- * ========================================================================== */
 io.on('connection', (socket) => {
   const clientIp = socket.handshake.address || 'unknown';
   clientFirewallState.set(socket.id, { tokens: 10, lastRefill: Date.now(), authorized: false });
@@ -237,7 +235,6 @@ io.on('connection', (socket) => {
     predictiveAI: latestAIPrediction
   });
 
-  // 1. Operator Authentication with Anti-Brute-Force Lockout
   socket.on('client:auth', (submittedPin) => {
     if (!firewallValidate(socket, 1)) return;
 
@@ -266,7 +263,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 2. Input Sanitization on PID parameters
   socket.on('client:update_pid', (params) => {
     if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
     if (!params || typeof params !== 'object') return;
@@ -285,7 +281,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 3. Input Sanitization on Setpoint
   socket.on('client:update_setpoint', (sp) => {
     if (!firewallValidate(socket, 1)) return;
     const target = Number(sp);
@@ -295,7 +290,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 4. Physical System Settings with Whitelist
   socket.on('client:update_settings', (settings) => {
     if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
     if (!settings || typeof settings !== 'object') return;
@@ -312,7 +306,6 @@ io.on('connection', (socket) => {
     broadcastTelemetry();
   });
 
-  // 5. Disturbance Injection Protection
   socket.on('client:disturbance', (type) => {
     if (!firewallValidate(socket, 3)) return;
     if (type === 'drought' || type === 'rain') {
@@ -321,7 +314,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 6. Whitelist Zone Selection
   socket.on('client:select_zone', (id) => {
     if (!firewallValidate(socket, 1)) return;
     if (typeof id === 'string' && /^[A-B][1-3]$/.test(id)) {
@@ -330,7 +322,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 7. Manual Override Sanitization
   socket.on('client:manual_override', (data) => {
     if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
     if (!data || typeof data !== 'object') return;
@@ -338,7 +329,6 @@ io.on('connection', (socket) => {
     broadcastTelemetry();
   });
 
-  // 8. Whitelist Location Key
   socket.on('client:set_location', async (locationKey) => {
     if (!firewallValidate(socket, 2)) return;
     if (typeof locationKey === 'string' && Object.prototype.hasOwnProperty.call(LOCATION_COORDINATES, locationKey)) {
@@ -347,7 +337,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 9. ⚙️ Predictive Maintenance Service Log (Authorized Operator)
   socket.on('client:service_asset', () => {
     if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
     simulator.servicePumpAsset();
@@ -359,9 +348,6 @@ io.on('connection', (socket) => {
   });
 });
 
-/* ==========================================================================
- *  BROADCAST LOOP
- * ========================================================================== */
 const TELEMETRY_INTERVAL = 1000;
 setInterval(() => {
   broadcastTelemetry();
@@ -387,5 +373,6 @@ server.listen(PORT, () => {
   console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
   console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Anti-SSRF, Rate-Limiting`);
   console.log(`🧠 Predictive AI MPC Horizon Ingestion Online`);
-  console.log(`⚙️ ISO 10816 Asset Health & Vibration Diagnostics Engine Online`);
+  console.log(`⚙️ ISO 10816 Asset Health & Vibration Diagnostics Online`);
+  console.log(`📊 ESG Accounting & CSV Audit Endpoint Ready at /api/export-audit.csv`);
 });

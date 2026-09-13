@@ -1,7 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
-   Safety Interlocks, GIS Satellite Fleet, Predictive AI (MPC) & ISO 10816 Asset Health
+   Safety Interlocks, GIS Satellite Fleet, AI MPC, ISO 10816 & ESG Accounting
    ========================================================================== */
 (function () {
   "use strict";
@@ -85,9 +85,10 @@
     }
   ];
 
-  // 🧠 Predictive AI & ⚙️ Asset Health Chart Instances
+  // 🧠 Chart Instances
   var horizonChart = null;
   var vibrationChart = null;
+  var zoneWaterChart = null;
   var vibLabels = [];
   var vibSeries = [];
 
@@ -328,15 +329,9 @@
       }
     }
 
-    // 🧠 Model Predictive Control (MPC) Telemetry Update
-    if (d.predictiveAI) {
-      updatePredictiveUI(d.predictiveAI);
-    }
-
-    // ⚙️ ISO 10816 Asset Health Telemetry Update
-    if (d.assetHealth) {
-      updateHealthUI(d.assetHealth, mTemp);
-    }
+    if (d.predictiveAI) updatePredictiveUI(d.predictiveAI);
+    if (d.assetHealth) updateHealthUI(d.assetHealth, mTemp);
+    if (d.esgMetrics && Array.isArray(d.zones)) updateAnalyticsUI(d.esgMetrics, d.zones, litersSaved);
 
     pwmSeries.push(pwm);
     while (pwmSeries.length > FIFO_MAX) pwmSeries.shift();
@@ -499,7 +494,7 @@
   }
 
   /* ==========================================================================
-   *  🔌 WEB SERIAL API ENGINE (DIRECT USB HARDWARE INTEGRATION)
+   *  🔌 WEB SERIAL API ENGINE
    * ========================================================================== */
   async function connectUSBHardware() {
     if (!("serial" in navigator)) {
@@ -582,13 +577,14 @@
   }
 
   /* ==========================================================================
-   *  🗺️ MULTI-VIEW NAVIGATION ENGINE (DASHBOARD / FLEET / PREDICTIVE / HEALTH)
+   *  🗺️ MULTI-VIEW NAVIGATION ENGINE
    * ========================================================================== */
   function switchView(viewName) {
     var dashView = $("viewDashboard");
     var fleetView = $("viewFleet");
     var predView = $("viewPredictive");
     var healthView = $("viewHealth");
+    var analyticsView = $("viewAnalytics");
     var navLinks = document.querySelectorAll(".sidebar-nav .nav-item");
 
     Array.prototype.forEach.call(navLinks, function (btn) {
@@ -599,6 +595,7 @@
     if (fleetView) fleetView.hidden = (viewName !== "fleet");
     if (predView) predView.hidden = (viewName !== "predictive");
     if (healthView) healthView.hidden = (viewName !== "health");
+    if (analyticsView) analyticsView.hidden = (viewName !== "analytics");
 
     if (viewName === "fleet") {
       setTimeout(function () { initFleetMap(); }, 150);
@@ -612,6 +609,11 @@
         else vibrationChart.resize(); 
       }, 150);
       log("<strong style='color:var(--emerald)'><i class='fa-solid fa-screwdriver-wrench'></i> [ASSET HEALTH]</strong> Switched to ISO 10816 Mechanical Diagnostics Console.");
+    } else if (viewName === "analytics") {
+      setTimeout(function () {
+        if (zoneWaterChart) zoneWaterChart.resize();
+      }, 150);
+      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-chart-pie'></i> [ANALYTICS]</strong> Switched to Agronomic Accounting & ESG Impact Console.");
     }
   }
 
@@ -770,23 +772,20 @@
           responsive: true,
           maintainAspectRatio: false,
           animation: { duration: 0 },
-          interaction: { intersect: false, mode: "index" },
           scales: {
             y: {
               min: 0,
               max: 100,
               position: "left",
               ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
-              grid: { color: "rgba(255,255,255,.05)" },
-              title: { display: true, text: "Probability % / Temp °C", color: "rgba(139,152,179,.8)", font: { size: 10 } }
+              grid: { color: "rgba(255,255,255,.05)" }
             },
             y1: {
               min: 0,
               max: Math.max(10, Math.ceil(Math.max.apply(null, rainData.concat([0])) * 1.5)),
               position: "right",
               ticks: { color: "#38BDF8", font: { family: "JetBrains Mono", size: 10 } },
-              grid: { drawOnChartArea: false },
-              title: { display: true, text: "Rain mm", color: "#38BDF8", font: { size: 10 } }
+              grid: { drawOnChartArea: false }
             },
             x: {
               ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 12 },
@@ -803,13 +802,12 @@
       horizonChart.data.datasets[0].data = probData;
       horizonChart.data.datasets[1].data = rainData;
       horizonChart.data.datasets[2].data = tempData;
-      horizonChart.options.scales.y1.max = Math.max(10, Math.ceil(Math.max.apply(null, rainData.concat([0])) * 1.5));
       horizonChart.update("none");
     }
   }
 
   /* ==========================================================================
-   *  ⚙️ ISO 10816 PREDICTIVE MAINTENANCE & VIBRATION CHART ENGINE
+   *  ⚙️ ISO 10816 ASSET HEALTH ENGINE
    * ========================================================================== */
   function initVibrationChart() {
     var canvas = $("vibrationChart");
@@ -837,7 +835,7 @@
             pointRadius: 0
           },
           {
-            label: "ISO Zone B Limit (1.8 mm/s)",
+            label: "Zone B (1.8 mm/s)",
             data: [],
             borderColor: "#10B981",
             borderDash: [5, 5],
@@ -846,7 +844,7 @@
             pointRadius: 0
           },
           {
-            label: "ISO Zone C Warning (2.8 mm/s)",
+            label: "Zone C (2.8 mm/s)",
             data: [],
             borderColor: "#F59E0B",
             borderDash: [5, 5],
@@ -855,7 +853,7 @@
             pointRadius: 0
           },
           {
-            label: "ISO Zone D Critical (4.5 mm/s)",
+            label: "Zone D Critical (4.5 mm/s)",
             data: [],
             borderColor: "#EF4444",
             borderDash: [4, 4],
@@ -874,8 +872,7 @@
             min: 0,
             max: 6.0,
             ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
-            grid: { color: "rgba(255,255,255,.06)" },
-            title: { display: true, text: "Velocity RMS (mm/s)", color: "rgba(139,152,179,.8)", font: { size: 10 } }
+            grid: { color: "rgba(255,255,255,.06)" }
           },
           x: {
             ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 9 }, maxTicksLimit: 8 },
@@ -903,7 +900,6 @@
     setText("maintMotorTempVal", (motorTemp || 24.0).toFixed(1) + "°C");
     setText("maintRationaleText", ah.rationale || "Optimal baseline.");
 
-    // Update ISO Badge
     var zoneBadge = $("isoZoneBadge");
     if (zoneBadge) {
       zoneBadge.className = "live-pill";
@@ -922,7 +918,6 @@
       }
     }
 
-    // Push point to Vibration Chart
     var now = new Date().toLocaleTimeString("en-GB", { hour12: false });
     vibLabels.push(now);
     vibSeries.push(ah.vibrationRms);
@@ -938,6 +933,83 @@
       vibrationChart.data.datasets[2].data = vibLabels.map(function () { return 2.8; });
       vibrationChart.data.datasets[3].data = vibLabels.map(function () { return 4.5; });
       vibrationChart.update("none");
+    }
+  }
+
+  /* ==========================================================================
+   *  📊 AGRONOMIC ANALYTICS & ESG CHART ENGINE
+   * ========================================================================== */
+  function updateAnalyticsUI(esg, zones, litersSaved) {
+    if (!esg) return;
+
+    setText("esgEfficiencyKpi", (esg.efficiencyScorePct || 93.8).toFixed(1) + "%");
+    setText("esgEnergyKpi", (esg.energySavedKwh || 64.1).toFixed(1) + " <small>kWh</small>");
+    setText("esgCarbonKpi", (esg.co2OffsetKg || 33.3).toFixed(1) + " <small>kg CO₂</small>");
+    setText("esgMoneyDzdKpi", Math.round(esg.totalSavedDzd || 19166).toLocaleString() + " <small>DZD</small>");
+
+    setText("esgTotalSavedLiters", (litersSaved || 142.5).toFixed(1) + " Liters");
+    setText("esgMoneyUsdVal", "$" + (esg.totalSavedUsd || 6.41).toFixed(2) + " USD");
+
+    if (Array.isArray(zones) && zones.length) {
+      renderZoneWaterChart(zones);
+    }
+  }
+
+  function renderZoneWaterChart(zones) {
+    var canvas = $("zoneWaterChart");
+    if (!canvas || typeof Chart === "undefined") return;
+
+    var labels = zones.map(function (z) { return z.id + " (" + z.crop + ")"; });
+    var waterValues = zones.map(function (z) { return z.waterUsedL || 150; });
+
+    if (!zoneWaterChart) {
+      var ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      zoneWaterChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Cumulative Water Consumed (Liters)",
+            data: waterValues,
+            backgroundColor: [
+              "rgba(0, 229, 255, 0.75)",
+              "rgba(16, 185, 129, 0.75)",
+              "rgba(245, 158, 11, 0.75)",
+              "rgba(56, 189, 248, 0.75)",
+              "rgba(139, 92, 246, 0.75)",
+              "rgba(236, 72, 153, 0.75)"
+            ],
+            borderColor: "rgba(255, 255, 255, 0.2)",
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { color: "rgba(232,238,247,.55)", font: { family: "JetBrains Mono", size: 10 } },
+              grid: { color: "rgba(255,255,255,.06)" },
+              title: { display: true, text: "Liters Consumed (L)", color: "rgba(139,152,179,.8)", font: { size: 10 } }
+            },
+            x: {
+              ticks: { color: "rgba(139,152,179,.8)", font: { family: "JetBrains Mono", size: 10 } },
+              grid: { display: false }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    } else {
+      zoneWaterChart.data.labels = labels;
+      zoneWaterChart.data.datasets[0].data = waterValues;
+      zoneWaterChart.update("none");
     }
   }
 
@@ -988,30 +1060,13 @@
     var navFleet = $("navFleet");
     var navPredictive = $("navPredictive");
     var navHealth = $("navHealth");
+    var navAnalytics = $("navAnalytics");
 
-    if (navDashboard) {
-      navDashboard.addEventListener("click", function (e) {
-        e.preventDefault(); playClick(); switchView("dashboard");
-      });
-    }
-
-    if (navFleet) {
-      navFleet.addEventListener("click", function (e) {
-        e.preventDefault(); playClick(); switchView("fleet");
-      });
-    }
-
-    if (navPredictive) {
-      navPredictive.addEventListener("click", function (e) {
-        e.preventDefault(); playClick(); switchView("predictive");
-      });
-    }
-
-    if (navHealth) {
-      navHealth.addEventListener("click", function (e) {
-        e.preventDefault(); playClick(); switchView("health");
-      });
-    }
+    if (navDashboard) navDashboard.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("dashboard"); });
+    if (navFleet) navFleet.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("fleet"); });
+    if (navPredictive) navPredictive.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("predictive"); });
+    if (navHealth) navHealth.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("health"); });
+    if (navAnalytics) navAnalytics.addEventListener("click", function (e) { e.preventDefault(); playClick(); switchView("analytics"); });
 
     // Jump from Map directly to Dashboard Control
     var jumpBtn = $("jumpToControlBtn");
@@ -1021,7 +1076,7 @@
       });
     }
 
-    // ⚙️ Service Asset Button (Authorized Operator Action)
+    // ⚙️ Service Asset Button
     var serviceBtn = $("serviceAssetBtn");
     if (serviceBtn) {
       serviceBtn.addEventListener("click", function () {
@@ -1036,6 +1091,17 @@
           socket.emit("client:service_asset");
         }
         log("<strong style='color:var(--emerald)'><i class='fa-solid fa-wrench'></i> [MAINTENANCE LOGGED]</strong> Pump overhaul complete: Rotor bearings recalibrated and fatigue reset.");
+      });
+    }
+
+    // 📊 Export Industrial Audit CSV Button
+    var exportBtn = $("exportCsvBtn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", function () {
+        playClick();
+        pressFlash(exportBtn);
+        window.location.href = "/api/export-audit.csv";
+        log("<strong style='color:var(--emerald)'><i class='fa-solid fa-file-arrow-down'></i> [AUDIT EXPORT]</strong> Industrial CSV Telemetry log downloaded successfully.");
       });
     }
 
@@ -1067,9 +1133,7 @@
       });
     }
 
-    if (connectBtn) {
-      connectBtn.addEventListener("click", connectUSBHardware);
-    }
+    if (connectBtn) connectBtn.addEventListener("click", connectUSBHardware);
 
     // Geolocation Selector
     var locSelect = $("locationSelect");
@@ -1077,9 +1141,7 @@
       locSelect.addEventListener("change", function (e) {
         var key = e.target.value;
         playClick();
-        if (socket && socket.connected) {
-          socket.emit("client:set_location", key);
-        }
+        if (socket && socket.connected) socket.emit("client:set_location", key);
         var locName = e.target.options[e.target.selectedIndex].text;
         log("<strong style='color:var(--cyan)'><i class='fa-solid fa-satellite'></i> [SATELLITE]</strong> Pulling live weather for: <strong>" + locName + "</strong>");
       });
@@ -1284,6 +1346,7 @@
       if (mapInstance) mapInstance.invalidateSize();
       if (horizonChart) horizonChart.resize();
       if (vibrationChart) vibrationChart.resize();
+      if (zoneWaterChart) zoneWaterChart.resize();
     });
     document.addEventListener("click", function () { initAudio(); }, { once: true });
   }
