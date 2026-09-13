@@ -1,7 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
-   Safety Interlocks & GIS Satellite Fleet Map Engine
+   Safety Interlocks & GIS Satellite Fleet Map Engine (Esri Zero-Auth)
    ========================================================================== */
 (function () {
   "use strict";
@@ -567,7 +567,7 @@
   }
 
   /* ==========================================================================
-   *  🗺️ GIS SATELLITE FLEET MAP & MULTI-VIEW NAVIGATION ENGINE
+   *  🗺️ GIS SATELLITE FLEET MAP & MULTI-VIEW NAVIGATION ENGINE (ESRI ZERO-AUTH)
    * ========================================================================== */
   function switchView(viewName) {
     var dashView = $("viewDashboard");
@@ -581,7 +581,10 @@
     if (viewName === "fleet") {
       if (dashView) dashView.hidden = true;
       if (fleetView) fleetView.hidden = false;
-      initFleetMap();
+      // Slight delay guarantees the browser calculates DOM container dimensions
+      setTimeout(function () {
+        initFleetMap();
+      }, 150);
       log("<strong style='color:var(--cyan)'><i class='fa-solid fa-map-location-dot'></i> [GIS FLEET]</strong> Switched to National Satellite Fleet Overview.");
     } else {
       if (dashView) dashView.hidden = false;
@@ -606,31 +609,44 @@
       attributionControl: false
     });
 
-    // Dark Matter CartoDB Basemap
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 18,
-      subdomains: "abcd"
-    }).addTo(mapInstance);
+    // 🛰️ Provider 1: True High-Resolution Satellite Imagery (Zero-Auth / No API Key)
+    var satelliteTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 18
+    });
 
-    // Plot Agricultural Hubs
+    // 🌑 Provider 2: Industrial Cyber Dark Canvas (Zero-Auth / No API Key)
+    var darkTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 18
+    });
+
+    // Default to Satellite View
+    satelliteTiles.addTo(mapInstance);
+
+    // Layer Switcher Control in top-right
+    L.control.layers({
+      "🛰️ Satellite Imagery": satelliteTiles,
+      "🌑 Cyber Dark Canvas": darkTiles
+    }, null, { position: "topright" }).addTo(mapInstance);
+
+    // Plot Agricultural Hubs with Glowing SCADA Badges
     FLEET_FARMS.forEach(function (farm) {
       var isIrrigating = farm.status === "active";
       var color = isIrrigating ? "#00E5FF" : "#10B981";
 
       var marker = L.circleMarker([farm.lat, farm.lon], {
-        radius: 10,
+        radius: 11,
         fillColor: color,
         color: "#FFFFFF",
-        weight: 2,
-        opacity: 0.9,
-        fillOpacity: 0.8
+        weight: 2.5,
+        opacity: 1,
+        fillOpacity: 0.85
       }).addTo(mapInstance);
 
       var popupHtml = "<div style='padding:4px; font-size:12px; font-family:var(--sans);'>" +
         "<strong style='color:#00E5FF; font-size:13px; display:block; margin-bottom:4px;'>" + farm.name + "</strong>" +
         "<span>Region: " + farm.region + "</span><br/>" +
         "<span>Crop: " + farm.crop + " (" + farm.area + ")</span><br/>" +
-        "<span style='color:" + color + "; font-weight:600;'>Status: " + (isIrrigating ? "IRRIGATION ACTIVE" : "NOMINAL IDLE") + "</span>" +
+        "<span style='color:" + color + "; font-weight:700;'>Status: " + (isIrrigating ? "IRRIGATION ACTIVE" : "NOMINAL IDLE") + "</span>" +
         "</div>";
 
       marker.bindPopup(popupHtml);
@@ -639,6 +655,11 @@
         selectFarmHub(farm);
       });
     });
+
+    // Invalidate size to guarantee crisp tile rendering
+    setTimeout(function () {
+      if (mapInstance) mapInstance.invalidateSize();
+    }, 250);
   }
 
   function selectFarmHub(farm) {
