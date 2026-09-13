@@ -11,6 +11,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Leaflet GIS Map Engine -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -29,6 +32,8 @@
     <nav class="sidebar-nav">
       <span class="sidebar-label">Console</span>
       <a href="#overview" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
+      <!-- 🗺️ GIS FLEET MAP BUTTON -->
+      <a href="#fleet" class="nav-item" data-view="fleet" id="navFleet"><i class="fa-solid fa-map-location-dot"></i><span>GIS Fleet Map</span></a>
       <a href="#telemetry" class="nav-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics &amp; Telemetry</span></a>
       <a href="#pid" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
       <a href="#disturbance" class="nav-item" data-view="disturbance"><i class="fa-solid fa-cloud-sun"></i><span>Weather Simulation</span></a>
@@ -60,189 +65,241 @@
       </div>
     </header>
 
-    <main class="dashboard" id="overview">
-      <!-- 🛡️ 1. INDUSTRIAL SAFETY & INTERLOCK MATRIX BAR -->
-      <section class="safety-banner nominal" id="safetyBanner" aria-label="Safety status">
-        <div class="safety-status">
-          <i class="fa-solid fa-shield-halved" id="safetyIcon"></i>
-          <div>
-            <strong id="safetyTitle">ALL SYSTEMS NOMINAL</strong>
-            <p id="safetyDesc">IEC 61508 Functional Safety Loops Active — No Hardware Faults.</p>
-          </div>
-        </div>
-        <div class="safety-metrics">
-          <div class="safety-chip" id="motorTempChip"><i class="fa-solid fa-temperature-half"></i> Motor: <span id="motorTempVal">24.0°C</span></div>
-          <div class="safety-chip" id="interlockCountChip"><i class="fa-solid fa-lock"></i> Interlocks: <span id="interlockVal">0 Active</span></div>
-        </div>
-      </section>
-
-      <!-- 🛰️ 2. PROMINENT REAL-TIME SATELLITE CLIMATE & WEATHER BAR -->
-      <section class="climate-banner" id="climateBanner" aria-label="Real-time satellite weather">
-        <div class="climate-region">
-          <i class="fa-solid fa-satellite-dish pulse-satellite"></i>
-          <div>
-            <span class="climate-sub">OPEN-METEO SATELLITE FEED</span>
-            <div class="select-wrapper">
-              <select id="locationSelect" class="location-select" aria-label="Select Farm Region">
-                <option value="setif" selected>Sétif (High Plains - Cereal)</option>
-                <option value="biskra">Biskra (Oasis - Greenhouse/Palms)</option>
-                <option value="eloued">El Oued (Desert Basin - Tubers)</option>
-                <option value="mitidja">Mitidja (Coastal Plains - Orchards)</option>
-              </select>
+    <main class="dashboard">
+      <!-- ================= VIEW 1: MAIN SCADA TELEMETRY CONSOLE ================= -->
+      <div id="viewDashboard" class="view-screen active">
+        <!-- 🛡️ 1. INDUSTRIAL SAFETY & INTERLOCK MATRIX BAR -->
+        <section class="safety-banner nominal" id="safetyBanner" aria-label="Safety status">
+          <div class="safety-status">
+            <i class="fa-solid fa-shield-halved" id="safetyIcon"></i>
+            <div>
+              <strong id="safetyTitle">ALL SYSTEMS NOMINAL</strong>
+              <p id="safetyDesc">IEC 61508 Functional Safety Loops Active — No Hardware Faults.</p>
             </div>
           </div>
-        </div>
-        
-        <div class="climate-telemetry-grid">
-          <div class="c-stat">
-            <span class="c-label"><i class="fa-solid fa-cloud-sun"></i> ATMOSPHERE</span>
-            <strong id="wCondition"><i class="fa-solid fa-sun" style="color:#F59E0B"></i> Clear</strong>
+          <div class="safety-metrics">
+            <div class="safety-chip" id="motorTempChip"><i class="fa-solid fa-temperature-half"></i> Motor: <span id="motorTempVal">24.0°C</span></div>
+            <div class="safety-chip" id="interlockCountChip"><i class="fa-solid fa-lock"></i> Interlocks: <span id="interlockVal">0 Active</span></div>
           </div>
-          <div class="c-stat">
-            <span class="c-label"><i class="fa-solid fa-temperature-three-quarters"></i> AIR TEMP</span>
-            <strong id="wTemp" class="highlight-cyan">-- °C</strong>
-          </div>
-          <div class="c-stat">
-            <span class="c-label"><i class="fa-solid fa-wind"></i> WIND SPEED</span>
-            <strong id="wWind" class="highlight-wind">-- km/h</strong>
-          </div>
-          <div class="c-stat">
-            <span class="c-label"><i class="fa-solid fa-droplet"></i> AIR HUMIDITY</span>
-            <strong id="wHumidity">-- %</strong>
-          </div>
-          <div class="c-stat">
-            <span class="c-label"><i class="fa-solid fa-sun-plant-wilt"></i> ET₀ EVAP</span>
-            <strong id="wET0">-- mm/d</strong>
-          </div>
-        </div>
-      </section>
-
-      <!-- 🌾 3. FIELD MICRO-PLOTS SECTION -->
-      <section class="card field-grid-section" id="fieldSection">
-        <div class="card-head">
-          <h3><i class="fa-solid fa-border-all"></i> Field Micro-Plots &amp; Soil Heatmap</h3>
-          <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
-        </div>
-        <div class="zones-grid" id="zonesContainer">
-          <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
-          <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
-          <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
-          <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
-          <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
-          <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
-        </div>
-      </section>
-
-      <!-- 4. TELEMETRY GAUGES GRID -->
-      <section class="card-grid" aria-label="Telemetry cards">
-        <article class="glass-card gauge-card" id="vcwCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture Level</span><span class="card-unit">%</span></div>
-          <div class="gauge-wrap">
-            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
-              <circle class="gauge-bg" cx="100" cy="100" r="80" />
-              <circle class="gauge-fg vwc" id="vcwProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
-            </svg>
-            <div class="gauge-center"><strong id="vcwValue">--</strong><span>moisture</span></div>
-          </div>
-          <div class="card-values"><div><span>Current</span><strong id="vcwValueDisplay">--%</strong></div><div><span>Setpoint</span><strong id="vcwSetpointDisplay">SP: --%</strong></div></div>
-        </article>
-
-        <article class="glass-card gauge-card" id="actuatorCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Irrigation Pump Power</span><span class="card-unit">PWM %</span></div>
-          <div class="gauge-wrap">
-            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
-              <circle class="gauge-bg" cx="100" cy="100" r="80" />
-              <circle class="gauge-fg pwm" id="actuatorProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
-            </svg>
-            <div class="gauge-center"><strong id="actuatorValue">--</strong><span>pump power</span></div>
-          </div>
-          <div class="card-values"><div><span>Output</span><strong id="actuatorValueDisplay">--%</strong></div><div><span>Mode</span><strong id="pidMode">AUTO</strong></div></div>
-        </article>
-
-        <article class="glass-card gauge-card" id="flowCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-wave-square"></i> Water Flow Rate</span><span class="card-unit">L/min</span></div>
-          <div class="gauge-wrap">
-            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
-              <circle class="gauge-bg" cx="100" cy="100" r="80" />
-              <circle class="gauge-fg flow" id="flowProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
-            </svg>
-            <div class="gauge-center"><strong id="flowValue">--</strong><span>L/min</span></div>
-          </div>
-          <div class="card-values"><div><span>Current</span><strong id="flowValueDisplay">-- L/min</strong></div><div><span>Satellite Temp</span><strong id="tempValue">-- C</strong></div></div>
-        </article>
-
-        <article class="glass-card gauge-card" id="conservationCard">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-recycle"></i> Water Saved</span><span class="card-unit">%</span></div>
-          <div class="gauge-wrap">
-            <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
-              <circle class="gauge-bg" cx="100" cy="100" r="80" />
-              <circle class="gauge-fg saved" id="conservationProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
-            </svg>
-            <div class="gauge-center"><strong id="conservationValue">--</strong><span>Saved %</span></div>
-          </div>
-          <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters / ROI</span><strong id="savedLitersValue">-- L</strong></div></div>
-        </article>
-      </section>
-
-      <!-- 5. VISUAL TWIN -->
-      <section class="glass-card twin-card" id="twin" aria-label="Physical system visual twin">
-        <div class="card-top"><span class="card-title"><i class="fa-solid fa-cubes"></i> Visual Twin — Physical System</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span></div>
-        <div class="twin-grid">
-          <div class="twin-unit">
-            <span class="twin-label">Water Tank</span>
-            <div class="tank" role="img" aria-label="Water tank level"><div class="tank-fill" id="twinTankFill"></div><span class="tank-pct" id="twinTankLevel">85%</span></div>
-          </div>
-          <div class="twin-unit">
-            <span class="twin-label">Irrigation Pipe <em id="twinPwmLabel">0% PWM</em></span>
-            <div class="pipe" id="twinPipe" aria-hidden="true"><span class="pulse p1"></span><span class="pulse p2"></span><span class="pulse p3"></span></div>
-          </div>
-          <div class="twin-unit">
-            <span class="twin-label">Soil &amp; Plant Zone</span>
-            <div class="soil" id="twinSoil"><div class="plant" id="twinPlant"><i class="fa-solid fa-seedling"></i></div></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 6. CHART -->
-      <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
-        <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
-        <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
-      </section>
-
-      <!-- 7. CONTROLS & WEATHER SIMULATION -->
-      <div class="two-col">
-        <section class="glass-card pid-card" id="pid" aria-label="PID controls">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
-            <label class="switch" title="Manual / Auto toggle"><input type="checkbox" id="manualToggle" /><span class="track"><span class="thumb"></span></span><span class="switch-label" id="modeLabel">AUTO</span></label>
-          </div>
-          <div class="manual-banner" id="manualBanner" hidden><i class="fa-solid fa-triangle-exclamation"></i> MANUAL OVERRIDE ACTIVE — pump follows the manual slider</div>
-          <div class="pid-row"><label for="KpSlider">Kp <output id="KpValue">2.00</output></label><input type="range" id="KpSlider" min="0" max="5" step="0.1" value="2" /><small>P-term: <span id="KpTerm">0.00</span></small></div>
-          <div class="pid-row"><label for="KiSlider">Ki <output id="KiValue">0.1000</output></label><input type="range" id="KiSlider" min="0" max="0.5" step="0.01" value="0.1" /><small>I-term: <span id="KiTerm">0.00</span> <span class="windup" id="antiWindupIndicator">Anti-windup <i id="antiWindupLed" class="dot"></i></span></small></div>
-          <div class="pid-row"><label for="KdSlider">Kd <output id="KdValue">0.50</output></label><input type="range" id="KdSlider" min="0" max="2" step="0.05" value="0.5" /><small>D-term: <span id="KdTerm">0.00</span></small></div>
-          <div class="pid-row"><label for="setpointSlider">Target Moisture <output id="setpointValue">55.0%</output></label><input type="range" id="setpointSlider" min="0" max="100" step="0.5" value="55" /></div>
-          <div class="pid-row manual-row" id="manualRow" hidden><label for="manualPwmSlider">Manual PWM <output id="manualPwmValue">0%</output></label><input type="range" id="manualPwmSlider" min="0" max="100" step="1" value="0" /></div>
         </section>
 
-        <section class="glass-card jury-card" id="disturbance" aria-label="Weather simulation">
-          <div class="card-top">
-            <span class="card-title"><i class="fa-solid fa-cloud-bolt"></i> Manual Disturbance Injection</span>
+        <!-- 🛰️ 2. PROMINENT REAL-TIME SATELLITE CLIMATE & WEATHER BAR -->
+        <section class="climate-banner" id="climateBanner" aria-label="Real-time satellite weather">
+          <div class="climate-region">
+            <i class="fa-solid fa-satellite-dish pulse-satellite"></i>
+            <div>
+              <span class="climate-sub">OPEN-METEO SATELLITE FEED</span>
+              <div class="select-wrapper">
+                <select id="locationSelect" class="location-select" aria-label="Select Farm Region">
+                  <option value="setif" selected>Sétif (High Plains - Cereal)</option>
+                  <option value="biskra">Biskra (Oasis - Greenhouse/Palms)</option>
+                  <option value="eloued">El Oued (Desert Basin - Tubers)</option>
+                  <option value="mitidja">Mitidja (Coastal Plains - Orchards)</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <p class="muted small">Inject acute physical disruptions to test closed-loop PID self-recovery:</p>
-          <div class="btn-row">
-            <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
-            <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
-            <button class="btn shutoff" id="shutoffBtn"><i class="fa-solid fa-octagon-xmark"></i> Emergency Shutoff</button>
-            <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
+          
+          <div class="climate-telemetry-grid">
+            <div class="c-stat">
+              <span class="c-label"><i class="fa-solid fa-cloud-sun"></i> ATMOSPHERE</span>
+              <strong id="wCondition"><i class="fa-solid fa-sun" style="color:#F59E0B"></i> Clear</strong>
+            </div>
+            <div class="c-stat">
+              <span class="c-label"><i class="fa-solid fa-temperature-three-quarters"></i> AIR TEMP</span>
+              <strong id="wTemp" class="highlight-cyan">-- °C</strong>
+            </div>
+            <div class="c-stat">
+              <span class="c-label"><i class="fa-solid fa-wind"></i> WIND SPEED</span>
+              <strong id="wWind" class="highlight-wind">-- km/h</strong>
+            </div>
+            <div class="c-stat">
+              <span class="c-label"><i class="fa-solid fa-droplet"></i> AIR HUMIDITY</span>
+              <strong id="wHumidity">-- %</strong>
+            </div>
+            <div class="c-stat">
+              <span class="c-label"><i class="fa-solid fa-sun-plant-wilt"></i> ET₀ EVAP</span>
+              <strong id="wET0">-- mm/d</strong>
+            </div>
           </div>
-          <p class="muted small" id="juryBadge">Telemetry synchronizing with Open-Meteo satellite feed.</p>
+        </section>
+
+        <!-- 🌾 3. FIELD MICRO-PLOTS SECTION -->
+        <section class="card field-grid-section" id="fieldSection">
+          <div class="card-head">
+            <h3><i class="fa-solid fa-border-all"></i> Field Micro-Plots &amp; Soil Heatmap</h3>
+            <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
+          </div>
+          <div class="zones-grid" id="zonesContainer">
+            <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
+            <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
+            <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
+            <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
+            <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
+            <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
+          </div>
+        </section>
+
+        <!-- 4. TELEMETRY GAUGES GRID -->
+        <section class="card-grid" aria-label="Telemetry cards">
+          <article class="glass-card gauge-card" id="vcwCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-droplet"></i> Soil Moisture Level</span><span class="card-unit">%</span></div>
+            <div class="gauge-wrap">
+              <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+                <circle class="gauge-bg" cx="100" cy="100" r="80" />
+                <circle class="gauge-fg vwc" id="vcwProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+              </svg>
+              <div class="gauge-center"><strong id="vcwValue">--</strong><span>moisture</span></div>
+            </div>
+            <div class="card-values"><div><span>Current</span><strong id="vcwValueDisplay">--%</strong></div><div><span>Setpoint</span><strong id="vcwSetpointDisplay">SP: --%</strong></div></div>
+          </article>
+
+          <article class="glass-card gauge-card" id="actuatorCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Irrigation Pump Power</span><span class="card-unit">PWM %</span></div>
+            <div class="gauge-wrap">
+              <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+                <circle class="gauge-bg" cx="100" cy="100" r="80" />
+                <circle class="gauge-fg pwm" id="actuatorProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+              </svg>
+              <div class="gauge-center"><strong id="actuatorValue">--</strong><span>pump power</span></div>
+            </div>
+            <div class="card-values"><div><span>Output</span><strong id="actuatorValueDisplay">--%</strong></div><div><span>Mode</span><strong id="pidMode">AUTO</strong></div></div>
+          </article>
+
+          <article class="glass-card gauge-card" id="flowCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-wave-square"></i> Water Flow Rate</span><span class="card-unit">L/min</span></div>
+            <div class="gauge-wrap">
+              <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+                <circle class="gauge-bg" cx="100" cy="100" r="80" />
+                <circle class="gauge-fg flow" id="flowProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+              </svg>
+              <div class="gauge-center"><strong id="flowValue">--</strong><span>L/min</span></div>
+            </div>
+            <div class="card-values"><div><span>Current</span><strong id="flowValueDisplay">-- L/min</strong></div><div><span>Satellite Temp</span><strong id="tempValue">-- C</strong></div></div>
+          </article>
+
+          <article class="glass-card gauge-card" id="conservationCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-recycle"></i> Water Saved</span><span class="card-unit">%</span></div>
+            <div class="gauge-wrap">
+              <svg viewBox="0 0 200 200" class="radial-gauge" aria-hidden="true">
+                <circle class="gauge-bg" cx="100" cy="100" r="80" />
+                <circle class="gauge-fg saved" id="conservationProgress" cx="100" cy="100" r="80" stroke-dasharray="502.65" stroke-dashoffset="502.65" />
+              </svg>
+              <div class="gauge-center"><strong id="conservationValue">--</strong><span>Saved %</span></div>
+            </div>
+            <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters / ROI</span><strong id="savedLitersValue">-- L</strong></div></div>
+          </article>
+        </section>
+
+        <!-- 5. VISUAL TWIN -->
+        <section class="glass-card twin-card" id="twin" aria-label="Physical system visual twin">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-cubes"></i> Visual Twin — Physical System</span><span class="live-pill"><span class="pulse-dot sm"></span> <span id="twinStatus">HYDRATED</span></span></div>
+          <div class="twin-grid">
+            <div class="twin-unit">
+              <span class="twin-label">Water Tank</span>
+              <div class="tank" role="img" aria-label="Water tank level"><div class="tank-fill" id="twinTankFill"></div><span class="tank-pct" id="twinTankLevel">85%</span></div>
+            </div>
+            <div class="twin-unit">
+              <span class="twin-label">Irrigation Pipe <em id="twinPwmLabel">0% PWM</em></span>
+              <div class="pipe" id="twinPipe" aria-hidden="true"><span class="pulse p1"></span><span class="pulse p2"></span><span class="pulse p3"></span></div>
+            </div>
+            <div class="twin-unit">
+              <span class="twin-label">Soil &amp; Plant Zone</span>
+              <div class="soil" id="twinSoil"><div class="plant" id="twinPlant"><i class="fa-solid fa-seedling"></i></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. CHART -->
+        <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
+          <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+        </section>
+
+        <!-- 7. CONTROLS & WEATHER SIMULATION -->
+        <div class="two-col">
+          <section class="glass-card pid-card" id="pid" aria-label="PID controls">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-sliders"></i> Pump Controls <span class="card-sub">PID</span></span>
+              <label class="switch" title="Manual / Auto toggle"><input type="checkbox" id="manualToggle" /><span class="track"><span class="thumb"></span></span><span class="switch-label" id="modeLabel">AUTO</span></label>
+            </div>
+            <div class="manual-banner" id="manualBanner" hidden><i class="fa-solid fa-triangle-exclamation"></i> MANUAL OVERRIDE ACTIVE — pump follows the manual slider</div>
+            <div class="pid-row"><label for="KpSlider">Kp <output id="KpValue">2.00</output></label><input type="range" id="KpSlider" min="0" max="5" step="0.1" value="2" /><small>P-term: <span id="KpTerm">0.00</span></small></div>
+            <div class="pid-row"><label for="KiSlider">Ki <output id="KiValue">0.1000</output></label><input type="range" id="KiSlider" min="0" max="0.5" step="0.01" value="0.1" /><small>I-term: <span id="KiTerm">0.00</span> <span class="windup" id="antiWindupIndicator">Anti-windup <i id="antiWindupLed" class="dot"></i></span></small></div>
+            <div class="pid-row"><label for="KdSlider">Kd <output id="KdValue">0.50</output></label><input type="range" id="KdSlider" min="0" max="2" step="0.05" value="0.5" /><small>D-term: <span id="KdTerm">0.00</span></small></div>
+            <div class="pid-row"><label for="setpointSlider">Target Moisture <output id="setpointValue">55.0%</output></label><input type="range" id="setpointSlider" min="0" max="100" step="0.5" value="55" /></div>
+            <div class="pid-row manual-row" id="manualRow" hidden><label for="manualPwmSlider">Manual PWM <output id="manualPwmValue">0%</output></label><input type="range" id="manualPwmSlider" min="0" max="100" step="1" value="0" /></div>
+          </section>
+
+          <section class="glass-card jury-card" id="disturbance" aria-label="Weather simulation">
+            <div class="card-top">
+              <span class="card-title"><i class="fa-solid fa-cloud-bolt"></i> Manual Disturbance Injection</span>
+            </div>
+            <p class="muted small">Inject acute physical disruptions to test closed-loop PID self-recovery:</p>
+            <div class="btn-row">
+              <button class="btn danger" id="droughtBtn"><i class="fa-solid fa-sun"></i> Severe Drought</button>
+              <button class="btn info" id="rainBtn"><i class="fa-solid fa-cloud-rain"></i> Heavy Rain</button>
+              <button class="btn shutoff" id="shutoffBtn"><i class="fa-solid fa-octagon-xmark"></i> Emergency Shutoff</button>
+              <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
+            </div>
+            <p class="muted small" id="juryBadge">Telemetry synchronizing with Open-Meteo satellite feed.</p>
+          </section>
+        </div>
+
+        <!-- 8. LOGS -->
+        <section class="glass-card logs-card" id="logs" aria-label="System logs">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-terminal"></i> System Logs</span><span class="card-unit" id="logCount">0 events</span></div>
+          <ul class="log-list" id="logList"></ul>
         </section>
       </div>
 
-      <!-- 8. LOGS -->
-      <section class="glass-card logs-card" id="logs" aria-label="System logs">
-        <div class="card-top"><span class="card-title"><i class="fa-solid fa-terminal"></i> System Logs</span><span class="card-unit" id="logCount">0 events</span></div>
-        <ul class="log-list" id="logList"></ul>
-      </section>
+      <!-- ================= VIEW 2: 🗺️ ENTERPRISE GIS SATELLITE FLEET VIEW ================= -->
+      <div id="viewFleet" class="view-screen" hidden>
+        <!-- Fleet Top KPI Summary -->
+        <section class="fleet-kpi-bar">
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-earth-africa"></i> Total Monitored Area</span>
+            <strong class="kpi-val">1,450 <small>Hectares</small></strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-tower-broadcast"></i> Active Telemetry Hubs</span>
+            <strong class="kpi-val highlight-cyan">4 / 4 <small>Online</small></strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-droplet"></i> Fleet Water Reserve</span>
+            <strong class="kpi-val highlight-emerald">84.2% <small>Capacity</small></strong>
+          </div>
+          <div class="kpi-box">
+            <span class="kpi-label"><i class="fa-solid fa-shield-heart"></i> National Fleet Health</span>
+            <strong class="kpi-val highlight-cyan">99.4% <small>Optimal</small></strong>
+          </div>
+        </section>
+
+        <!-- Interactive Dark GIS Map -->
+        <section class="glass-card fleet-map-card">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-satellite"></i> National Agro-Hub Fleet Map (Algeria)</span>
+            <div class="map-legend">
+              <span class="legend-dot nominal"></span> Nominal
+              <span class="legend-dot active"></span> Irrigating
+            </div>
+          </div>
+          <div id="fleetMap" class="fleet-map-container"></div>
+        </section>
+
+        <!-- Selected Farm Detail Quick-Panel -->
+        <section class="glass-card farm-focus-card" id="farmFocusCard">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-building-wheat"></i> Selected Production Sector: <span id="focusFarmName" class="highlight-cyan">Sétif High Plains Hub</span></span>
+            <button class="btn info" id="jumpToControlBtn"><i class="fa-solid fa-sliders"></i> Open SCADA Console for This Farm</button>
+          </div>
+          <div class="focus-grid">
+            <div class="focus-item"><span>Primary Crop</span><strong id="focusCrop">Durum Wheat &amp; Cereals</strong></div>
+            <div class="focus-item"><span>Surface Area</span><strong id="focusArea">520 Hectares</strong></div>
+            <div class="focus-item"><span>Local VWC Average</span><strong id="focusVwc" class="highlight-cyan">48.0%</strong></div>
+            <div class="focus-item"><span>Pumping Power</span><strong id="focusPwm">Active PID (AUTO)</strong></div>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 

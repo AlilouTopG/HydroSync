@@ -1,6 +1,7 @@
 /* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
-   Full Integration: Open-Meteo Satellite, Web Serial USB Edge, Safety Interlocks
+   Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
+   Safety Interlocks & GIS Satellite Fleet Map Engine
    ========================================================================== */
 (function () {
   "use strict";
@@ -35,6 +36,55 @@
   var usbReader = null;
   var isHardwareMode = false;
   var serialLineBuffer = "";
+
+  // 🗺️ GIS Fleet Map Engine Variables
+  var mapInstance = null;
+  var FLEET_FARMS = [
+    {
+      id: "setif",
+      name: "Sétif High Plains Agro-Hub",
+      region: "Sétif Province",
+      crop: "Durum Wheat & Cereals",
+      area: "520 Hectares",
+      lat: 36.19,
+      lon: 5.41,
+      status: "nominal",
+      defaultVwc: 48.0
+    },
+    {
+      id: "biskra",
+      name: "Ziban Oasis Greenhouse Complex",
+      region: "Biskra Province",
+      crop: "Deglet Nour Dates & Early Tomatoes",
+      area: "340 Hectares",
+      lat: 34.85,
+      lon: 5.73,
+      status: "active",
+      defaultVwc: 64.0
+    },
+    {
+      id: "eloued",
+      name: "Oued Souf Pivot Basin",
+      region: "El Oued Province",
+      crop: "Desert Pivot Tubers (Potatoes)",
+      area: "390 Hectares",
+      lat: 33.37,
+      lon: 6.86,
+      status: "nominal",
+      defaultVwc: 54.0
+    },
+    {
+      id: "mitidja",
+      name: "Mitidja Valley Citrus Orchards",
+      region: "Blida / Algiers Province",
+      crop: "Citrus Fruits & Olive Groves",
+      area: "200 Hectares",
+      lat: 36.56,
+      lon: 2.91,
+      status: "nominal",
+      defaultVwc: 59.0
+    }
+  ];
 
   var CROP_PROFILES = {
     "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
@@ -516,6 +566,96 @@
     } catch (e) {}
   }
 
+  /* ==========================================================================
+   *  🗺️ GIS SATELLITE FLEET MAP & MULTI-VIEW NAVIGATION ENGINE
+   * ========================================================================== */
+  function switchView(viewName) {
+    var dashView = $("viewDashboard");
+    var fleetView = $("viewFleet");
+    var navLinks = document.querySelectorAll(".sidebar-nav .nav-item");
+
+    Array.prototype.forEach.call(navLinks, function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-view") === viewName);
+    });
+
+    if (viewName === "fleet") {
+      if (dashView) dashView.hidden = true;
+      if (fleetView) fleetView.hidden = false;
+      initFleetMap();
+      log("<strong style='color:var(--cyan)'><i class='fa-solid fa-map-location-dot'></i> [GIS FLEET]</strong> Switched to National Satellite Fleet Overview.");
+    } else {
+      if (dashView) dashView.hidden = false;
+      if (fleetView) fleetView.hidden = true;
+    }
+  }
+
+  function initFleetMap() {
+    if (mapInstance) {
+      setTimeout(function () { mapInstance.invalidateSize(); }, 200);
+      return;
+    }
+
+    var mapContainer = $("fleetMap");
+    if (!mapContainer || typeof L === "undefined") return;
+
+    // Center map over Northern & Central Algeria
+    mapInstance = L.map("fleetMap", {
+      center: [34.9, 5.0],
+      zoom: 6.2,
+      zoomControl: true,
+      attributionControl: false
+    });
+
+    // Dark Matter CartoDB Basemap
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 18,
+      subdomains: "abcd"
+    }).addTo(mapInstance);
+
+    // Plot Agricultural Hubs
+    FLEET_FARMS.forEach(function (farm) {
+      var isIrrigating = farm.status === "active";
+      var color = isIrrigating ? "#00E5FF" : "#10B981";
+
+      var marker = L.circleMarker([farm.lat, farm.lon], {
+        radius: 10,
+        fillColor: color,
+        color: "#FFFFFF",
+        weight: 2,
+        opacity: 0.9,
+        fillOpacity: 0.8
+      }).addTo(mapInstance);
+
+      var popupHtml = "<div style='padding:4px; font-size:12px; font-family:var(--sans);'>" +
+        "<strong style='color:#00E5FF; font-size:13px; display:block; margin-bottom:4px;'>" + farm.name + "</strong>" +
+        "<span>Region: " + farm.region + "</span><br/>" +
+        "<span>Crop: " + farm.crop + " (" + farm.area + ")</span><br/>" +
+        "<span style='color:" + color + "; font-weight:600;'>Status: " + (isIrrigating ? "IRRIGATION ACTIVE" : "NOMINAL IDLE") + "</span>" +
+        "</div>";
+
+      marker.bindPopup(popupHtml);
+
+      marker.on("click", function () {
+        selectFarmHub(farm);
+      });
+    });
+  }
+
+  function selectFarmHub(farm) {
+    setText("focusFarmName", farm.name);
+    setText("focusCrop", farm.crop);
+    setText("focusArea", farm.area);
+    setText("focusVwc", farm.defaultVwc.toFixed(1) + "%");
+
+    if (socket && socket.connected) {
+      socket.emit("client:set_location", farm.id);
+    }
+    var locSelect = $("locationSelect");
+    if (locSelect) locSelect.value = farm.id;
+
+    log("<strong style='color:var(--emerald)'><i class='fa-solid fa-satellite'></i> [FLEET FOCUS]</strong> Linked SCADA to <strong>" + farm.name + "</strong>");
+  }
+
   /* ---------- Controls Binding ---------- */
   function bindControls() {
     function slider(id, fn) {
@@ -557,6 +697,35 @@
         socket.emit("client:manual_override", { enabled: state.manual, manualPwm: state.manualPwm });
       }
     });
+
+    // 🗺️ Sidebar Multi-View Navigation
+    var navDashboard = document.querySelector(".sidebar-nav [data-view='dashboard']");
+    var navFleet = $("navFleet");
+
+    if (navDashboard) {
+      navDashboard.addEventListener("click", function (e) {
+        e.preventDefault();
+        playClick();
+        switchView("dashboard");
+      });
+    }
+
+    if (navFleet) {
+      navFleet.addEventListener("click", function (e) {
+        e.preventDefault();
+        playClick();
+        switchView("fleet");
+      });
+    }
+
+    // Jump from Map directly to Dashboard Control
+    var jumpBtn = $("jumpToControlBtn");
+    if (jumpBtn) {
+      jumpBtn.addEventListener("click", function () {
+        playClick();
+        switchView("dashboard");
+      });
+    }
 
     // 🔌 Hardware Mode Dual-Toggle
     var simBtn = $("srcSimBtn");
@@ -798,7 +967,10 @@
       log("<strong style='color:var(--danger)'>[FIREWALL]</strong> " + data.msg);
     });
 
-    window.addEventListener("resize", function () { if (chart) chart.resize(); });
+    window.addEventListener("resize", function () { 
+      if (chart) chart.resize(); 
+      if (mapInstance) mapInstance.invalidateSize();
+    });
     document.addEventListener("click", function () { initAudio(); }, { once: true });
   }
 

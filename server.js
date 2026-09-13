@@ -1,7 +1,7 @@
 /**
  * server.js - HydroSync SCADA Server (Hardened Production Release)
  * Security Hardening: Anti-SSRF, Strict CORS, CSP, Timing-Safe Auth, Rate-Limiter
- * Features: Live Satellite Weather Ingestion (Open-Meteo Current + Daily ET0)
+ * Features: Live Satellite Weather Ingestion & GIS Fleet Map Support
  */
 const express = require('express');
 const http = require('http');
@@ -15,7 +15,7 @@ const server = http.createServer(app);
 // 1. Information Disclosure Mitigation
 app.disable('x-powered-by');
 
-// 2. Strict Security Headers & Content Security Policy (CSP)
+// 2. Strict Security Headers & Content Security Policy (Expanded for Leaflet & CartoDB Dark Tiles)
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -24,11 +24,11 @@ app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; " +
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io https://cdnjs.cloudflare.com; " +
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
     "connect-src 'self' wss: https:; " +
-    "img-src 'self' data:;"
+    "img-src 'self' data: https: https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org;"
   );
   next();
 });

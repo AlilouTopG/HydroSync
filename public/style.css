@@ -78,6 +78,7 @@ body {
   display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--muted);
   padding: 11px 12px; border-radius: 12px; border: 1px solid transparent; font-size: 14px;
   transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
+  cursor: pointer;
 }
 .nav-item i { width: 18px; text-align: center; }
 .nav-item:hover { background: rgba(0,229,255,.07); color: var(--text); border-color: var(--border); }
@@ -143,10 +144,7 @@ body {
   transition: all 0.2s ease;
 }
 
-.source-toggle:hover {
-  color: var(--text);
-}
-
+.source-toggle:hover { color: var(--text); }
 .source-toggle.active {
   background: rgba(0, 229, 255, 0.18);
   color: var(--cyan);
@@ -230,6 +228,19 @@ body {
 }
 
 .dashboard { padding: 26px 28px 60px; display: grid; gap: 20px; max-width: 1460px; width: 100%; margin: 0 auto; }
+
+/* ===================================================
+   MULTI-VIEW NAVIGATION SCREENS
+   =================================================== */
+.view-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+.view-screen[hidden] {
+  display: none !important;
+}
 
 /* ===================================================
    🛡️ INDUSTRIAL SAFETY & INTERLOCK BAR
@@ -557,6 +568,116 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   padding: 5px 10px; border-radius: 999px;
 }
 
+/* ===================================================
+   🗺️ GIS SATELLITE FLEET MAP & MULTI-VIEW STYLES
+   =================================================== */
+.fleet-kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.kpi-box {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)), var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kpi-label {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.kpi-val {
+  font-family: var(--mono);
+  font-size: 24px;
+  color: var(--text);
+}
+.kpi-val small {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.highlight-emerald { color: var(--emerald) !important; }
+
+/* Fleet Map Container */
+.fleet-map-card { padding: 16px; }
+.fleet-map-container {
+  height: 520px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  overflow: hidden;
+  background: #060913;
+}
+.map-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legend-dot.nominal { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+.legend-dot.active { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+/* Focus Farm Detail Card */
+.farm-focus-card {
+  border-color: rgba(0, 229, 255, 0.35);
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.08);
+}
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+.focus-item {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.focus-item span {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+.focus-item strong {
+  font-size: 15px;
+  font-family: var(--sans);
+  color: var(--text);
+}
+
+/* Custom Cyber Leaflet Markers & Popups */
+.leaflet-popup-content-wrapper {
+  background: rgba(13, 19, 34, 0.95) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--cyan) !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 25px rgba(0, 229, 255, 0.3) !important;
+  font-family: var(--sans);
+}
+.leaflet-popup-tip { background: rgba(13, 19, 34, 0.95) !important; }
+
 /* ---------- Modals ---------- */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 100; display: none;
@@ -615,6 +736,8 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   .pipe { margin-top: 8px; }
   .btn-row { grid-template-columns: 1fr; }
   .chart-wrap { height: 300px; }
+  .fleet-kpi-bar, .focus-grid { grid-template-columns: repeat(2, 1fr); }
+  .fleet-map-container { height: 380px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
