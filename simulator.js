@@ -11,7 +11,7 @@
 // --- Physical Constants & Tuning ---
 const DT = 1.0; // 1-second simulation step
 const AMBIENT_TEMP = 24.0; // °C baseline
-const TANK_RECHARGE_RATE = 0.02; // تدفق ترشيح طبيعي خفيف جداً (0.02 L/s = 1.2 L/min)
+const TANK_RECHARGE_RATE = 0.02; // تدفق ترشيح طبيعي خفيف (0.02 L/s = 1.2 L/min)
 const PUMP_MAX_FLOW = 25.0; // L/min at 100% PWM
 const WATER_PRICE_PER_LITER = 0.045; // $ per liter
 const DZD_PER_USD = 134.5; // DZD exchange rate
@@ -36,7 +36,7 @@ let state = {
   tankCapacityL: 200,
   tankVolumeL: 170.0,
   tankVolumePct: 85.0,
-  tankInletValve: false, // صمام التغذية الكهرومغناطيسي للخزان
+  tankInletValve: false, // صمام التغذية الاحتياطي الآلي
   flowRate: 0.0,
   waterSaved: 68.0,
   waterSavedL: 142.5,
@@ -228,9 +228,10 @@ function updateReservoirCavitation() {
 }
 
 function checkHydraulicIntegrity(deltaVwc) {
-  if (state.effectivePwm > 70.0 && state.flowRate > 12.0 && deltaVwc <= 0.05) {
+  // تم تمديد فترة التحقق إلى 30 ثانية لتفادي الإنذار الكاذب في المحاصيل بطيئة الامتصاص كالزيتون
+  if (state.effectivePwm > 70.0 && state.flowRate > 12.0 && deltaVwc <= 0.02) {
     state.burstPipeCounter++;
-    if (state.burstPipeCounter >= 12) {
+    if (state.burstPipeCounter >= 30) {
       state.interlocks.pipeBurst = true;
     }
   } else {
@@ -323,8 +324,7 @@ function updatePredictiveMaintenanceModel() {
  *  MAIN SIMULATION LOOP
  * ========================================================================== */
 function pidLoop() {
-  // منطق صمام التعبئة الآلي المزدوج (Hysteresis Float Valve)
-  // لا يفتح الصمام إلا إذا هبط المستوى تحت 12% لملئه حتى 80%
+  // صمام تعبئة الخزان الآلي (Hysteresis): لا يفتح إلا عند الهبوط تحت 12% ويغلق عند 80%
   if (state.tankVolumePct <= 12.0) {
     state.tankInletValve = true;
   } else if (state.tankVolumePct >= 80.0) {
@@ -334,7 +334,7 @@ function pidLoop() {
   const activeInflow = state.tankInletValve ? 0.35 : TANK_RECHARGE_RATE;
   const waterConsumedL = (state.flowRate / 60.0) * DT;
 
-  // استهلاك المياه الطبيعي مع التعويض المنخفض جداً لتظهر ديناميكية الهبوط
+  // تناقص مستوى الخزان الحقيقي ثانية بثانية
   state.tankVolumeL = Math.max(0, state.tankVolumeL - waterConsumedL + (activeInflow * DT));
   state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL);
   updateReservoirCavitation();
@@ -424,8 +424,10 @@ function pidLoop() {
     if (disturbanceDuration === 0) activeDisturbance = null;
   }
 
+  // حساب الامتصاص مع معامل استجابة المحصول
+  const cropFactor = activePlot ? (activePlot.absorptionRate || 1.0) : 1.0;
   const evapLoss = (state.et0 / 24.0) * 0.08;
-  const irrigationInflow = (state.flowRate * 0.08);
+  const irrigationInflow = (state.flowRate * 0.08) * cropFactor;
   const deltaVwc = (irrigationInflow - soilDrainRate - evapLoss + disturbanceEffect) * DT;
 
   checkHydraulicIntegrity(deltaVwc);
