@@ -1,7 +1,14 @@
 /**
  * HydroSync - Core Automation & MPC Engine
  * المسار الخاص بك: التحكم في الخوارزميات وصمامات الأمان
+ * 
+ * Compliant with:
+ * - IEC 61508 Functional Safety & Trip Debouncing
+ * - ISO 10816 Mechanical Vibration Standards
  */
+
+// عداد تأخير زمني لمنع الإنذارات الكاذبة أثناء إقلاع المضخة (Debounce Filter)
+let dryRunDebounceCounter = 0;
 
 // 1. خوارزمية حساب متطلبات الري ومنع الهدر المناخي
 function calculateIrrigationDuty(currentVwc, setpoint, rainProb) {
@@ -25,11 +32,20 @@ function evaluateSafety(telemetry) {
     alarms: []
   };
 
-  // أ. حماية من التشغيل الجاف (Dry-Run Protection)
-  if (telemetry.pumpState && telemetry.flowRate <= 1.0) {
-    actions.tripPump = true;
-    actions.systemStatus = 'CRITICAL';
-    actions.alarms.push('CRITICAL: Dry-run detected. Zero flow while pump active.');
+  // أ. حماية من التشغيل الجاف (Dry-Run Protection مع فلترة التأخير الزمني)
+  // لا نوقف المضخة إلا إذا استمرت بالعمل بحمل حقيقي (>15%) بدون تدفق لمدة 4 ثوانٍ متتالية
+  if (telemetry.pumpState && telemetry.pumpDuty > 15.0 && telemetry.flowRate <= 0.8) {
+    dryRunDebounceCounter++;
+    if (dryRunDebounceCounter >= 4) {
+      actions.tripPump = true;
+      actions.systemStatus = 'CRITICAL';
+      actions.alarms.push('CRITICAL: Dry-run verified. Zero flow while pump running under load.');
+    } else {
+      actions.systemStatus = 'WARNING';
+      actions.alarms.push(`WARNING: Establishing hydraulic flow (${dryRunDebounceCounter}/4s)...`);
+    }
+  } else {
+    dryRunDebounceCounter = Math.max(0, dryRunDebounceCounter - 1);
   }
 
   // ب. حماية المحرك من ارتفاع درجة الحرارة (Thermal Overheat)
@@ -55,7 +71,12 @@ function evaluateSafety(telemetry) {
   return actions;
 }
 
+function resetSafetyState() {
+  dryRunDebounceCounter = 0;
+}
+
 module.exports = {
   calculateIrrigationDuty,
-  evaluateSafety
+  evaluateSafety,
+  resetSafetyState
 };

@@ -12,7 +12,7 @@ const { Server } = require('socket.io');
 const simulator = require('./simulator');
 
 // استدعاء نواة التحكم وصمامات الأمان الخاصة بك
-const { evaluateSafety, calculateIrrigationDuty } = require('./core_control/mpc_controller');
+const { evaluateSafety, calculateIrrigationDuty, resetSafetyState } = require('./core_control/mpc_controller');
 
 const app = express();
 const server = http.createServer(app);
@@ -68,7 +68,7 @@ app.get('/api/ai/diagnostics', async (req, res) => {
   }
 });
 
-// 4. مرونة تحميل الملفات الساكنة (Public أو Root)
+// 4. تحميل الملفات الساكنة
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore', index: ['index.html'] }));
 app.use(express.static(path.join(__dirname), { dotfiles: 'ignore', index: ['index.html'] }));
 
@@ -88,6 +88,10 @@ const io = new Server(server, {
 
 let serverStartTime = Date.now();
 const OPERATOR_PIN = process.env.OPERATOR_PIN || '8492';
+
+// إدارة حالات الأمان والقفل الصناعي (Trip Latching)
+let isSafetyTripped = false;
+let activeSafetyReason = '';
 
 const clientFirewallState = new Map();
 const failedAttemptsByIp = new Map();
@@ -256,7 +260,9 @@ io.on('connection', (socket) => {
   socket.emit('telemetry', { 
     ...initialState, 
     threatsBlocked: totalThreatsBlocked,
-    predictiveAI: latestAIPrediction
+    predictiveAI: latestAIPrediction,
+    isSafetyTripped,
+    activeSafetyReason
   });
 
   socket.on('client:auth', (submittedPin) => {
@@ -285,6 +291,27 @@ io.on('connection', (socket) => {
       failedAttemptsByIp.set(clientIp, lockData);
       socket.emit('auth:failed', { msg: 'Invalid Operator Passcode.' });
     }
+  });
+
+  // مسار إعادة الضبط الصناعي وفك القفل (Operator Trip Reset)
+  socket.on('client:operator_reset', (payload) => {
+    if (!firewallValidate(socket, 2)) return;
+    const pin = (typeof payload === 'object' && payload.pin) ? payload.pin : payload;
+    const client = clientFirewallState.get(socket.id);
+    const isAuthed = (client && client.authorized) || (typeof pin === 'string' && safeCompare(pin.trim(), OPERATOR_PIN));
+
+    if (!isAuthed) {
+      socket.emit('firewall:alert', { type: 'UNAUTHORIZED_ACCESS', msg: 'Operator PIN required to reset safety interlock.' });
+      return;
+    }
+
+    isSafetyTripped = false;
+    activeSafetyReason = '';
+    resetSafetyState();
+    // إعادة المحاكي إلى الوضع التلقائي (Auto Closed-Loop) فوراً
+    simulator.setManualMode(false, 0);
+    console.log(`✅ [SCADA TRIP RESET]: Operator successfully cleared the safety lock.`);
+    broadcastTelemetry();
   });
 
   socket.on('client:update_pid', (params) => {
@@ -349,6 +376,10 @@ io.on('connection', (socket) => {
   socket.on('client:manual_override', (data) => {
     if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
     if (!data || typeof data !== 'object') return;
+    if (isSafetyTripped) {
+      socket.emit('firewall:alert', { type: 'INTERLOCK_BLOCKED', msg: 'Cannot override while system is in SAFETY_TRIP lock.' });
+      return;
+    }
     simulator.setManualMode(Boolean(data.enabled), Math.max(0.0, Math.min(100.0, Number(data.manualPwm) || 0)));
     broadcastTelemetry();
   });
@@ -383,28 +414,33 @@ function broadcastTelemetry() {
   const state = simulator.getState();
   const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
 
-  // فحص أمان المنظومة باستخدام خوارزمياتك في mpc_controller.js
+  // استخراج الاهتزاز بدقة من كائن assetHealth
+  const currentVibRms = (state.assetHealth && typeof state.assetHealth.vibrationRms === 'number')
+    ? state.assetHealth.vibrationRms
+    : (Number(state.vibrationRms) || 0);
+
   const telemetryData = {
-    pumpState: Boolean(state.pumpDuty > 0 || state.pumpState),
+    pumpState: Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
+    pumpDuty: Number(state.pumpDuty) || 0,
     flowRate: Number(state.flowRate) || 0,
     motorTemp: Number(state.motorTemp) || 25,
-    vibrationRms: Number(state.vibrationRms) || 0
+    vibrationRms: currentVibRms
   };
 
   const safetyCheck = evaluateSafety(telemetryData);
 
-  // صمام الأمان الفوري: إذا كان هناك خطر داهم يتم إيقاف المضخة فوراً لحمايتها
-  if (safetyCheck.tripPump && (state.pumpDuty > 0 || state.pumpState)) {
-    if (typeof simulator.setManualMode === 'function') {
-      simulator.setManualMode(true, 0); // تصفير ضخ المضخة فورياً
-    }
-    console.warn(`🚨 [SCADA SAFETY INTERLOCK TRIPPED]: ${safetyCheck.alarms.join(' | ')}`);
+  // تفعيل القفل الصناعي فقط في حالات الخطر المؤكدة
+  if (safetyCheck.tripPump && !isSafetyTripped) {
+    isSafetyTripped = true;
+    activeSafetyReason = safetyCheck.alarms.join(' | ');
+    simulator.setManualMode(true, 0); // إيقاف فوري قسري
+    console.warn(`🚨 [SCADA SAFETY INTERLOCK TRIPPED]: ${activeSafetyReason}`);
   }
 
-  // حساب متطلبات الري التنبؤي بناءً على رطوبة التربة وأمطار الأقمار الصناعية
+  // حساب متطلبات الري التنبؤي
   const mpcDuty = calculateIrrigationDuty(
     Number(state.vwc) || 20,
-    Number(state.target) || 55,
+    Number(state.setpoint || state.target) || 55,
     Number(latestAIPrediction.maxRainProb12h) || 0
   );
 
@@ -415,11 +451,10 @@ function broadcastTelemetry() {
     uptimeSecs: uptimeSeconds % 60,
     threatsBlocked: totalThreatsBlocked,
     predictiveAI: latestAIPrediction,
-    // الحقول المضافة للمشروع التي يحتاجها سامي وعبد الحق
     safety: {
-      systemStatus: safetyCheck.systemStatus,
-      alarms: safetyCheck.alarms,
-      tripped: safetyCheck.tripPump
+      systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus,
+      alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms,
+      tripped: isSafetyTripped
     },
     autonomousMPC: mpcDuty
   });
