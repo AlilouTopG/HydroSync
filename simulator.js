@@ -11,7 +11,7 @@
 // --- Physical Constants & Tuning ---
 const DT = 1.0; // 1-second simulation step
 const AMBIENT_TEMP = 24.0; // °C baseline
-const TANK_RECHARGE_RATE = 0.4; // Baseline L/s natural replenishment
+const TANK_RECHARGE_RATE = 0.02; // تدفق ترشيح طبيعي خفيف جداً (0.02 L/s = 1.2 L/min)
 const PUMP_MAX_FLOW = 25.0; // L/min at 100% PWM
 const WATER_PRICE_PER_LITER = 0.045; // $ per liter
 const DZD_PER_USD = 134.5; // DZD exchange rate
@@ -36,6 +36,7 @@ let state = {
   tankCapacityL: 200,
   tankVolumeL: 170.0,
   tankVolumePct: 85.0,
+  tankInletValve: false, // صمام التغذية الكهرومغناطيسي للخزان
   flowRate: 0.0,
   waterSaved: 68.0,
   waterSavedL: 142.5,
@@ -71,7 +72,6 @@ let state = {
     rulHours: 6580,
     recommendedAction: 'NOMINAL_OPERATION',
     rationale: 'Vibration velocity and acoustic signature within ISO 10816 Zone A nominal limits.',
-    // حقول الـ DSP المضافة للـ AI والرسوم البيانية
     vibrationWaveform: new Array(WAVEFORM_SAMPLES).fill(0),
     dominantFrequencyHz: 0.0,
     samplingRateHz: SAMPLING_RATE_HZ,
@@ -80,7 +80,7 @@ let state = {
 
   // 📊 ESG & SDG 6.4 Water Use Efficiency Accounting
   esgMetrics: {
-    efficiencyScorePct: 93.8, // SDG 6.4 Efficiency %
+    efficiencyScorePct: 93.8,
     energySavedKwh: 64.1,
     co2OffsetKg: 33.3,
     totalSavedDzd: 19166.25,
@@ -131,7 +131,6 @@ let disturbanceDuration = 0;
 
 function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavitation) {
   if (!isRunning || targetRms < 0.05) {
-    // ضوضاء الحساس الأساسية في حالة توقف المضخة (Noise Floor)
     const idleSamples = new Array(WAVEFORM_SAMPLES);
     for (let i = 0; i < WAVEFORM_SAMPLES; i++) {
       idleSamples[i] = Number(((Math.random() - 0.5) * 0.06).toFixed(3));
@@ -139,15 +138,10 @@ function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavit
     return { samples: idleSamples, dominantFreq: 0.0 };
   }
 
-  // التردد الدوراني الأساسي للمحرك (1X RPM) بين 45Hz و 55Hz بناءً على سرعة الضخ
   const f0 = 45.0 + (pwm / 100.0) * 10.0;
   const dt = 1.0 / SAMPLING_RATE_HZ;
-
-  // تردد عيوب المحامل (BPFO ~ 3.56 * f0)
   const fBearing = f0 * 3.56;
   const bearingSeverity = bearingWear / 100.0;
-
-  // معامل التكهف الهيدروليكي
   const cavitationFactor = Math.max(0, (cavitation - 10.0) / 90.0);
 
   let sumSquares = 0.0;
@@ -156,31 +150,24 @@ function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavit
   for (let n = 0; n < WAVEFORM_SAMPLES; n++) {
     const t = n * dt;
 
-    // 1. التردد الأساسي الأول (1X Fundamental Harmonic)
     let s = Math.sin(2 * Math.PI * f0 * t);
-
-    // 2. التوافقية الثانية (2X Dynamic Misalignment Harmonic)
     s += 0.35 * Math.sin(2 * Math.PI * (2 * f0) * t + 0.4);
 
-    // 3. نبضات تآكل المحامل (Amplitude Modulated Bearing Defect Pulses)
     if (bearingSeverity > 0.04) {
       const impact = Math.sin(2 * Math.PI * fBearing * t);
       s += (bearingSeverity * 2.2) * impact * (1.0 + 0.5 * Math.sin(2 * Math.PI * f0 * t));
     }
 
-    // 4. ضوضاء التكهف الهيدروليكي العشوائية واسعة النطاق
     if (cavitationFactor > 0.0) {
       s += (cavitationFactor * 2.5) * (Math.random() - 0.5);
     }
 
-    // 5. تداخل عشوائي طبيعي للحساس (Sensor Gaussian Noise)
     s += 0.12 * (Math.random() - 0.5);
 
     rawSignal[n] = s;
     sumSquares += s * s;
   }
 
-  // مطابقة طاقة الإشارة المحسوبة رياضياً مع الـ RMS الحقيقي لـ ISO 10816
   const currentRms = Math.sqrt(sumSquares / WAVEFORM_SAMPLES) || 1.0;
   const scale = targetRms / currentRms;
 
@@ -310,7 +297,6 @@ function updatePredictiveMaintenanceModel() {
 
   ah.healthIndex = Math.max(12.0, Math.min(100.0, Number((100.0 - healthDeductions).toFixed(1))));
 
-  // توليد مصفوفة الموجة الزمنية الخام للـ FFT
   const dspWave = generateVibrationWaveform(
     ah.vibrationRms,
     isRunning,
@@ -337,8 +323,19 @@ function updatePredictiveMaintenanceModel() {
  *  MAIN SIMULATION LOOP
  * ========================================================================== */
 function pidLoop() {
+  // منطق صمام التعبئة الآلي المزدوج (Hysteresis Float Valve)
+  // لا يفتح الصمام إلا إذا هبط المستوى تحت 12% لملئه حتى 80%
+  if (state.tankVolumePct <= 12.0) {
+    state.tankInletValve = true;
+  } else if (state.tankVolumePct >= 80.0) {
+    state.tankInletValve = false;
+  }
+
+  const activeInflow = state.tankInletValve ? 0.35 : TANK_RECHARGE_RATE;
   const waterConsumedL = (state.flowRate / 60.0) * DT;
-  state.tankVolumeL = Math.max(0, state.tankVolumeL - waterConsumedL + (TANK_RECHARGE_RATE * DT));
+
+  // استهلاك المياه الطبيعي مع التعويض المنخفض جداً لتظهر ديناميكية الهبوط
+  state.tankVolumeL = Math.max(0, state.tankVolumeL - waterConsumedL + (activeInflow * DT));
   state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL);
   updateReservoirCavitation();
 
@@ -489,12 +486,12 @@ function getState() {
     motorTemp: Number(state.motorTemp.toFixed(1)),
     tankVolumeL: Number(state.tankVolumeL.toFixed(1)),
     tankVolumePct: Number(state.tankVolumePct.toFixed(1)),
+    tankInletValve: Boolean(state.tankInletValve),
     waterSaved: Number(state.waterSaved.toFixed(1)),
     waterSavedL: Number(state.waterSavedL.toFixed(1)),
     financialSavingsUsd: Number((state.waterSavedL * WATER_PRICE_PER_LITER).toFixed(3)),
     error: Number(state.error.toFixed(2)),
     liveWeather: state.liveWeather,
-    // إتاحة مصفوفة الاهتزاز في المستوى العام للتيسير على عبد الحق وسيرين
     vibrationWaveform: state.assetHealth.vibrationWaveform,
     assetHealth: {
       ...state.assetHealth,
@@ -556,6 +553,11 @@ function setManualMode(enabled, pwm) {
   state.manualPwm = Math.max(0.0, Math.min(100.0, Number(pwm || 0)));
 }
 
+function refillTank(liters = 50) {
+  state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL + Number(liters));
+  updateReservoirCavitation();
+}
+
 function servicePumpAsset() {
   state.assetHealth.bearingWearPct = 0.5;
   state.assetHealth.cavitationIndex = 1.0;
@@ -599,6 +601,7 @@ module.exports = {
   setActiveZone,
   setManualMode,
   setLiveWeather,
+  refillTank,
   servicePumpAsset,
   getAuditHistory
 };
