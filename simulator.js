@@ -5,6 +5,7 @@
  * - IEC 61508 Functional Safety
  * - ISO 10816 Mechanical Vibration Standards
  * - UN SDG 6.4 & ESG Water Use Efficiency (WUE) Metrics
+ * - DSP High-Frequency Time-Series Vibration Buffer for Python FFT
  */
 
 // --- Physical Constants & Tuning ---
@@ -16,6 +17,10 @@ const WATER_PRICE_PER_LITER = 0.045; // $ per liter
 const DZD_PER_USD = 134.5; // DZD exchange rate
 const KWH_PER_PUMPED_LITER = 0.00045; // Pumping energy at 3.5 bar
 const KG_CO2_PER_KWH = 0.52; // Grid carbon emission intensity
+
+// DSP Sampling Parameters for AI FFT Diagnostics
+const WAVEFORM_SAMPLES = 256;
+const SAMPLING_RATE_HZ = 1000;
 
 // Rolling Audit Buffer for Industrial CSV Export
 const AUDIT_BUFFER_MAX = 150;
@@ -55,7 +60,7 @@ let state = {
   isManual: false,
   manualPwm: 0.0,
 
-  // ⚙️ Predictive Maintenance & Asset Health (ISO 10816)
+  // ⚙️ Predictive Maintenance & Asset Health (ISO 10816 + DSP Waveform)
   assetHealth: {
     healthIndex: 98.4,
     vibrationRms: 0.22,
@@ -65,7 +70,12 @@ let state = {
     operatingHoursTotal: 1420.4,
     rulHours: 6580,
     recommendedAction: 'NOMINAL_OPERATION',
-    rationale: 'Vibration velocity and acoustic signature within ISO 10816 Zone A nominal limits.'
+    rationale: 'Vibration velocity and acoustic signature within ISO 10816 Zone A nominal limits.',
+    // حقول الـ DSP المضافة للـ AI والرسوم البيانية
+    vibrationWaveform: new Array(WAVEFORM_SAMPLES).fill(0),
+    dominantFrequencyHz: 0.0,
+    samplingRateHz: SAMPLING_RATE_HZ,
+    bufferSize: WAVEFORM_SAMPLES
   },
 
   // 📊 ESG & SDG 6.4 Water Use Efficiency Accounting
@@ -114,6 +124,76 @@ let state = {
 
 let activeDisturbance = null;
 let disturbanceDuration = 0;
+
+/* ==========================================================================
+ *  DSP TIME-SERIES VIBRATION SYNTHESIZER (ISO 10816 + FFT HARMONICS)
+ * ========================================================================== */
+
+function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavitation) {
+  if (!isRunning || targetRms < 0.05) {
+    // ضوضاء الحساس الأساسية في حالة توقف المضخة (Noise Floor)
+    const idleSamples = new Array(WAVEFORM_SAMPLES);
+    for (let i = 0; i < WAVEFORM_SAMPLES; i++) {
+      idleSamples[i] = Number(((Math.random() - 0.5) * 0.06).toFixed(3));
+    }
+    return { samples: idleSamples, dominantFreq: 0.0 };
+  }
+
+  // التردد الدوراني الأساسي للمحرك (1X RPM) بين 45Hz و 55Hz بناءً على سرعة الضخ
+  const f0 = 45.0 + (pwm / 100.0) * 10.0;
+  const dt = 1.0 / SAMPLING_RATE_HZ;
+
+  // تردد عيوب المحامل (BPFO ~ 3.56 * f0)
+  const fBearing = f0 * 3.56;
+  const bearingSeverity = bearingWear / 100.0;
+
+  // معامل التكهف الهيدروليكي
+  const cavitationFactor = Math.max(0, (cavitation - 10.0) / 90.0);
+
+  let sumSquares = 0.0;
+  const rawSignal = new Float64Array(WAVEFORM_SAMPLES);
+
+  for (let n = 0; n < WAVEFORM_SAMPLES; n++) {
+    const t = n * dt;
+
+    // 1. التردد الأساسي الأول (1X Fundamental Harmonic)
+    let s = Math.sin(2 * Math.PI * f0 * t);
+
+    // 2. التوافقية الثانية (2X Dynamic Misalignment Harmonic)
+    s += 0.35 * Math.sin(2 * Math.PI * (2 * f0) * t + 0.4);
+
+    // 3. نبضات تآكل المحامل (Amplitude Modulated Bearing Defect Pulses)
+    if (bearingSeverity > 0.04) {
+      const impact = Math.sin(2 * Math.PI * fBearing * t);
+      s += (bearingSeverity * 2.2) * impact * (1.0 + 0.5 * Math.sin(2 * Math.PI * f0 * t));
+    }
+
+    // 4. ضوضاء التكهف الهيدروليكي العشوائية واسعة النطاق
+    if (cavitationFactor > 0.0) {
+      s += (cavitationFactor * 2.5) * (Math.random() - 0.5);
+    }
+
+    // 5. تداخل عشوائي طبيعي للحساس (Sensor Gaussian Noise)
+    s += 0.12 * (Math.random() - 0.5);
+
+    rawSignal[n] = s;
+    sumSquares += s * s;
+  }
+
+  // مطابقة طاقة الإشارة المحسوبة رياضياً مع الـ RMS الحقيقي لـ ISO 10816
+  const currentRms = Math.sqrt(sumSquares / WAVEFORM_SAMPLES) || 1.0;
+  const scale = targetRms / currentRms;
+
+  const finalSamples = new Array(WAVEFORM_SAMPLES);
+  for (let n = 0; n < WAVEFORM_SAMPLES; n++) {
+    finalSamples[n] = Number((rawSignal[n] * scale).toFixed(3));
+  }
+
+  return {
+    samples: finalSamples,
+    dominantFreq: Number(f0.toFixed(1))
+  };
+}
 
 /* ==========================================================================
  *  CORE PHYSICS & SAFETY ROUTINES
@@ -225,10 +305,21 @@ function updatePredictiveMaintenanceModel() {
 
   const healthDeductions = (ah.bearingWearPct * 0.4) 
     + ((ah.vibrationRms / 4.5) * 18.0) 
-    + ((ah.cavitationIndex / 100.0) * 15.0)
+    + ((ah.cavitationIndex / 100.0) * 15.0) 
     + (state.motorTemp > 80.0 ? 12.0 : 0.0);
 
   ah.healthIndex = Math.max(12.0, Math.min(100.0, Number((100.0 - healthDeductions).toFixed(1))));
+
+  // توليد مصفوفة الموجة الزمنية الخام للـ FFT
+  const dspWave = generateVibrationWaveform(
+    ah.vibrationRms,
+    isRunning,
+    state.effectivePwm,
+    ah.bearingWearPct,
+    ah.cavitationIndex
+  );
+  ah.vibrationWaveform = dspWave.samples;
+  ah.dominantFrequencyHz = dspWave.dominantFreq;
 
   if (ah.vibrationIsoZone === 'ZONE_D' || ah.cavitationIndex > 65.0) {
     ah.recommendedAction = 'IMMEDIATE_INSPECTION_REQUIRED';
@@ -251,7 +342,6 @@ function pidLoop() {
   state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL);
   updateReservoirCavitation();
 
-  // Accumulate sectoral water consumption to active zone
   const activePlot = state.zones.find(z => z.id === state.activeZoneId);
   if (activePlot && waterConsumedL > 0) {
     activePlot.waterUsedL = Number((activePlot.waterUsedL + waterConsumedL).toFixed(2));
@@ -369,7 +459,6 @@ function pidLoop() {
     totalSavedUsd: Number(totalSavedUSD.toFixed(2))
   };
 
-  // Push Snapshot to Audit Buffer for CSV Export
   auditHistory.push({
     time: new Date().toISOString(),
     zone: state.activeZoneId,
@@ -405,6 +494,8 @@ function getState() {
     financialSavingsUsd: Number((state.waterSavedL * WATER_PRICE_PER_LITER).toFixed(3)),
     error: Number(state.error.toFixed(2)),
     liveWeather: state.liveWeather,
+    // إتاحة مصفوفة الاهتزاز في المستوى العام للتيسير على عبد الحق وسيرين
+    vibrationWaveform: state.assetHealth.vibrationWaveform,
     assetHealth: {
       ...state.assetHealth,
       healthIndex: Number(state.assetHealth.healthIndex.toFixed(1)),
@@ -412,7 +503,11 @@ function getState() {
       cavitationIndex: Number(state.assetHealth.cavitationIndex.toFixed(1)),
       bearingWearPct: Number(state.assetHealth.bearingWearPct.toFixed(2)),
       operatingHoursTotal: Number(state.assetHealth.operatingHoursTotal.toFixed(1)),
-      rulHours: Math.round(state.assetHealth.rulHours)
+      rulHours: Math.round(state.assetHealth.rulHours),
+      vibrationWaveform: state.assetHealth.vibrationWaveform,
+      dominantFrequencyHz: state.assetHealth.dominantFrequencyHz,
+      samplingRateHz: SAMPLING_RATE_HZ,
+      bufferSize: WAVEFORM_SAMPLES
     },
     esgMetrics: state.esgMetrics
   };
