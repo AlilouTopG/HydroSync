@@ -1,19 +1,25 @@
 /**
  * server.js - HydroSync SCADA Server (Hardened Production Release)
+ * Architecture: Node.js Telemetry Ingestion + Safety Interlocks + AI MPC Bridge
  * Security Hardening: Anti-SSRF, Strict CORS, CSP, Timing-Safe Auth, Rate-Limiter
  * Features: Live Weather, GIS Fleet Map, 24h AI MPC, Asset Health & CSV Audit Endpoint
  */
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const simulator = require('./simulator');
+
+// استدعاء نواة التحكم وصمامات الأمان الخاصة بك
+const { evaluateSafety, calculateIrrigationDuty } = require('./core_control/mpc_controller');
 
 const app = express();
 const server = http.createServer(app);
 
 app.disable('x-powered-by');
 
+// 1. Security Headers & Content Security Policy (CSP)
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -25,13 +31,13 @@ app.use((req, res, next) => {
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io https://cdnjs.cloudflare.com; " +
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
-    "connect-src 'self' wss: https:; " +
+    "connect-src 'self' wss: https: http:; " +
     "img-src 'self' data: https: https://server.arcgisonline.com https://*.basemaps.cartocdn.com https://*.tile.openstreetmap.org;"
   );
   next();
 });
 
-// CSV Industrial Audit Export Route
+// 2. CSV Industrial Audit Export Route
 app.get('/api/export-audit.csv', (req, res) => {
   const history = simulator.getAuditHistory();
   res.setHeader('Content-Type', 'text/csv');
@@ -45,17 +51,33 @@ app.get('/api/export-audit.csv', (req, res) => {
   res.send(csvContent);
 });
 
-app.use(express.static('public', {
-  dotfiles: 'ignore',
-  index: ['index.html']
-}));
+// 3. Python AI Engine Bridge Endpoint (مجهز لعبد الحق وسيرين)
+const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
+app.get('/api/ai/diagnostics', async (req, res) => {
+  try {
+    const response = await fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
+    const data = await response.json();
+    res.json({ status: 'ONLINE', engine: 'Python-FastAPI', diagnostics: data });
+  } catch (err) {
+    res.json({
+      status: 'FALLBACK',
+      engine: 'Node-ISO10816-Baseline',
+      msg: 'Python AI Engine in ai_engine/ is currently offline. Operating on local safety interlocks.'
+    });
+  }
+});
+
+// 4. مرونة تحميل الملفات الساكنة (Public أو Root)
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore', index: ['index.html'] }));
+app.use(express.static(path.join(__dirname), { dotfiles: 'ignore', index: ['index.html'] }));
 
 const isProduction = process.env.NODE_ENV === 'production';
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (!isProduction || origin.includes('onrender.com') || origin.includes('localhost')) {
+      if (!isProduction || origin.includes('onrender.com') || origin.includes('vercel.app') || origin.includes('localhost')) {
         return callback(null, true);
       }
       return callback(new Error('Blocked by SCADA CORS Policy'), false);
@@ -131,6 +153,7 @@ let activeLocationKey = 'setif';
 let latestAIPrediction = {
   horizon: [],
   rainHoldActive: false,
+  maxRainProb12h: 0,
   confidence: 94,
   recommendation: 'NOMINAL_MONITORING',
   waterSavedEstimateL: 0,
@@ -224,6 +247,7 @@ async function fetchSatelliteWeather(key = 'setif') {
 fetchSatelliteWeather('setif');
 setInterval(() => fetchSatelliteWeather(activeLocationKey), 10 * 60 * 1000);
 
+// 5. إدارة جلسات الـ WebSockets
 io.on('connection', (socket) => {
   const clientIp = socket.handshake.address || 'unknown';
   clientFirewallState.set(socket.id, { tokens: 10, lastRefill: Date.now(), authorized: false });
@@ -348,6 +372,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// 6. بث التيليميتري الموحد وتطبيق صمامات الأمان
 const TELEMETRY_INTERVAL = 1000;
 setInterval(() => {
   broadcastTelemetry();
@@ -358,21 +383,53 @@ function broadcastTelemetry() {
   const state = simulator.getState();
   const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
 
+  // فحص أمان المنظومة باستخدام خوارزمياتك في mpc_controller.js
+  const telemetryData = {
+    pumpState: Boolean(state.pumpDuty > 0 || state.pumpState),
+    flowRate: Number(state.flowRate) || 0,
+    motorTemp: Number(state.motorTemp) || 25,
+    vibrationRms: Number(state.vibrationRms) || 0
+  };
+
+  const safetyCheck = evaluateSafety(telemetryData);
+
+  // صمام الأمان الفوري: إذا كان هناك خطر داهم يتم إيقاف المضخة فوراً لحمايتها
+  if (safetyCheck.tripPump && (state.pumpDuty > 0 || state.pumpState)) {
+    if (typeof simulator.setManualMode === 'function') {
+      simulator.setManualMode(true, 0); // تصفير ضخ المضخة فورياً
+    }
+    console.warn(`🚨 [SCADA SAFETY INTERLOCK TRIPPED]: ${safetyCheck.alarms.join(' | ')}`);
+  }
+
+  // حساب متطلبات الري التنبؤي بناءً على رطوبة التربة وأمطار الأقمار الصناعية
+  const mpcDuty = calculateIrrigationDuty(
+    Number(state.vwc) || 20,
+    Number(state.target) || 55,
+    Number(latestAIPrediction.maxRainProb12h) || 0
+  );
+
   io.emit('telemetry', {
     ...state,
     uptimeSeconds,
     uptimeMinutes: Math.floor(uptimeSeconds / 60),
     uptimeSecs: uptimeSeconds % 60,
     threatsBlocked: totalThreatsBlocked,
-    predictiveAI: latestAIPrediction
+    predictiveAI: latestAIPrediction,
+    // الحقول المضافة للمشروع التي يحتاجها سامي وعبد الحق
+    safety: {
+      systemStatus: safetyCheck.systemStatus,
+      alarms: safetyCheck.alarms,
+      tripped: safetyCheck.tripPump
+    },
+    autonomousMPC: mpcDuty
   });
 }
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
-  console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Anti-SSRF, Rate-Limiting`);
-  console.log(`🧠 Predictive AI MPC Horizon Ingestion Online`);
-  console.log(`⚙️ ISO 10816 Asset Health & Vibration Diagnostics Online`);
-  console.log(`📊 ESG Accounting & CSV Audit Endpoint Ready at /api/export-audit.csv`);
+  console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting`);
+  console.log(`⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]`);
+  console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
+  console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
 });
