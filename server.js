@@ -412,6 +412,27 @@ setInterval(() => {
 function broadcastTelemetry() {
   simulator.pidLoop();
   const state = simulator.getState();
+  // Send raw vibration waveform to Python AI Engine
+if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0) {
+  fetch(`${AI_ENGINE_URL}/vibration`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    vibrationWaveform: state.vibrationWaveform,
+    samplingRateHz: state.samplingRateHz || 1000,
+    bufferSize: state.bufferSize || state.vibrationWaveform.length
+  })
+})
+  .then(response => response.json())
+  .then(data => {
+    console.log('🧠 Python FFT:', data);
+  })
+  .catch(() => {
+    // Python AI Engine may be offline; Node continues operating normally
+  });
+}
   const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
 
   // استخراج الاهتزاز بدقة من كائن assetHealth
