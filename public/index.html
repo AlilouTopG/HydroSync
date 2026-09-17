@@ -311,7 +311,9 @@
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
           <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
-        </section>        <!-- ================= NEW: Vibration Waveform & FFT Spectrum ================= -->
+        </section>
+
+        <!-- ================= DSP Vibration Waveform & FFT Spectrum ================= -->
         <section class="glass-card chart-card" style="margin-top: 20px;">
           <div class="card-top">
             <span class="card-title">
@@ -321,7 +323,7 @@
               <span class="pulse-dot sm"></span> REAL-TIME DSP
             </span>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px;">
             <div>
               <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">Time-Domain Waveform</div>
               <div class="chart-wrap" style="height: 220px;">
@@ -336,6 +338,7 @@
             </div>
           </div>
         </section>
+
         <section class="glass-card farm-focus-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span><button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button></div>
           <div class="focus-grid" style="margin-bottom: 16px;">
@@ -506,7 +509,7 @@
     </div>
   </div>
 
-  <!-- 🛡️ TERMS & COMPLIANCE MODAL (MANDATORY AGREEMENT PROTOCOL) -->
+  <!-- 🛡️ TERMS & COMPLIANCE MODAL -->
   <div class="modal-overlay" id="termsModal" aria-hidden="true" role="dialog" aria-label="Terms of service and compliance">
     <div class="modal-card" style="max-width: 600px;">
       <div class="modal-head">
@@ -534,24 +537,20 @@
       </div>
 
       <label class="consent" style="margin-top: 14px; font-size: 13px; display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text);">
-        <input type="checkbox" id="consentCheck" style="width: 18px; height: 18px; accent-color: var(--emerald); cursor: pointer;" />
+        <input type="checkbox" id="consentCheck" checked style="width: 18px; height: 18px; accent-color: var(--emerald); cursor: pointer;" />
         <span>أقر بأنني قرأت وفهمت بنود التشغيل وبروتوكول الامتثال وأوافق على الالتزام بها بالكامل.</span>
       </label>
 
-      <p id="consentErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-top: 8px;">
-        <i class="fa-solid fa-circle-exclamation"></i> يجب عليك تحديد مربع الموافقة أولاً لتفعيل الترخيص والتشغيل.
-      </p>
-
       <div class="modal-actions" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
-        <button class="btn ghost" id="consentDecline" data-close>رفض الشروط</button>
-        <button class="btn info" id="consentAccept" disabled style="opacity: 0.45; cursor: not-allowed;">
-          <i class="fa-solid fa-check"></i> موافقة واعتماد الترخيص
+        <button class="btn ghost" id="consentDecline" data-close>إغلاق</button>
+        <button class="btn info" id="consentAccept" data-close>
+          <i class="fa-solid fa-check"></i> اعتماد البروتوكول
         </button>
       </div>
     </div>
   </div>
 
-   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
   <script src="charts.js"></script>
   <script src="app.js"></script>
 </body>
