@@ -49,6 +49,7 @@
   var horizonChart = null;
   var vibrationChart = null;
   var zoneWaterChart = null;
+  var pumpFlowChart = null;
   var vibLabels = [];
   var vibSeries = [];
   var lastWaveformData = null;
@@ -195,6 +196,70 @@
     });
   }
 
+  function initPumpFlowChart() {
+    var canvas = $("pumpFlowChart");
+    if (!canvas || typeof Chart === "undefined") return;
+    if (pumpFlowChart) {
+      pumpFlowChart.destroy();
+      pumpFlowChart = null;
+    }
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    pumpFlowChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Pump Duty (%)", data: [], borderColor: "#00E5FF",
+            backgroundColor: "rgba(0,229,255,.08)", fill: true, tension: .35,
+            pointRadius: 0, borderWidth: 2, yAxisID: "y" },
+          { label: "Flow Rate (L/min)", data: [], borderColor: "#10B981",
+            backgroundColor: "rgba(16,185,129,.04)", fill: false, tension: .35,
+            pointRadius: 0, borderWidth: 2, yAxisID: "y1" }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { intersect: false, mode: "index" },
+        scales: {
+          y: { min: 0, max: 100, position: "left",
+            title: { display: true, text: "Pump Duty (%)", color: "rgba(139,152,179,.8)" },
+            ticks: { color: "rgba(232,238,247,.55)" },
+            grid: { color: "rgba(255,255,255,.05)" } },
+          y1: { min: 0, max: FLOW_MAX, position: "right",
+            title: { display: true, text: "Flow (L/min)", color: "rgba(139,152,179,.8)" },
+            ticks: { color: "rgba(232,238,247,.55)" },
+            grid: { drawOnChartArea: false } },
+          x: { ticks: { color: "rgba(139,152,179,.8)", maxTicksLimit: 8 },
+            grid: { color: "rgba(255,255,255,.04)" } }
+        },
+        plugins: {
+          legend: { labels: { color: "rgba(232,238,247,.7)", font: { size: 10 }, boxWidth: 14 } }
+        }
+      }
+    });
+  }
+
+  function updatePumpFlowChart(pwm, flow) {
+    if (!pumpFlowChart) return;
+    var now = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    var labels = pumpFlowChart.data.labels;
+    var pwmData = pumpFlowChart.data.datasets[0].data;
+    var flowData = pumpFlowChart.data.datasets[1].data;
+
+    labels.push(now);
+    pwmData.push(pwm);
+    flowData.push(flow);
+
+    while (labels.length > FIFO_MAX) {
+      labels.shift();
+      pwmData.shift();
+      flowData.shift();
+    }
+    pumpFlowChart.update("none");
+  }
+
   function pushPoint(vwc, sp) {
     if (!chart) return;
     var now = new Date().toLocaleTimeString("en-GB", { hour12: false });
@@ -260,6 +325,18 @@
 
     setText("motorTempVal", mTemp.toFixed(1) + "°C");
     updateSafetyStatus(d);
+    updateSidebarSafety(d);
+    updateAlarmPanel(d);
+    updateDashboardKpis(d);
+    updateAiSummary(d);
+    updatePumpFlowChart(pwm, flow);
+
+    var heartbeat = $("heartbeatPulse");
+    if (heartbeat) {
+      heartbeat.classList.remove("heartbeat-flash");
+      void heartbeat.offsetWidth;
+      heartbeat.classList.add("heartbeat-flash");
+    }
 
     if (d.threatsBlocked !== undefined) {
       setText("threatsBlockedVal", d.threatsBlocked + " Blocked");
@@ -337,6 +414,171 @@
     }
   }
 
+  function getSafetyState(d) {
+    d = d || {};
+    var safety = d.safety && typeof d.safety === "object" ? d.safety : {};
+    var status = typeof safety.systemStatus === "string" ? safety.systemStatus : null;
+    var alarms = Array.isArray(safety.alarms) ? safety.alarms : [];
+    var tripped = safety.tripped === true;
+
+    if (!status && typeof d.systemHealth === "string") {
+      status = d.systemHealth === "EMERGENCY_LOCK" ? "CRITICAL" :
+        d.systemHealth === "DEGRADED" ? "WARNING" : "NORMAL";
+    }
+    if (!alarms.length && Array.isArray(d.activeFaults)) alarms = d.activeFaults;
+    if (!tripped && d.systemHealth === "EMERGENCY_LOCK") tripped = true;
+
+    return { systemStatus: status || "NORMAL", alarms: alarms, tripped: tripped };
+  }
+
+  function normalizeAlarm(alarm) {
+    if (typeof alarm === "string") return { message: alarm, severity: "warning" };
+    if (alarm && typeof alarm === "object") {
+      return {
+        message: String(alarm.message || alarm.msg || alarm.description || alarm.code || "Safety alarm"),
+        severity: String(alarm.severity || alarm.level || "warning").toLowerCase()
+      };
+    }
+    return { message: String(alarm), severity: "warning" };
+  }
+
+  function updateSidebarSafety(d) {
+    var safety = getSafetyState(d);
+    var el = $("sidebarSystemStatus");
+    if (!el) return;
+    var status = safety.tripped ? "CRITICAL" : safety.systemStatus;
+    el.textContent = "System Status: " + status;
+    el.style.color = status === "CRITICAL" ? "var(--danger)" :
+      status === "WARNING" ? "var(--amber)" : "var(--emerald)";
+  }
+
+  function updateAlarmPanel(d) {
+    var safety = getSafetyState(d);
+    var alarms = safety.alarms;
+    var count = $("alarmCount"), list = $("alarmList"), panel = $("alarmPanel");
+    if (count) count.textContent = String(alarms.length);
+    if (panel) {
+      panel.classList.toggle("has-critical", safety.tripped || safety.systemStatus === "CRITICAL");
+      panel.classList.toggle("has-warning", !safety.tripped && safety.systemStatus === "WARNING");
+    }
+    if (!list) return;
+    list.innerHTML = "";
+
+    if (!alarms.length) {
+      var empty = document.createElement("div");
+      empty.className = "alarm-empty";
+      empty.innerHTML = "<i class='fa-solid fa-circle-check'></i><span>No active alarms</span>";
+      list.appendChild(empty);
+      return;
+    }
+
+    alarms.forEach(function (raw) {
+      var alarm = normalizeAlarm(raw);
+      var row = document.createElement("div");
+      var severity = alarm.severity.indexOf("critical") >= 0 ||
+        alarm.severity.indexOf("emergency") >= 0 || safety.tripped ? "critical" : "warning";
+      row.className = "alarm-row " + severity;
+
+      var icon = document.createElement("i");
+      icon.className = severity === "critical"
+        ? "fa-solid fa-triangle-exclamation"
+        : "fa-solid fa-circle-exclamation";
+      var message = document.createElement("span");
+      message.textContent = alarm.message;
+      var time = document.createElement("time");
+      time.textContent = new Date().toLocaleTimeString("en-GB", { hour12: false });
+
+      row.appendChild(icon);
+      row.appendChild(message);
+      row.appendChild(time);
+      list.appendChild(row);
+    });
+  }
+
+  function updateDashboardKpis(d) {
+    var tankPct = Number(d.tankVolumePct);
+    var tankL = Number(d.tankVolumeL);
+    var capacity = Number(d.tankCapacityL);
+
+    if (!Number.isFinite(tankPct) && Number.isFinite(tankL) && capacity > 0) {
+      tankPct = (tankL / capacity) * 100;
+    }
+    if (!Number.isFinite(tankPct)) tankPct = 0;
+
+    setText("tankKpiValue", tankPct.toFixed(1) + "%");
+    setText("tankKpiLiters", Number.isFinite(tankL)
+      ? tankL.toFixed(0) + " / " + (capacity > 0 ? capacity.toFixed(0) : "--") + " L"
+      : "-- / -- L");
+
+    var tankMeter = $("tankKpiMeter");
+    if (tankMeter) tankMeter.style.width = Math.max(0, Math.min(100, tankPct)) + "%";
+    setText("tankKpiStatus", tankPct <= 5 ? "CRITICAL" : tankPct <= 20 ? "LOW" : "NORMAL");
+
+    var esg = d.esgMetrics || {};
+    var energy = Number(esg.energySavedKwh);
+    var carbon = Number(esg.co2OffsetKg);
+    var efficiency = Number(esg.efficiencyScorePct);
+
+    if (Number.isFinite(energy)) {
+      setText("energyKpiValue", energy.toFixed(1));
+      setText("energyKpiTrend", energy > 0 ? "Saving energy" : "No savings recorded");
+    }
+    if (Number.isFinite(carbon)) setText("energyKpiCarbon", carbon.toFixed(1) + " kg");
+
+    if (Number.isFinite(efficiency)) {
+      setText("esgKpiValue", efficiency.toFixed(1) + "%");
+      var esgMeter = $("esgKpiMeter");
+      if (esgMeter) esgMeter.style.width = Math.max(0, Math.min(100, efficiency)) + "%";
+      setText("esgKpiSdg", efficiency >= 90 ? "Aligned" : "Monitor");
+    }
+  }
+
+  function updateAiSummary(d) {
+    var p = d && d.predictiveAI ? d.predictiveAI : null;
+    if (!p) return;
+    setText("dashboardMpcDuty",
+      typeof d.autonomousMPC === "number"
+        ? Math.round(Math.max(0, Math.min(100, d.autonomousMPC))) + "%"
+        : "--%");
+    setText("dashboardRainHold", p.rainHoldActive ? "ACTIVE" : "INACTIVE");
+  }
+
+  async function refreshAiDiagnostics() {
+    var statusEl = $("aiEngineStatus"), dot = $("aiEngineDot");
+    var name = $("aiEngineName"), msg = $("aiEngineMessage");
+    if (!statusEl) return;
+
+    try {
+      var response = await fetch("/api/ai/diagnostics", { headers: { "Accept": "application/json" } });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      var data = await response.json();
+      var online = data.status === "ONLINE";
+
+      statusEl.textContent = online ? "ONLINE" : "FALLBACK";
+      statusEl.className = "ai-status-badge " + (online ? "online" : "fallback");
+      if (dot) {
+        dot.style.background = online ? "var(--emerald)" : "var(--amber)";
+        dot.style.boxShadow = online
+          ? "0 0 10px rgba(16,185,129,.8)"
+          : "0 0 10px rgba(245,158,11,.8)";
+      }
+      if (name) name.textContent = data.engine || "Diagnostic Engine";
+      if (msg) msg.textContent = online
+        ? "Python diagnostic gateway connected."
+        : (data.msg || "Local safety baseline active.");
+    } catch (e) {
+      statusEl.textContent = "UNAVAILABLE";
+      statusEl.className = "ai-status-badge fallback";
+      if (dot) {
+        dot.style.background = "var(--amber)";
+        dot.style.boxShadow = "0 0 10px rgba(245,158,11,.8)";
+      }
+      if (name) name.textContent = "Diagnostic Gateway";
+      if (msg) msg.textContent =
+        "AI diagnostics endpoint unavailable; telemetry safety layer remains active.";
+    }
+  }
+
   function updateSafetyStatus(d) {
     var banner = $("safetyBanner");
     var title = $("safetyTitle");
@@ -345,29 +587,34 @@
     var interlockVal = $("interlockVal");
     var now = Date.now();
 
-    var faults = Array.isArray(d.activeFaults) ? d.activeFaults : [];
-    if (interlockVal) interlockVal.textContent = faults.length + " Active";
+    var safety = getSafetyState(d);
+    var alarms = safety.alarms;
+    if (interlockVal) interlockVal.textContent = alarms.length + " Active";
     if (!banner) return;
 
     banner.classList.remove("nominal", "degraded", "emergency");
 
-    if (d.systemHealth === 'EMERGENCY_LOCK' || (d.safety && d.safety.tripped)) {
+    if (safety.systemStatus === "CRITICAL" || safety.tripped) {
       banner.classList.add("emergency");
       if (icon) icon.className = "fa-solid fa-triangle-exclamation";
-      if (title) title.textContent = "EMERGENCY INTERLOCK ENGAGED";
-      if (desc) desc.textContent = faults.length ? faults[0] : (d.safety && d.safety.alarms ? d.safety.alarms[0] : "Critical threshold tripped. Pump isolated.");
+      if (title) title.textContent = "CRITICAL SAFETY INTERLOCK";
+      if (desc) desc.textContent = alarms.length
+        ? normalizeAlarm(alarms[0]).message
+        : "Critical safety threshold detected. Pump isolation active.";
       if (now - lastAudioAlert > 3500) { playEmergencySiren(); lastAudioAlert = now; }
-    } else if (d.systemHealth === 'DEGRADED') {
+    } else if (safety.systemStatus === "WARNING") {
       banner.classList.add("degraded");
       if (icon) icon.className = "fa-solid fa-circle-exclamation";
-      if (title) title.textContent = "DEGRADED: THERMAL DERATING";
-      if (desc) desc.textContent = faults.length ? faults[0] : "Motor temp > 85°C. Duty clamped to 30%.";
+      if (title) title.textContent = "SAFETY WARNING";
+      if (desc) desc.textContent = alarms.length
+        ? normalizeAlarm(alarms[0]).message
+        : "Safety layer reports a warning condition.";
       if (now - lastAudioAlert > 5000) { playCautionBeep(); lastAudioAlert = now; }
     } else {
       banner.classList.add("nominal");
       if (icon) icon.className = "fa-solid fa-shield-halved";
       if (title) title.textContent = "ALL SYSTEMS NOMINAL";
-      if (desc) desc.textContent = "IEC 61508 Functional Safety Loops Active — No Hardware Faults.";
+      if (desc) desc.textContent = "Safety interlocks active — no active safety alarms.";
     }
   }
 
@@ -676,6 +923,7 @@
     } else if (viewName === "analytics") {
       setTimeout(function () {
         if (zoneWaterChart) zoneWaterChart.resize();
+      if (pumpFlowChart) pumpFlowChart.resize();
       }, 150);
       log("<strong style='color:var(--emerald)'><i class='fa-solid fa-chart-pie'></i> [ANALYTICS]</strong> Switched to Agronomic Accounting & ESG Impact Console.");
     } else if (viewName === "pidView") {
@@ -1288,8 +1536,13 @@
     });
   }
 
+  var bootStarted = false;
+
   function boot() {
-    initChart(); 
+    if (bootStarted) return;
+    bootStarted = true;
+    initChart();
+    initPumpFlowChart();
     bindControls();
     setStatus(false);
     try {

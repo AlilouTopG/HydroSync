@@ -43,7 +43,7 @@
       <a href="#terms" class="nav-item" data-modal="termsModal"><i class="fa-solid fa-file-shield"></i><span>Terms &amp; Compliance</span></a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
+      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> <span id="sidebarSystemStatus">System Status: Nominal</span></div>
       <p class="sidebar-version">HydroSync Enterprise OS</p>
     </div>
   </aside>
@@ -81,6 +81,29 @@
           <div class="safety-metrics">
             <div class="safety-chip" id="motorTempChip"><i class="fa-solid fa-temperature-half"></i> Motor: <span id="motorTempVal">24.0°C</span></div>
             <div class="safety-chip" id="interlockCountChip"><i class="fa-solid fa-lock"></i> Interlocks: <span id="interlockVal">0 Active</span></div>
+          </div>
+        </section>
+
+        <section class="glass-card alarm-panel" id="alarmPanel" aria-label="Active safety alarms">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-bell"></i> Active Alarms</span>
+            <span class="alarm-count" id="alarmCount">0</span>
+          </div>
+          <div class="alarm-list" id="alarmList">
+            <div class="alarm-empty"><i class="fa-solid fa-circle-check"></i><span>No active alarms</span></div>
+          </div>
+        </section>
+
+        <section class="glass-card ai-summary-panel" id="aiSummaryPanel" aria-label="AI diagnostics summary">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-brain"></i> AI Diagnostics</span>
+            <span class="ai-status-badge" id="aiEngineStatus">CHECKING</span>
+          </div>
+          <div class="ai-engine-line"><span class="pulse-dot sm" id="aiEngineDot"></span><span id="aiEngineName">Python-FastAPI Engine</span></div>
+          <p id="aiEngineMessage">Synchronizing with diagnostic gateway…</p>
+          <div class="ai-summary-grid">
+            <div><span>MPC Duty</span><strong id="dashboardMpcDuty">--%</strong></div>
+            <div><span>Rain Hold</span><strong id="dashboardRainHold">--</strong></div>
           </div>
         </section>
 
@@ -187,6 +210,27 @@
             </div>
             <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters / ROI</span><strong id="savedLitersValue">-- L</strong></div></div>
           </article>
+
+          <article class="glass-card compact-kpi-card" id="tankKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-database"></i> Tank Level</span><span class="card-unit">%</span></div>
+            <div class="compact-kpi-value"><strong id="tankKpiValue">--%</strong><span id="tankKpiLiters">-- / -- L</span></div>
+            <div class="kpi-meter"><span id="tankKpiMeter"></span></div>
+            <div class="compact-kpi-meta"><span>Reserve</span><strong id="tankKpiStatus">--</strong></div>
+          </article>
+
+          <article class="glass-card compact-kpi-card" id="energyKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Energy Saved</span><span class="card-unit">kWh</span></div>
+            <div class="compact-kpi-value"><strong id="energyKpiValue">--</strong><span>Efficiency gain</span></div>
+            <div class="kpi-accent-line"><span id="energyKpiTrend">--</span></div>
+            <div class="compact-kpi-meta"><span>CO₂ offset</span><strong id="energyKpiCarbon">-- kg</strong></div>
+          </article>
+
+          <article class="glass-card compact-kpi-card" id="esgKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> ESG Efficiency</span><span class="card-unit">%</span></div>
+            <div class="compact-kpi-value"><strong id="esgKpiValue">--%</strong><span>Water efficiency</span></div>
+            <div class="kpi-meter"><span id="esgKpiMeter"></span></div>
+            <div class="compact-kpi-meta"><span>SDG 6.4</span><strong id="esgKpiSdg">Aligned</strong></div>
+          </article>
         </section>
 
         <!-- 5. VISUAL TWIN (SYNOPTIC) -->
@@ -215,6 +259,11 @@
         <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
           <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+        </section>
+
+        <section class="glass-card chart-card secondary-chart-card" id="pumpFlowTelemetry" aria-label="Pump and flow telemetry">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-area"></i> Pump Duty &amp; Flow Rate</span><span class="chart-chip-label">LIVE</span></div>
+          <div class="chart-wrap"><canvas id="pumpFlowChart"></canvas></div>
         </section>
 
         <!-- 7. CONTROLS & WEATHER SIMULATION -->
