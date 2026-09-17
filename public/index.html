@@ -311,6 +311,30 @@
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
           <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
+        </section>        <!-- ================= NEW: Vibration Waveform & FFT Spectrum ================= -->
+        <section class="glass-card chart-card" style="margin-top: 20px;">
+          <div class="card-top">
+            <span class="card-title">
+              <i class="fa-solid fa-wave-square"></i> Vibration Diagnostics — Time &amp; Frequency Domain
+            </span>
+            <span class="live-pill">
+              <span class="pulse-dot sm"></span> REAL-TIME DSP
+            </span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">Time-Domain Waveform</div>
+              <div class="chart-wrap" style="height: 220px;">
+                <canvas id="vibrationWaveformChart"></canvas>
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">FFT Spectrum</div>
+              <div class="chart-wrap" style="height: 220px;">
+                <canvas id="vibrationFFTChart"></canvas>
+              </div>
+            </div>
+          </div>
         </section>
         <section class="glass-card farm-focus-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span><button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button></div>
@@ -527,7 +551,8 @@
     </div>
   </div>
 
-  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="charts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

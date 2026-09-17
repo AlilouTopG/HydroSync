@@ -291,6 +291,16 @@
 
     if (d.predictiveAI) updatePredictiveUI(d.predictiveAI);
     if (d.assetHealth) updateHealthUI(d.assetHealth, mTemp);
+      if (window.HydroSyncCharts && d.assetHealth && d.assetHealth.vibrationWaveform) {
+      var waveformData = d.assetHealth.vibrationWaveform;
+      
+      // 1. Mettre à jour le graphique temporel (waveform)
+      HydroSyncCharts.updateWaveformChart(waveformData);
+      
+      // 2. Calculer la FFT et mettre à jour le spectre fréquentiel
+      var fftMagnitudes = HydroSyncCharts.computeFFT(waveformData);
+      HydroSyncCharts.updateFFTChart(fftMagnitudes);
+    }
     if (d.esgMetrics && Array.isArray(d.zones)) updateAnalyticsUI(d.esgMetrics, d.zones, litersSaved);
 
     pwmSeries.push(pwm);
@@ -1266,7 +1276,11 @@
   }
 
   function boot() {
-    initChart();
+    initChart(); 
+    if (window.HydroSyncCharts) {
+      HydroSyncCharts.initWaveformChart('vibrationWaveformChart');
+      HydroSyncCharts.initFFTChart('vibrationFFTChart');
+    }
     bindControls();
     setStatus(false);
     try {
