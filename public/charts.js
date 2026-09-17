@@ -1,11 +1,7 @@
 /**
- * HydroSync Frontend Charting Module
- * Author: Abdelhak Hamzi
- */
-/**
  * charts.js - HydroSync Frontend Charting Module
  * Handles: Live Vibration Waveform (Time-Domain) & FFT Spectrum (Frequency-Domain)
- * Author: Abdelhak Hamzi
+ * Author: Abdelhak Hamzi (Reviewed & Hardened by Ali Nasreddine)
  */
 
 (function () {
@@ -19,6 +15,13 @@
   function initWaveformChart(canvasId) {
     var canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === 'undefined') return;
+    
+    // منع خطأ Canvas Reuse عند إعادة فتح التبويب
+    if (waveformChart) {
+      waveformChart.destroy();
+      waveformChart = null;
+    }
+
     var ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -54,7 +57,9 @@
             grid: { color: 'rgba(255,255,255,.04)' }
           },
           y: {
-            title: { display: true, text: 'Amplitude', color: 'rgba(139,152,179,.8)' },
+            title: { display: true, text: 'Amplitude (g / mm/s)', color: 'rgba(139,152,179,.8)' },
+            suggestedMin: -2.5,
+            suggestedMax: 2.5,
             ticks: { color: 'rgba(232,238,247,.55)' },
             grid: { color: 'rgba(255,255,255,.06)' }
           }
@@ -70,10 +75,12 @@
     waveformChart.update('none');
   }
 
+  // حساب الـ Spectrum مع معايرة السعة الفيزيائية الصحيحة (Single-Sided Scaled DFT)
   function computeFFT(samples) {
     var N = samples.length;
     var magnitudes = [];
     var halfN = Math.floor(N / 2);
+
     for (var k = 0; k < halfN; k++) {
       var real = 0;
       var imag = 0;
@@ -82,7 +89,10 @@
         real += samples[n] * Math.cos(angle);
         imag -= samples[n] * Math.sin(angle);
       }
-      magnitudes.push(Math.sqrt(real * real + imag * imag) / N);
+      var mag = Math.sqrt(real * real + imag * imag);
+      // التردد الصفري DC يقسم على N، وبقية الترددات تضرب في 2/N لمعايرة السعة الفيزيائية الحقيقية
+      var scaled = (k === 0) ? (mag / N) : ((2 * mag) / N);
+      magnitudes.push(Number(scaled.toFixed(4)));
     }
     return magnitudes;
   }
@@ -90,6 +100,13 @@
   function initFFTChart(canvasId) {
     var canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === 'undefined') return;
+
+    // منع تضارب الـ Canvas المتكرر
+    if (fftChart) {
+      fftChart.destroy();
+      fftChart = null;
+    }
+
     var ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -125,7 +142,9 @@
             grid: { color: 'rgba(255,255,255,.04)' }
           },
           y: {
-            title: { display: true, text: 'Magnitude', color: 'rgba(139,152,179,.8)' },
+            title: { display: true, text: 'Peak Magnitude', color: 'rgba(139,152,179,.8)' },
+            suggestedMin: 0,
+            suggestedMax: 1.5,
             ticks: { color: 'rgba(232,238,247,.55)' },
             grid: { color: 'rgba(255,255,255,.06)' }
           }
