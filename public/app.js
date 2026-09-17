@@ -51,6 +51,7 @@
   var zoneWaterChart = null;
   var vibLabels = [];
   var vibSeries = [];
+  var lastWaveformData = null;
 
   var CROP_PROFILES = {
     "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
@@ -291,6 +292,21 @@
 
     if (d.predictiveAI) updatePredictiveUI(d.predictiveAI);
     if (d.assetHealth) updateHealthUI(d.assetHealth, mTemp);
+
+    // 📊 DSP Waveform & FFT Live Update (Optimized for active view)
+    var waveformSource = (d.assetHealth && d.assetHealth.vibrationWaveform) ? d.assetHealth.vibrationWaveform : d.vibrationWaveform;
+    if (waveformSource) {
+      lastWaveformData = waveformSource;
+      var healthView = $("viewHealth");
+      var isHealthVisible = healthView && !healthView.hidden;
+
+      if (window.HydroSyncCharts && isHealthVisible) {
+        HydroSyncCharts.updateWaveformChart(waveformSource);
+        var fftMagnitudes = HydroSyncCharts.computeFFT(waveformSource);
+        HydroSyncCharts.updateFFTChart(fftMagnitudes);
+      }
+    }
+
     if (d.esgMetrics && Array.isArray(d.zones)) updateAnalyticsUI(d.esgMetrics, d.zones, litersSaved);
 
     pwmSeries.push(pwm);
@@ -335,11 +351,11 @@
 
     banner.classList.remove("nominal", "degraded", "emergency");
 
-    if (d.systemHealth === 'EMERGENCY_LOCK') {
+    if (d.systemHealth === 'EMERGENCY_LOCK' || (d.safety && d.safety.tripped)) {
       banner.classList.add("emergency");
       if (icon) icon.className = "fa-solid fa-triangle-exclamation";
       if (title) title.textContent = "EMERGENCY INTERLOCK ENGAGED";
-      if (desc) desc.textContent = faults.length ? faults[0] : "Critical threshold tripped. Pump isolated.";
+      if (desc) desc.textContent = faults.length ? faults[0] : (d.safety && d.safety.alarms ? d.safety.alarms[0] : "Critical threshold tripped. Pump isolated.");
       if (now - lastAudioAlert > 3500) { playEmergencySiren(); lastAudioAlert = now; }
     } else if (d.systemHealth === 'DEGRADED') {
       banner.classList.add("degraded");
@@ -423,7 +439,6 @@
       setText("pidPtVal", pressureBar + " bar");
       setText("pidSoilVal", vwc.toFixed(1) + "% VWC");
 
-      // Screen KPIs
       setText("pidKpiPressure", pressureBar + " <small>bar</small>");
       setText("pidKpiFlow", flow.toFixed(1) + " <small>L/min</small>");
       setText("pidKpiValve", isRunning ? "OPEN" : "CLOSED");
@@ -441,7 +456,7 @@
     if (!tbody) return;
 
     var ah = d && d.assetHealth ? d.assetHealth : { vibrationRms: 0.22, healthIndex: 98.4 };
-    var isEmergency = d && d.systemHealth === 'EMERGENCY_LOCK';
+    var isEmergency = d && (d.systemHealth === 'EMERGENCY_LOCK' || (d.safety && d.safety.tripped));
 
     var registers = [
       { reg: "00001", type: "Coil (0x)", tag: "P-101 Command", raw: pwm > 0 ? "0x01" : "0x00", val: pwm > 0 ? "RUNNING (1)" : "STOPPED (0)" },
@@ -646,6 +661,16 @@
       setTimeout(function () { 
         if (!vibrationChart) initVibrationChart();
         else vibrationChart.resize(); 
+
+        // تهيئة دقيقة للرسوم اللحظية بمجرد ظهور حاوية الـ Canvas
+        if (window.HydroSyncCharts) {
+          HydroSyncCharts.initWaveformChart('vibrationWaveformChart');
+          HydroSyncCharts.initFFTChart('vibrationFFTChart');
+          if (lastWaveformData) {
+            HydroSyncCharts.updateWaveformChart(lastWaveformData);
+            HydroSyncCharts.updateFFTChart(HydroSyncCharts.computeFFT(lastWaveformData));
+          }
+        }
       }, 150);
       log("<strong style='color:var(--emerald)'><i class='fa-solid fa-screwdriver-wrench'></i> [ASSET HEALTH]</strong> Switched to ISO 10816 Mechanical Diagnostics Console.");
     } else if (viewName === "analytics") {
@@ -1016,7 +1041,6 @@
       });
     }
 
-    // Jump from Map to Dashboard Control
     var jumpBtn = $("jumpToControlBtn");
     if (jumpBtn) {
       jumpBtn.addEventListener("click", function () {
@@ -1160,6 +1184,8 @@
       playClick();
       pressFlash(e.currentTarget);
       if (socket && socket.connected) {
+        // فك أي قفل أمان طارئ وإعادة النظام للوضع الطبيعي التلقائي
+        socket.emit("client:operator_reset", { pin: "8492" });
         socket.emit("client:manual_override", { enabled: false, manualPwm: 0 });
         socket.emit("client:update_setpoint", 55);
         socket.emit("client:update_pid", { kp: 2.0, ki: 0.1, kd: 0.5 });
@@ -1169,6 +1195,7 @@
       var t = $("manualToggle"); if (t) t.checked = false;
       setManualUI(false);
       var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
+      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-rotate-left'></i> [RESET]</strong> Industrial safety trip reset & PID parameters restored.");
     });
 
     // Audio Mute/Unmute
@@ -1219,7 +1246,6 @@
   
   /* ---------- 🛠️ Modal Activation & Trigger Binder ---------- */
   function bindModals() {
-    // 1. Bind all sidebar/page links that have [data-modal]
     var modalTriggers = document.querySelectorAll("[data-modal]");
     Array.prototype.forEach.call(modalTriggers, function (trigger) {
       trigger.addEventListener("click", function (e) {
@@ -1230,7 +1256,6 @@
       });
     });
 
-    // 2. Overlay click-outside & [data-close] buttons
     var overlays = document.querySelectorAll(".modal-overlay");
     Array.prototype.forEach.call(overlays, function (o) {
       o.addEventListener("click", function (e) { if (e.target === o) closeModal(o); });
@@ -1240,7 +1265,6 @@
       });
     });
     
-    // 3. Settings Form Submit
     var save = $("settingsSave");
     if (save) save.addEventListener("click", function () {
       pressFlash(save);
@@ -1258,7 +1282,6 @@
       closeModal("settingsModal");
     });
     
-    // 4. Terms Accept
     var accept = $("consentAccept");
     if (accept) accept.addEventListener("click", function () {
       closeModal("termsModal");
@@ -1266,7 +1289,7 @@
   }
 
   function boot() {
-    initChart();
+    initChart(); 
     bindControls();
     setStatus(false);
     try {
