@@ -40,8 +40,12 @@
       isOperatorAuthorized
     );
 
+    // FIX (review): on ne désactive plus le checkbox du toggle manuel.
+    // Un élément disabled ne déclenche pas d'événement click/change,
+    // donc un utilisateur non autorisé ne verrait jamais la modale PIN.
+    // Seuls les sliders (PID / setpoint / manual PWM) restent verrouillés.
     var controls = document.querySelectorAll(
-      ".pid-card input[type='range'], .pid-card input[type='checkbox']"
+      ".pid-card input[type='range']"
     );
 
     Array.prototype.forEach.call(controls, function (control) {
@@ -4657,20 +4661,9 @@
       shutoff.addEventListener(
         "click",
         function (e) {
-          if (
-            !isOperatorAuthorized
-          ) {
-            openModal(
-              "authModal"
-            );
-
-            log(
-              "<strong style='color:var(--amber)'>" +
-              "[ACCESS DENIED]</strong> Operator authorization required for emergency manual control."
-            );
-
-            return;
-          }
+          // FIX (review): l'arrêt d'urgence ne doit JAMAIS être bloqué par un PIN.
+          // La norme de sécurité industrielle exige une coupure instantanée de la pompe.
+          // Le PIN reste réservé au Reset (resetBtn) et au réglage PID.
 
           playEmergencySiren();
 
@@ -5226,6 +5219,10 @@
     syncOperatorAuthorizationUI();
 
     refreshAiDiagnostics();
+
+    // FIX (review): polling toutes les 15s pour que le badge AI Diagnostics
+    // passe automatiquement à ONLINE dès que le moteur Python de Sirine démarre.
+    setInterval(refreshAiDiagnostics, 15000);
 
     setStatus(false);
 
