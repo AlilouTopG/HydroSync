@@ -1094,3 +1094,288 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ========================================================================== 
+   HydroSync UI Evolution — SCADA Command Center Layer
+   This section intentionally overrides the legacy layout without changing
+   existing component IDs or the backend contract.
+   ========================================================================== */
+:root {
+  --surface-0: #050914;
+  --surface-1: #08101e;
+  --surface-2: #0b1526;
+  --surface-3: #0f1b2e;
+  --line-soft: rgba(148, 163, 184, .12);
+  --line-cyan: rgba(0, 229, 255, .32);
+  --shadow-card: 0 12px 32px rgba(0, 0, 0, .28);
+  --shadow-elevated: 0 24px 60px rgba(0, 0, 0, .42);
+  --glow-cyan: 0 0 28px rgba(0, 229, 255, .10);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+}
+
+body {
+  background:
+    radial-gradient(900px 520px at 85% -8%, rgba(0,229,255,.075), transparent 65%),
+    radial-gradient(800px 520px at 0% 100%, rgba(16,185,129,.045), transparent 65%),
+    var(--canvas);
+}
+
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(7,15,29,.98), rgba(4,9,18,.99)),
+    var(--surface-0);
+  border-right-color: rgba(0,229,255,.14);
+  box-shadow: 12px 0 50px rgba(0,0,0,.22);
+}
+
+.sidebar-brand { padding: 4px 6px 8px; }
+.brand-icon {
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(0,229,255,.18), rgba(16,185,129,.12));
+  box-shadow: 0 0 26px rgba(0,229,255,.16);
+}
+
+.nav-item {
+  min-height: 44px;
+  border-radius: 11px;
+  letter-spacing: .05px;
+}
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(0,112,190,.42), rgba(0,229,255,.08));
+  border-color: rgba(0,170,255,.46);
+  box-shadow: inset 3px 0 0 var(--cyan), 0 8px 24px rgba(0,80,150,.18);
+}
+.nav-item.active i { color: var(--cyan); }
+
+.layout-main { min-width: 0; }
+.top-header {
+  padding: 13px 24px;
+  min-height: 72px;
+  background: rgba(5,9,20,.82);
+  border-bottom-color: rgba(0,229,255,.10);
+}
+.header-title h1 { font-size: 19px; }
+.header-title p { font-size: 12px; }
+.header-meta { gap: 8px; }
+
+.dashboard {
+  max-width: 1680px;
+  padding: 20px 22px 46px;
+}
+
+/* Main dashboard becomes a two-zone command center. */
+#viewDashboard.active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas:
+    "kpis kpis"
+    "twin weather"
+    "twin safety"
+    "moisture alarms"
+    "pumpflow ai"
+    "zones zones"
+    "controls controls"
+    "logs logs";
+  align-items: stretch;
+  gap: 14px;
+}
+
+#viewDashboard > #safetyBanner { grid-area: safety; }
+#viewDashboard > #climateBanner { grid-area: weather; }
+#viewDashboard > #alarmPanel { grid-area: alarms; }
+#viewDashboard > #aiSummaryPanel { grid-area: ai; }
+#viewDashboard > #fieldSection { grid-area: zones; }
+#viewDashboard > .card-grid { grid-area: kpis; }
+#viewDashboard > #twin { grid-area: twin; }
+#viewDashboard > #telemetry { grid-area: moisture; }
+#viewDashboard > #pumpFlowTelemetry { grid-area: pumpflow; }
+#viewDashboard > .two-col { grid-area: controls; }
+#viewDashboard > #logs { grid-area: logs; }
+
+#viewDashboard > * { min-width: 0; }
+
+/* KPI strip */
+#viewDashboard .card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+#viewDashboard .gauge-card,
+#viewDashboard .compact-kpi-card {
+  min-height: 156px;
+  padding: 15px;
+  border-radius: 14px;
+  background: linear-gradient(155deg, rgba(10,25,45,.94), rgba(6,13,25,.98));
+  border-color: rgba(0,160,230,.34);
+  box-shadow: var(--shadow-card);
+}
+#viewDashboard .gauge-card:hover,
+#viewDashboard .compact-kpi-card:hover {
+  border-color: rgba(0,229,255,.58);
+  box-shadow: var(--shadow-card), var(--glow-cyan);
+}
+#viewDashboard .gauge-wrap {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 4px;
+}
+#viewDashboard .gauge-center strong { font-size: 23px; }
+#viewDashboard .gauge-center span { font-size: 9px; }
+#viewDashboard .card-values { gap: 6px; }
+#viewDashboard .card-values > div { padding: 5px 7px; }
+#viewDashboard .card-title { font-size: 12px; }
+#viewDashboard .card-unit { font-size: 9px; }
+
+.compact-kpi-value { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 22px 0 12px; }
+.compact-kpi-value strong { font-family: var(--mono); font-size: 27px; letter-spacing: -.8px; }
+.compact-kpi-value span { color: var(--muted); font-size: 10px; text-align: right; }
+.compact-kpi-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.compact-kpi-meta strong { color: var(--text); font-size: 10px; }
+.kpi-meter { height: 5px; border-radius: 999px; background: rgba(255,255,255,.06); overflow: hidden; }
+.kpi-meter span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--cyan), var(--emerald)); transition: width .45s ease; }
+.kpi-accent-line { min-height: 5px; border-top: 1px solid rgba(0,229,255,.16); padding-top: 8px; color: var(--cyan); font-family: var(--mono); font-size: 9px; }
+
+/* Right monitoring rail */
+#viewDashboard > #climateBanner,
+#viewDashboard > #safetyBanner,
+#viewDashboard > #alarmPanel,
+#viewDashboard > #aiSummaryPanel {
+  width: 100%;
+  margin: 0;
+  padding: 15px;
+  border-radius: 14px;
+  min-height: 0;
+}
+#viewDashboard > #climateBanner {
+  display: block;
+  background: linear-gradient(160deg, rgba(7,27,48,.96), rgba(6,14,27,.98));
+}
+#viewDashboard .climate-region { margin-bottom: 12px; }
+#viewDashboard .climate-telemetry-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+#viewDashboard .c-stat { min-width: 0; padding: 7px 8px; }
+#viewDashboard .c-stat strong { font-size: 12px; }
+#viewDashboard .c-label { font-size: 8px; }
+
+#viewDashboard > #safetyBanner {
+  display: block;
+  background: linear-gradient(155deg, rgba(3,42,34,.94), rgba(5,17,27,.98));
+}
+#viewDashboard .safety-status { gap: 10px; }
+#viewDashboard .safety-status i { font-size: 22px; }
+#viewDashboard .safety-status strong { font-size: 11px; }
+#viewDashboard .safety-status p { font-size: 10px; line-height: 1.4; margin-top: 3px; }
+#viewDashboard .safety-metrics { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; }
+#viewDashboard .safety-chip { font-size: 9px; padding: 5px 7px; }
+
+.alarm-panel { border-color: rgba(245,158,11,.25); }
+.alarm-count { min-width: 24px; height: 22px; padding: 0 7px; display: inline-grid; place-items: center; border-radius: 999px; background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.38); color: #fecaca; font-family: var(--mono); font-size: 10px; }
+.alarm-list { display: grid; gap: 6px; }
+.alarm-row { display: grid; grid-template-columns: 16px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 7px 8px; border-radius: 9px; background: rgba(255,255,255,.025); border: 1px solid var(--line-soft); font-size: 10px; }
+.alarm-row i { font-size: 10px; }
+.alarm-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alarm-row time { font-family: var(--mono); color: var(--muted); font-size: 8px; }
+.alarm-row.critical { color: #fecaca; border-color: rgba(239,68,68,.25); }
+.alarm-row.critical i { color: var(--danger); }
+.alarm-row.warning { color: #fde68a; border-color: rgba(245,158,11,.24); }
+.alarm-row.warning i { color: var(--amber); }
+.alarm-row.info i { color: var(--cyan); }
+.alarm-empty { display: flex; align-items: center; gap: 8px; color: var(--emerald); font-family: var(--mono); font-size: 10px; padding: 12px 4px; }
+
+.ai-engine-line { display: flex; align-items: center; gap: 7px; font-family: var(--mono); color: var(--cyan); font-size: 10px; }
+.ai-summary-panel > p { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 8px 0 10px; }
+.ai-status-badge { padding: 4px 7px; border-radius: 999px; font: 600 8px var(--mono); letter-spacing: .6px; border: 1px solid var(--line-soft); color: var(--muted); }
+.ai-status-badge.online { color: var(--emerald); border-color: rgba(16,185,129,.35); background: rgba(16,185,129,.08); }
+.ai-status-badge.fallback { color: var(--amber); border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); }
+.ai-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.ai-summary-grid div { padding: 8px; border: 1px solid var(--line-soft); border-radius: 9px; background: rgba(255,255,255,.02); }
+.ai-summary-grid span { display: block; color: var(--muted); font: 8px var(--mono); margin-bottom: 3px; }
+.ai-summary-grid strong { font: 600 12px var(--mono); color: var(--text); }
+
+/* Digital Twin */
+#viewDashboard > #twin { min-height: 430px; overflow: hidden; }
+#viewDashboard > #twin::after {
+  content: "LIVE SYSTEM SYNOPTIC";
+  position: absolute; top: 54px; right: 18px;
+  font: 8px var(--mono); letter-spacing: 1.2px; color: rgba(0,229,255,.58);
+}
+#viewDashboard .twin-grid { min-height: 350px; }
+
+/* Charts */
+#viewDashboard > .chart-card { min-height: 310px; padding: 15px; }
+#viewDashboard > .chart-card .chart-wrap { height: 250px; }
+#viewDashboard > #pumpFlowTelemetry { min-height: 310px; }
+.chart-chip-label { font: 600 9px var(--mono); letter-spacing: 1px; color: var(--emerald); border: 1px solid rgba(16,185,129,.3); background: rgba(16,185,129,.07); border-radius: 999px; padding: 5px 8px; }
+
+/* Zones */
+#viewDashboard > #fieldSection { padding: 15px; }
+#viewDashboard .zones-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+#viewDashboard .zone-card { min-height: 76px; padding: 10px; border-radius: 11px; }
+#viewDashboard .zone-val { font-size: 18px; }
+
+/* Controls / logs */
+#viewDashboard > .two-col { grid-template-columns: 1.25fr .75fr; gap: 14px; }
+#viewDashboard > #logs { padding: 15px; }
+#viewDashboard .log-list { max-height: 180px; }
+
+/* Operator controls must visibly become read-only when not authorized. */
+body:not(.operator-authorized) .pid-card .pid-row input[type="range"] { opacity: .58; }
+body:not(.operator-authorized) .pid-card .pid-row input[type="range"]:hover { cursor: not-allowed; }
+.auth-btn.lock { border-color: rgba(245,158,11,.28); }
+.auth-btn.unlocked { box-shadow: 0 0 18px rgba(16,185,129,.14); }
+
+/* Keyboard accessibility */
+.nav-item:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+.zone-card:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* Compact / tablet layouts */
+@media (max-width: 1350px) {
+  #viewDashboard.active {
+    grid-template-columns: minmax(0, 1fr) 285px;
+  }
+  #viewDashboard .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #viewDashboard .zones-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1050px) {
+  #viewDashboard.active {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "kpis"
+      "twin"
+      "weather"
+      "safety"
+      "alarms"
+      "ai"
+      "moisture"
+      "pumpflow"
+      "zones"
+      "controls"
+      "logs";
+  }
+  #viewDashboard .card-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+
+@media (max-width: 700px) {
+  .dashboard { padding: 14px 12px 34px; }
+  .top-header { padding: 11px 12px; }
+  .header-title p { display: none; }
+  .header-meta { max-width: 58%; }
+  .firewall-chip, .telemetry-source-group { display: none; }
+  #viewDashboard .card-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  #viewDashboard .zones-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  #viewDashboard > .two-col { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 460px) {
+  #viewDashboard .card-grid { grid-template-columns: 1fr; }
+  #viewDashboard .zones-grid { grid-template-columns: 1fr 1fr; }
+  .header-meta > .uptime-chip, .header-meta > .audio-btn { display: none; }
+}

@@ -43,7 +43,7 @@
       <a href="#terms" class="nav-item" data-modal="termsModal"><i class="fa-solid fa-file-shield"></i><span>Terms &amp; Compliance</span></a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
+      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> <span id="sidebarSystemStatus">System Status: Nominal</span></div>
       <p class="sidebar-version">HydroSync Enterprise OS</p>
     </div>
   </aside>
@@ -81,6 +81,29 @@
           <div class="safety-metrics">
             <div class="safety-chip" id="motorTempChip"><i class="fa-solid fa-temperature-half"></i> Motor: <span id="motorTempVal">24.0°C</span></div>
             <div class="safety-chip" id="interlockCountChip"><i class="fa-solid fa-lock"></i> Interlocks: <span id="interlockVal">0 Active</span></div>
+          </div>
+        </section>
+
+        <section class="glass-card alarm-panel" id="alarmPanel" aria-label="Active safety alarms">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-bell"></i> Active Alarms</span>
+            <span class="alarm-count" id="alarmCount">0</span>
+          </div>
+          <div class="alarm-list" id="alarmList">
+            <div class="alarm-empty"><i class="fa-solid fa-circle-check"></i><span>No active alarms</span></div>
+          </div>
+        </section>
+
+        <section class="glass-card ai-summary-panel" id="aiSummaryPanel" aria-label="AI diagnostics summary">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-brain"></i> AI Diagnostics</span>
+            <span class="ai-status-badge" id="aiEngineStatus">CHECKING</span>
+          </div>
+          <div class="ai-engine-line"><span class="pulse-dot sm" id="aiEngineDot"></span><span id="aiEngineName">Python-FastAPI Engine</span></div>
+          <p id="aiEngineMessage">Synchronizing with diagnostic gateway…</p>
+          <div class="ai-summary-grid">
+            <div><span>MPC Duty</span><strong id="dashboardMpcDuty">--%</strong></div>
+            <div><span>Rain Hold</span><strong id="dashboardRainHold">--</strong></div>
           </div>
         </section>
 
@@ -130,12 +153,12 @@
             <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
           </div>
           <div class="zones-grid" id="zonesContainer">
-            <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
-            <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
-            <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
-            <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
-            <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
-            <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
+            <div class="zone-card active" data-zone="A1" tabindex="0" role="button"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
+            <div class="zone-card" data-zone="A2" tabindex="0" role="button"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
+            <div class="zone-card" data-zone="A3" tabindex="0" role="button"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
+            <div class="zone-card" data-zone="B1" tabindex="0" role="button"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
+            <div class="zone-card" data-zone="B2" tabindex="0" role="button"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
+            <div class="zone-card" data-zone="B3" tabindex="0" role="button"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
           </div>
         </section>
 
@@ -187,6 +210,27 @@
             </div>
             <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters / ROI</span><strong id="savedLitersValue">-- L</strong></div></div>
           </article>
+
+          <article class="glass-card compact-kpi-card" id="tankKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-database"></i> Tank Level</span><span class="card-unit">%</span></div>
+            <div class="compact-kpi-value"><strong id="tankKpiValue">--%</strong><span id="tankKpiLiters">-- / -- L</span></div>
+            <div class="kpi-meter"><span id="tankKpiMeter"></span></div>
+            <div class="compact-kpi-meta"><span>Reserve</span><strong id="tankKpiStatus">--</strong></div>
+          </article>
+
+          <article class="glass-card compact-kpi-card" id="energyKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Energy Saved</span><span class="card-unit">kWh</span></div>
+            <div class="compact-kpi-value"><strong id="energyKpiValue">--</strong><span>Efficiency gain</span></div>
+            <div class="kpi-accent-line"><span id="energyKpiTrend">--</span></div>
+            <div class="compact-kpi-meta"><span>CO₂ offset</span><strong id="energyKpiCarbon">-- kg</strong></div>
+          </article>
+
+          <article class="glass-card compact-kpi-card" id="esgKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> ESG Efficiency</span><span class="card-unit">%</span></div>
+            <div class="compact-kpi-value"><strong id="esgKpiValue">--%</strong><span>Water efficiency</span></div>
+            <div class="kpi-meter"><span id="esgKpiMeter"></span></div>
+            <div class="compact-kpi-meta"><span>SDG 6.4</span><strong id="esgKpiSdg">Aligned</strong></div>
+          </article>
         </section>
 
         <!-- 5. VISUAL TWIN (SYNOPTIC) -->
@@ -215,6 +259,11 @@
         <section class="glass-card chart-card" id="telemetry" aria-label="Real-time telemetry chart">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Live Telemetry — Moisture vs Target</span><span class="chart-chips"><span class="et0-chip" id="et0Value">ET0 -- mm/day</span><span class="et0-chip" id="errorValue">e(t) --</span><span class="live-pill" id="graphMode"><span class="pulse-dot sm"></span> STREAMING</span></span></div>
           <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+        </section>
+
+        <section class="glass-card chart-card secondary-chart-card" id="pumpFlowTelemetry" aria-label="Pump and flow telemetry">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-area"></i> Pump Duty &amp; Flow Rate</span><span class="chart-chip-label">LIVE</span></div>
+          <div class="chart-wrap"><canvas id="pumpFlowChart"></canvas></div>
         </section>
 
         <!-- 7. CONTROLS & WEATHER SIMULATION -->
@@ -312,6 +361,33 @@
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
           <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
         </section>
+
+        <!-- ================= DSP Vibration Waveform & FFT Spectrum ================= -->
+        <section class="glass-card chart-card" style="margin-top: 20px;">
+          <div class="card-top">
+            <span class="card-title">
+              <i class="fa-solid fa-wave-square"></i> Vibration Diagnostics — Time &amp; Frequency Domain
+            </span>
+            <span class="live-pill">
+              <span class="pulse-dot sm"></span> REAL-TIME DSP
+            </span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px;">
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">Time-Domain Waveform</div>
+              <div class="chart-wrap" style="height: 220px;">
+                <canvas id="vibrationWaveformChart"></canvas>
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">FFT Spectrum</div>
+              <div class="chart-wrap" style="height: 220px;">
+                <canvas id="vibrationFFTChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="glass-card farm-focus-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span><button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button></div>
           <div class="focus-grid" style="margin-bottom: 16px;">
@@ -482,7 +558,7 @@
     </div>
   </div>
 
-  <!-- 🛡️ TERMS & COMPLIANCE MODAL (MANDATORY AGREEMENT PROTOCOL) -->
+  <!-- 🛡️ TERMS & COMPLIANCE MODAL -->
   <div class="modal-overlay" id="termsModal" aria-hidden="true" role="dialog" aria-label="Terms of service and compliance">
     <div class="modal-card" style="max-width: 600px;">
       <div class="modal-head">
@@ -510,24 +586,21 @@
       </div>
 
       <label class="consent" style="margin-top: 14px; font-size: 13px; display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text);">
-        <input type="checkbox" id="consentCheck" style="width: 18px; height: 18px; accent-color: var(--emerald); cursor: pointer;" />
+        <input type="checkbox" id="consentCheck" checked style="width: 18px; height: 18px; accent-color: var(--emerald); cursor: pointer;" />
         <span>أقر بأنني قرأت وفهمت بنود التشغيل وبروتوكول الامتثال وأوافق على الالتزام بها بالكامل.</span>
       </label>
 
-      <p id="consentErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-top: 8px;">
-        <i class="fa-solid fa-circle-exclamation"></i> يجب عليك تحديد مربع الموافقة أولاً لتفعيل الترخيص والتشغيل.
-      </p>
-
       <div class="modal-actions" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
-        <button class="btn ghost" id="consentDecline" data-close>رفض الشروط</button>
-        <button class="btn info" id="consentAccept" disabled style="opacity: 0.45; cursor: not-allowed;">
-          <i class="fa-solid fa-check"></i> موافقة واعتماد الترخيص
+        <button class="btn ghost" id="consentDecline" data-close>إغلاق</button>
+        <button class="btn info" id="consentAccept" data-close>
+          <i class="fa-solid fa-check"></i> اعتماد البروتوكول
         </button>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="charts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
