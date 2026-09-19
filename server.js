@@ -53,6 +53,8 @@ app.get('/api/export-audit.csv', (req, res) => {
 
 // 3. Python AI Engine Bridge Endpoint (مجهز لعبد الحق وسيرين)
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
+let latestVibrationFeatures = null;
+let latestVibrationFFT = null;
 app.get('/api/ai/diagnostics', async (req, res) => {
   try {
     const response = await fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) });
@@ -427,8 +429,11 @@ if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0
 })
   .then(response => response.json())
   .then(data => {
-    console.log('🧠 Python FFT:', data);
-  })
+  latestVibrationFeatures = data.features;
+  latestVibrationFFT = data.fft;
+
+  console.log('🧠 Python vibration features:', latestVibrationFeatures);
+ })
   .catch(() => {
     // Python AI Engine may be offline; Node continues operating normally
   });
@@ -472,6 +477,7 @@ if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0
     uptimeSecs: uptimeSeconds % 60,
     threatsBlocked: totalThreatsBlocked,
     predictiveAI: latestAIPrediction,
+    fft: latestVibrationFFT,
     safety: {
       systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus,
       alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms,
