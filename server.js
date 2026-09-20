@@ -10,7 +10,6 @@ const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const simulator = require('./simulator');
-const DEBUG = false;
 
 // استدعاء نواة التحكم وصمامات الأمان الخاصة بك
 const { evaluateSafety, calculateIrrigationDuty, resetSafetyState } = require('./core_control/mpc_controller');
@@ -54,8 +53,6 @@ app.get('/api/export-audit.csv', (req, res) => {
 
 // 3. Python AI Engine Bridge Endpoint (مجهز لعبد الحق وسيرين)
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
-let latestVibrationFeatures = null;
-let latestVibrationFFT = null;
 app.get('/api/ai/diagnostics', async (req, res) => {
   try {
     const response = await fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) });
@@ -415,33 +412,6 @@ setInterval(() => {
 function broadcastTelemetry() {
   simulator.pidLoop();
   const state = simulator.getState();
-  // Send raw vibration waveform to Python AI Engine
-if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0) {
-  fetch(`${AI_ENGINE_URL}/vibration`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  signal: AbortSignal.timeout(800),
-  body: JSON.stringify({
-    vibrationWaveform: state.vibrationWaveform,
-    samplingRateHz: state.samplingRateHz || 1000,
-    bufferSize: state.bufferSize || state.vibrationWaveform.length
-  })
-})
-  .then(response => response.json())
-  .then(data => {
-  latestVibrationFeatures = data.features;
-  latestVibrationFFT = data.fft;
-
-  if (DEBUG) {
-    console.log('🧠 Python vibration features:', latestVibrationFeatures);
-  } 
- })
-  .catch(() => {
-    // Python AI Engine may be offline; Node continues operating normally
-  });
-}
   const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
 
   // استخراج الاهتزاز بدقة من كائن assetHealth
@@ -481,7 +451,6 @@ if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0
     uptimeSecs: uptimeSeconds % 60,
     threatsBlocked: totalThreatsBlocked,
     predictiveAI: latestAIPrediction,
-    fft: latestVibrationFFT,
     safety: {
       systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus,
       alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms,
