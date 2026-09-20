@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import numpy as np
 from scipy.fft import rfft, rfftfreq
 
+DEBUG = False
 latest_vibration = []
 latest_fft = {"frequencies_hz": [], "magnitudes": []}
 
@@ -81,14 +82,15 @@ def receive_vibration(data: VibrationPayload):
     spectrum[1:] *= 2 / n
 
     frequencies = rfftfreq(n, d=1 / fs)
+    # Ignore DC component
+    spectrum[0] = 0
+
     global latest_fft
 
     latest_fft = {
         "frequencies_hz": [round(float(f), 2) for f in frequencies],
         "magnitudes": [round(float(m), 4) for m in spectrum],
     }
-    # Ignore DC component
-    spectrum[0] = 0
 
     # ============================================================
     # 3. DOMINANT FREQUENCY
@@ -216,48 +218,48 @@ def receive_vibration(data: VibrationPayload):
     # ============================================================
     # 11. CONSOLE OUTPUT
     # ============================================================
+    if DEBUG:
+        print("\n========== VIBRATION FEATURES ==========")
 
-    print("\n========== VIBRATION FEATURES ==========")
+        print(f"RMS: {vibration_rms:.4f}")
 
-    print(f"RMS: {vibration_rms:.4f}")
+        print(f"Dominant frequency: {dominant_frequency:.2f} Hz")
 
-    print(f"Dominant frequency: {dominant_frequency:.2f} Hz")
+        print(f"Dominant amplitude: {dominant_amplitude:.4f}")
 
-    print(f"Dominant amplitude: {dominant_amplitude:.4f}")
+        print(f"1× frequency: {one_x_frequency:.2f} Hz")
 
-    print(f"1× frequency: {one_x_frequency:.2f} Hz")
+        print(f"1× amplitude: {one_x_amplitude:.4f}")
 
-    print(f"1× amplitude: {one_x_amplitude:.4f}")
+        print(f"2× frequency: {two_x_frequency:.2f} Hz")
 
-    print(f"2× frequency: {two_x_frequency:.2f} Hz")
+        print(f"2× amplitude: {two_x_amplitude:.4f}")
 
-    print(f"2× amplitude: {two_x_amplitude:.4f}")
+        print(f"Bearing-region frequency: {bearing_frequency:.2f} Hz")
 
-    print(f"Bearing-region frequency: {bearing_frequency:.2f} Hz")
+        print(f"Bearing-region amplitude: {bearing_amplitude:.4f}")
 
-    print(f"Bearing-region amplitude: {bearing_amplitude:.4f}")
+        print(f"Bearing band RMS: {bearing_band_rms:.4f}")
 
-    print(f"Bearing band RMS: {bearing_band_rms:.4f}")
+        print(f"2× / 1× ratio: {two_x_to_one_x_ratio:.4f}")
 
-    print(f"2× / 1× ratio: {two_x_to_one_x_ratio:.4f}")
+        print(f"1× / RMS ratio: {one_x_to_rms_ratio:.4f}")
 
-    print(f"1× / RMS ratio: {one_x_to_rms_ratio:.4f}")
+        print(f"1× / mean spectrum ratio: {one_x_to_mean_spectrum_ratio:.4f}")
 
-    print(f"1× / mean spectrum ratio: {one_x_to_mean_spectrum_ratio:.4f}")
+        print(f"2× / mean spectrum ratio: {two_x_to_mean_spectrum_ratio:.4f}")
 
-    print(f"2× / mean spectrum ratio: {two_x_to_mean_spectrum_ratio:.4f}")
+        print(f"Bearing / 1× ratio: {bearing_to_one_x_ratio:.4f}")
 
-    print(f"Bearing / 1× ratio: {bearing_to_one_x_ratio:.4f}")
+        print(f"Bearing band / RMS ratio: {bearing_band_to_rms_ratio:.4f}")
 
-    print(f"Bearing band / RMS ratio: {bearing_band_to_rms_ratio:.4f}")
+        print(f"Spectral energy: {spectral_energy:.4f}")
 
-    print(f"Spectral energy: {spectral_energy:.4f}")
+        print(f"Spectral centroid: {spectral_centroid:.2f} Hz")
 
-    print(f"Spectral centroid: {spectral_centroid:.2f} Hz")
+        print(f"Spectral bandwidth: {spectral_bandwidth:.2f} Hz")
 
-    print(f"Spectral bandwidth: {spectral_bandwidth:.2f} Hz")
-
-    print("========================================\n")
+        print("========================================\n")
 
     # ============================================================
     # 12. RETURN FEATURE VECTOR

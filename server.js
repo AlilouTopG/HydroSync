@@ -10,6 +10,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const simulator = require('./simulator');
+const DEBUG = false;
 
 // استدعاء نواة التحكم وصمامات الأمان الخاصة بك
 const { evaluateSafety, calculateIrrigationDuty, resetSafetyState } = require('./core_control/mpc_controller');
@@ -421,6 +422,7 @@ if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0
   headers: {
     'Content-Type': 'application/json'
   },
+  signal: AbortSignal.timeout(800),
   body: JSON.stringify({
     vibrationWaveform: state.vibrationWaveform,
     samplingRateHz: state.samplingRateHz || 1000,
@@ -432,7 +434,9 @@ if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0
   latestVibrationFeatures = data.features;
   latestVibrationFFT = data.fft;
 
-  console.log('🧠 Python vibration features:', latestVibrationFeatures);
+  if (DEBUG) {
+    console.log('🧠 Python vibration features:', latestVibrationFeatures);
+  } 
  })
   .catch(() => {
     // Python AI Engine may be offline; Node continues operating normally
