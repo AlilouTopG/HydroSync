@@ -163,9 +163,9 @@ def receive_vibration(data: VibrationPayload):
         spectral_centroid = 0.0
         spectral_bandwidth = 0.0
 
-    # Real Peak Separation using find_peaks
-    peaks, _ = find_peaks(spectrum, distance=3)
-    top_peak_indices = peaks[:5]
+    # Real Peak Separation using find_peaks (sorted by descending magnitude)
+    peak_idx, _ = find_peaks(spectrum, distance=3)
+    top_peak_indices = peak_idx[np.argsort(spectrum[peak_idx])[::-1][:5]] if len(peak_idx) else np.array([], dtype=int)
     peaks = [
         {
             "frequency_hz": round(float(frequencies[p]), 2),
