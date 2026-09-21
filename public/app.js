@@ -4769,7 +4769,7 @@
                 enabled:
                   false,
                 manualPwm:
-
+              0
               }
             );
 
