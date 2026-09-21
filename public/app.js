@@ -875,7 +875,7 @@
       );
     }
 
-    // 📊 DSP Waveform & FFT Live Update
+    // 📊 DSP Waveform & FFT Live Update — Python Edge AI (d.fft) is single source of truth
     var waveformSource =
       d.assetHealth &&
       d.assetHealth.vibrationWaveform
@@ -899,14 +899,12 @@
           waveformSource
         );
 
-        var fftMagnitudes =
-          HydroSyncCharts.computeFFT(
-            waveformSource
+        // Use Python Edge AI engine FFT (d.fft) as single source of truth
+        if (d.fft && d.fft.magnitude) {
+          HydroSyncCharts.updateFFTChart(
+            d.fft.magnitude
           );
-
-        HydroSyncCharts.updateFFTChart(
-          fftMagnitudes
-        );
+        }
       }
     }
 
