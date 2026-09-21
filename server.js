@@ -848,7 +848,7 @@ let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 function postVibration(state) {
   if (aiInFlight || !Array.isArray(state.vibrationWaveform) || !state.vibrationWaveform.length) return;
   aiInFlight = true;
-  fetch(${AI_ENGINE_URL}/vibration, {
+  fetch(AI_ENGINE_URL + '/vibration', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(800),
     body: JSON.stringify({
       vibrationWaveform: state.vibrationWaveform,
