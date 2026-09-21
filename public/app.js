@@ -538,7 +538,7 @@
       {
         hour12: false
       }
-
+    );
 
     var labels = pumpFlowChart.data.labels;
     var pwmData =
@@ -567,7 +567,7 @@
       {
         hour12: false
       }
-
+    );
 
     labels.push(now);
     vwcSeries.push(vwc);
@@ -601,7 +601,7 @@
         {
           hour12: false
         }
-
+      );
 
       labels.push(d);
 
@@ -1248,7 +1248,7 @@
           {
             hour12: false
           }
-
+        );
 
       row.appendChild(icon);
       row.appendChild(message);
@@ -1434,7 +1434,7 @@
                 "application/json"
             }
           }
-
+        );
 
       if (!response.ok) {
         throw new Error(
@@ -2344,7 +2344,7 @@
         ki: state.ki,
         kd: state.kd
       }
-
+    );
   }
 
   function pressFlash(el) {
@@ -2631,7 +2631,7 @@
           ) === viewName
         );
       }
-
+    );
 
     if (dashView) {
       dashView.hidden =
@@ -2812,7 +2812,7 @@
           zoomControl: true,
           attributionControl: false
         }
-
+      );
 
     var satelliteTiles =
       L.tileLayer(
@@ -2820,7 +2820,7 @@
         {
           maxZoom: 18
         }
-
+      );
 
     var darkTiles =
       L.tileLayer(
@@ -2828,7 +2828,7 @@
         {
           maxZoom: 18
         }
-
+      );
 
     satelliteTiles.addTo(
       mapInstance
@@ -2915,9 +2915,9 @@
               farm
             );
           }
-
+        );
       }
-
+    );
 
     setTimeout(
       function () {
@@ -3093,28 +3093,28 @@
         function (h) {
           return h.hour;
         }
-
+      );
 
     var probData =
       horizon.map(
         function (h) {
           return h.prob;
         }
-
+      );
 
     var rainData =
       horizon.map(
         function (h) {
           return h.rainMm;
         }
-
+      );
 
     var tempData =
       horizon.map(
         function (h) {
           return h.temp;
         }
-
+      );
 
     if (!horizonChart) {
       var ctx =
@@ -3290,7 +3290,7 @@
               }
             }
           }
-
+        );
     } else {
       horizonChart.data.labels =
         hLabels;
@@ -3481,7 +3481,7 @@
             }
           }
         }
-
+      );
   }
 
   function updateHealthUI(
@@ -3605,7 +3605,7 @@
         {
           hour12: false
         }
-
+      );
 
     vibLabels.push(
       now
@@ -3635,21 +3635,21 @@
           function () {
             return 1.8;
           }
-
+        );
 
       vibrationChart.data.datasets[2].data =
         vibLabels.map(
           function () {
             return 2.8;
           }
-
+        );
 
       vibrationChart.data.datasets[3].data =
         vibLabels.map(
           function () {
             return 4.5;
           }
-
+        );
 
       vibrationChart.update(
         "none"
@@ -3745,7 +3745,7 @@
             ")"
           );
         }
-
+      );
 
     var waterValues =
       zones.map(
@@ -3755,7 +3755,7 @@
             150
           );
         }
-
+      );
 
     if (!zoneWaterChart) {
       var ctx =
@@ -3855,7 +3855,7 @@
               }
             }
           }
-
+        );
     } else {
       zoneWaterChart.data.labels =
         labels;
@@ -3904,7 +3904,7 @@
 
         emitPid();
       }
-
+    );
 
     slider(
       "KiSlider",
@@ -3925,7 +3925,7 @@
 
         emitPid();
       }
-
+    );
 
     slider(
       "KdSlider",
@@ -3946,7 +3946,7 @@
 
         emitPid();
       }
-
+    );
 
     slider(
       "setpointSlider",
@@ -3982,7 +3982,7 @@
           );
         }
       }
-
+    );
 
     slider(
       "manualPwmSlider",
@@ -4021,7 +4021,7 @@
               manualPwm:
                 state.manualPwm
             }
-
+          );
         }
 
         if (isHardwareMode) {
@@ -4031,7 +4031,7 @@
           );
         }
       }
-
+    );
 
     var toggle =
       $("manualToggle");
@@ -4075,10 +4075,10 @@
                 manualPwm:
                   state.manualPwm
               }
-
+            );
           }
         }
-
+      );
     }
 
     // 🗺️ Sidebar Multi-View Navigation Bindings
@@ -4112,7 +4112,7 @@
             "dashboard"
           );
         }
-
+      );
     }
 
     if (navFleet) {
@@ -4125,7 +4125,7 @@
             "fleet"
           );
         }
-
+      );
     }
 
     if (navPredictive) {
@@ -4138,7 +4138,7 @@
             "predictive"
           );
         }
-
+      );
     }
 
     if (navHealth) {
@@ -4151,7 +4151,7 @@
             "health"
           );
         }
-
+      );
     }
 
     if (navPidView) {
@@ -4164,7 +4164,7 @@
             "pidView"
           );
         }
-
+      );
     }
 
     if (navAnalytics) {
@@ -4177,7 +4177,7 @@
             "analytics"
           );
         }
-
+      );
     }
 
     // Weather Simulation quick-scroll
@@ -4207,10 +4207,10 @@
                 behavior:
                   "smooth"
               }
-
+            );
           }
         }
-
+      );
     }
 
     var jumpBtn =
@@ -4226,7 +4226,7 @@
             "dashboard"
           );
         }
-
+      );
     }
 
     // ⚙️ Service Asset Button
@@ -4273,7 +4273,7 @@
             "[MAINTENANCE LOGGED]</strong> Pump overhaul complete: Rotor bearings recalibrated and fatigue reset."
           );
         }
-
+      );
     }
 
     // 📊 Export CSV Button
@@ -4299,7 +4299,7 @@
             "[AUDIT EXPORT]</strong> Industrial CSV Telemetry log downloaded successfully."
           );
         }
-
+      );
     }
 
     // 🔌 Hardware Mode Dual-Toggle
@@ -4350,7 +4350,7 @@
             "[MODE]</strong> Switched to Digital Twin Virtual Simulator."
           );
         }
-
+      );
 
       usbBtn.addEventListener(
         "click",
@@ -4390,7 +4390,7 @@
             "[MODE]</strong> Physical Hardware Ingestion engaged. Ready for live sensors."
           );
         }
-
+      );
     }
 
     if (connectBtn) {
@@ -4436,7 +4436,7 @@
             "</strong>"
           );
         }
-
+      );
     }
 
     // Micro-Plots Crop Selection
@@ -4473,9 +4473,9 @@
                 card.click();
               }
             }
-
+          );
         }
-
+      );
 
       zc.addEventListener(
         "click",
@@ -4558,7 +4558,7 @@
                 "active"
               );
             }
-
+          );
 
           card.classList.add(
             "active"
@@ -4585,7 +4585,7 @@
             }
           }
         }
-
+      );
     }
 
     // Disturbance & Emergency
@@ -4719,11 +4719,11 @@
             "[EMERGENCY]</strong> Manual shutoff engaged!"
           );
         }
-
+      );
     }
 
     // Fault Injection Buttons
-    ["faultBearingBtn","bearing"],["faultHeatBtn","overheat"],["faultClearBtn","clear"].forEach(function (p) {
+    [["faultBearingBtn","bearing"],["faultHeatBtn","overheat"],["faultClearBtn","clear"]].forEach(function (p) {
       var el = document.getElementById(p[0]);
       if (!el) return;
       el.addEventListener("click", function () {
@@ -4771,7 +4771,7 @@
                 manualPwm:
 
               }
-
+            );
 
             socket.emit(
               "client:update_setpoint",
@@ -4785,7 +4785,7 @@
                 ki: 0.1,
                 kd: 0.5
               }
-
+            );
           }
 
           state.manual =
@@ -4832,7 +4832,7 @@
             "[RESET]</strong> Industrial safety trip reset & PID parameters restored."
           );
         }
-
+      );
     }
 
     // Audio Mute/Unmute
@@ -4863,7 +4863,7 @@
                 : "fa-solid fa-volume-high";
           }
         }
-
+      );
     }
 
     // Security Authorization Binds
@@ -4882,7 +4882,7 @@
             );
           }
         }
-
+      );
     }
 
     var submitAuthBtn =
@@ -4910,7 +4910,7 @@
             );
           }
         }
-
+      );
     }
 
     bindModals();
@@ -5009,9 +5009,9 @@
               );
             }
           }
-
+        );
       }
-
+    );
 
     var overlays =
       document.querySelectorAll(
@@ -5030,7 +5030,7 @@
               closeModal(o);
             }
           }
-
+        );
 
         var closers =
           o.querySelectorAll(
@@ -5045,11 +5045,11 @@
               function () {
                 closeModal(o);
               }
-
+            );
           }
-
+        );
       }
-
+    );
 
     var save =
       $("settingsSave");
@@ -5159,7 +5159,7 @@
                 soilType:
                   st
               }
-
+            );
 
             socket.emit(
               "client:update_setpoint",
@@ -5171,7 +5171,7 @@
             "settingsModal"
           );
         }
-
+      );
     }
 
     var accept =
@@ -5185,7 +5185,7 @@
             "termsModal"
           );
         }
-
+      );
     }
   }
 
@@ -5238,7 +5238,7 @@
           true
         );
       }
-
+    );
 
     socket.on(
       "disconnect",
@@ -5252,7 +5252,7 @@
           false
         );
       }
-
+    );
 
     socket.on(
       "connect_error",
@@ -5261,7 +5261,7 @@
           false
         );
       }
-
+    );
 
     socket.on(
       "telemetry",
@@ -5321,7 +5321,7 @@
           "[SECURITY]</strong> SCADA Console unlocked: Full Operator Access."
         );
       }
-
+    );
 
     socket.on(
       "auth:failed",
@@ -5345,7 +5345,7 @@
           )
         );
       }
-
+    );
 
     socket.on(
       "firewall:alert",
@@ -5358,7 +5358,7 @@
           data.msg
         );
       }
-
+    );
 
     window.addEventListener(
       "resize",
@@ -5387,7 +5387,7 @@
           pumpFlowChart.resize();
         }
       }
-
+    );
 
     document.addEventListener(
       "click",
@@ -5397,7 +5397,7 @@
       {
         once: true
       }
-
+    );
   }
 
   if (

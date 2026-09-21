@@ -157,14 +157,12 @@ app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore', ind
 const isProduction = process.env.NODE_ENV === 'production';
 
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || 'https://hydrosync-0khc.onrender.com').split(',').map(s => s.trim()).filter(Boolean));
-const RENDER_SUBDOMAIN_RE = /^https:\/\/[a-zA-Z0-9-]+\.onrender\.com$/;
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 const originOk = (o) =>
   !o ||
   !isProduction ||
   ALLOWED_ORIGINS.has(o) ||
-  RENDER_SUBDOMAIN_RE.test(o) ||
   LOCALHOST_RE.test(o);
 
 const io = new Server(server, {
@@ -877,6 +875,7 @@ function tick() {
     isSafetyTripped = true;
     activeSafetyReason = safetyCheck.alarms.join(' | ');
     simulator.setManualMode(true, 0);
+    console.warn(`[SCADA SAFETY INTERLOCK TRIPPED]: ${activeSafetyReason}`);
   }
   mpcDuty = calculateIrrigationDuty(Number(state.vwc) || 20, Number(state.setpoint || state.target) || 55, Number(latestAIPrediction.maxRainProb12h) || 0);
   broadcastTelemetry();
