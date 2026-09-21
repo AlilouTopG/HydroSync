@@ -310,6 +310,9 @@
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-droplet"></i> Fleet Water Reserve</span><strong class="kpi-val highlight-emerald">84.2% <small>Capacity</small></strong></div>
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-shield-heart"></i> National Fleet Health</span><strong class="kpi-val highlight-cyan">99.4% <small>Optimal</small></strong></div>
         </section>
+        <div style="text-align: center; margin-bottom: 12px;">
+          <span class="badge badge-subtle">Simulated Fleet Telemetry</span>
+        </div>
         <section class="glass-card fleet-map-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-satellite"></i> National Agro-Hub Fleet Map (Algeria)</span><div class="map-legend"><span class="legend-dot nominal"></span> Nominal <span class="legend-dot active"></span> Irrigating</div></div>
           <div id="fleetMap" class="fleet-map-container"></div>
@@ -353,10 +356,13 @@
       <div id="viewHealth" class="view-screen" hidden>
         <section class="fleet-kpi-bar">
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-heart-pulse"></i> Overall Asset Health</span><strong class="kpi-val highlight-emerald" id="healthIndexKpi">98.4%</strong></div>
-          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span><strong class="kpi-val highlight-cyan" id="vibRmsKpi">0.22 <small>mm/s</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span><strong class="kpi-val highlight-cyan" id="fleetVibration">0.22 <small>mm/s</small></strong></div>
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Cavitation Strain</span><strong class="kpi-val highlight-wind" id="cavitationKpi">2.1%</strong></div>
-          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span><strong class="kpi-val" id="rulHoursKpi">6,580 <small>Hours</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span><strong class="kpi-val" id="fleetRul">6,580 <small>Hours</small></strong></div>
         </section>
+        <div style="text-align: center; margin-bottom: 12px;">
+          <span class="badge badge-subtle">Simulated Asset Health Telemetry</span>
+        </div>
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
           <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
@@ -577,7 +583,8 @@
         </p>
         <p style="margin-bottom: 10px;">
           <strong style="color:var(--cyan);">3. حماية البيانات والاتصال الصناعي (Modbus / Web Serial)</strong><br/>
-          تتم معالجة تدفقات التيليميتري وسجلات الـ PLC محلياً على المضيف (Local Host) مع عزل كامل لمنع أي اختراق، ولا يتم تصدير أي سجلات تشغيلية إلا بتصريح يدوي عبر تقارير الـ CSV المعتمدة.
+          تتم معالجة البيانات وفق بروتوكولات الأمان الصناعي مع مراقبة مشددة للاتصالات السحابية والطرفية.
+          <br/><small style="color:var(--muted);">Telemetry is processed in accordance with industrial IoT security practices, featuring reverse-proxy sanitization, scoped operator authorization, and secure WebSocket telemetry.</small>
         </p>
         <p>
           <strong style="color:var(--cyan);">4. مسؤولية المشغل وصيانة الأصول (ISO 10816)</strong><br/>
