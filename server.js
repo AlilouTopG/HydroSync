@@ -156,7 +156,7 @@ app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore', ind
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || 'https://hydrosync-0khc.onrender.com').split(',').map(s => s.trim()).filter(Boolean));
 const RENDER_SUBDOMAIN_RE = /^https:\/\/[a-zA-Z0-9-]+\.onrender\.com$/;
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -195,6 +195,9 @@ let isSafetyTripped = false;
 let activeSafetyReason = '';
 
 
+
+const AUTH_BUDGET = { fails: 0, resetAt: 0 };
+const authBudgetOk = () => { const t = Date.now(); if (t > AUTH_BUDGET.resetAt) { AUTH_BUDGET.fails = 0; AUTH_BUDGET.resetAt = t + 300000; } return AUTH_BUDGET.fails < 30; };
 
 const clientFirewallState = new Map();
 
@@ -506,7 +509,8 @@ setInterval(() => fetchSatelliteWeather(activeLocationKey), 10 * 60 * 1000);
 
 io.on('connection', (socket) => {
 
-  const clientIp = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() || socket.handshake.address || 'unknown';
+    const xff = (socket.handshake.headers['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean);
+  const clientIp = xff.pop() || socket.handshake.address || 'unknown';
 
   clientFirewallState.set(socket.id, { tokens: 10, lastRefill: Date.now(), authorized: false });
 
@@ -540,6 +544,8 @@ io.on('connection', (socket) => {
   socket.on('client:auth', (submittedPin) => {
 
     if (!firewallValidate(socket, 1)) return;
+    if (!authBudgetOk()) { socket.emit('auth:failed', { msg: 'Console temporarily locked.' }); return; }
+
 
 
 
@@ -574,6 +580,8 @@ io.on('connection', (socket) => {
     } else {
 
       totalThreatsBlocked++;
+
+      AUTH_BUDGET.fails++;
 
       lockData.count++;
 
@@ -618,15 +626,13 @@ io.on('connection', (socket) => {
   // ðŸš¨ Public Emergency Stop (idempotent, no PIN required)
   socket.on('client:emergency_stop', () => {
 
-    if (!isSafetyTripped) {
+    if (isSafetyTripped) return;
 
-      isSafetyTripped = true;
+    isSafetyTripped = true;
 
-      activeSafetyReason = 'OPERATOR EMERGENCY STOP';
+    activeSafetyReason = 'OPERATOR EMERGENCY STOP';
 
-      simulator.setManualMode(true, 0);
-
-    }
+    simulator.setManualMode(true, 0);
 
     broadcastTelemetry();
 
@@ -835,172 +841,60 @@ io.on('connection', (socket) => {
 // 6. بث التيليميتري الموحد وتطبيق صمامات الأمان
 
 const TELEMETRY_INTERVAL = 1000;
+let aiInFlight = false, aiLastOkAt = 0;
+let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
+let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
-setInterval(() => {
+function postVibration(state) {
+  if (aiInFlight || !Array.isArray(state.vibrationWaveform) || !state.vibrationWaveform.length) return;
+  aiInFlight = true;
+  fetch(${AI_ENGINE_URL}/vibration, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(800),
+    body: JSON.stringify({
+      vibrationWaveform: state.vibrationWaveform,
+      samplingRateHz: state.samplingRateHz || 1000,
+      bufferSize: state.bufferSize || state.vibrationWaveform.length
+    })
+  })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => { latestVibrationFeatures = d.features; latestVibrationFFT = d.fft; aiLastOkAt = Date.now(); })
+    .catch(() => {})
+    .finally(() => { aiInFlight = false; });
+}
 
+function tick() {
+  simulator.pidLoop();
+  const state = simulator.getState();
+  postVibration(state);
+  safetyCheck = evaluateSafety({
+    pumpState: Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
+    pumpDuty: Number(state.pumpDuty) || 0,
+    flowRate: Number(state.flowRate) || 0,
+    motorTemp: Number(state.motorTemp) || 25,
+    vibrationRms: typeof state.assetHealth?.vibrationRms === 'number' ? state.assetHealth.vibrationRms : (Number(state.vibrationRms) || 0)
+  });
+  if (safetyCheck.tripPump && !isSafetyTripped) {
+    isSafetyTripped = true;
+    activeSafetyReason = safetyCheck.alarms.join(' | ');
+    simulator.setManualMode(true, 0);
+  }
+  mpcDuty = calculateIrrigationDuty(Number(state.vwc) || 20, Number(state.setpoint || state.target) || 55, Number(latestAIPrediction.maxRainProb12h) || 0);
   broadcastTelemetry();
-
-}, TELEMETRY_INTERVAL);
-
-
+}
 
 function broadcastTelemetry() {
-
-  simulator.pidLoop();
-
-  const state = simulator.getState();
-
-  // Send raw vibration waveform to Python AI Engine
-
-if (Array.isArray(state.vibrationWaveform) && state.vibrationWaveform.length > 0) {
-
-  fetch(`${AI_ENGINE_URL}/vibration`, {
-
-  method: 'POST',
-
-  headers: {
-
-    'Content-Type': 'application/json'
-
-  },
-
-  signal: AbortSignal.timeout(800),
-
-  body: JSON.stringify({
-
-    vibrationWaveform: state.vibrationWaveform,
-
-    samplingRateHz: state.samplingRateHz || 1000,
-
-    bufferSize: state.bufferSize || state.vibrationWaveform.length
-
-  })
-
-})
-
-  .then(response => response.json())
-
-  .then(data => {
-
-  latestVibrationFeatures = data.features;
-
-  latestVibrationFFT = data.fft;
-
-
-
-  if (DEBUG) {
-
-    console.log('🧠 Python vibration features:', latestVibrationFeatures);
-
-  } 
-
- })
-
-  .catch(() => {
-
-    // Python AI Engine may be offline; Node continues operating normally
-
-  });
-
-}
-
-  const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
-
-
-
-  // استخراج الاهتزاز بدقة من كائن assetHealth
-
-  const currentVibRms = (state.assetHealth && typeof state.assetHealth.vibrationRms === 'number')
-
-    ? state.assetHealth.vibrationRms
-
-    : (Number(state.vibrationRms) || 0);
-
-
-
-  const telemetryData = {
-
-    pumpState: Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
-
-    pumpDuty: Number(state.pumpDuty) || 0,
-
-    flowRate: Number(state.flowRate) || 0,
-
-    motorTemp: Number(state.motorTemp) || 25,
-
-    vibrationRms: currentVibRms
-
-  };
-
-
-
-  const safetyCheck = evaluateSafety(telemetryData);
-
-
-
-  // تفعيل القفل الصناعي فقط في حالات الخطر المؤكدة
-
-  if (safetyCheck.tripPump && !isSafetyTripped) {
-
-    isSafetyTripped = true;
-
-    activeSafetyReason = safetyCheck.alarms.join(' | ');
-
-    simulator.setManualMode(true, 0); // إيقاف فوري قسري
-
-    console.warn(`🚨 [SCADA SAFETY INTERLOCK TRIPPED]: ${activeSafetyReason}`);
-
-  }
-
-
-
-  // حساب متطلبات الري التنبؤي
-
-  const mpcDuty = calculateIrrigationDuty(
-
-    Number(state.vwc) || 20,
-
-    Number(state.setpoint || state.target) || 55,
-
-    Number(latestAIPrediction.maxRainProb12h) || 0
-
-  );
-
-
-
+  const state = simulator.getState(), now = Date.now(), aiFresh = now - aiLastOkAt < 3000;
+  const up = Math.floor((now - serverStartTime) / 1000);
   io.emit('telemetry', {
-
-    ...state,
-
-    uptimeSeconds,
-
-    uptimeMinutes: Math.floor(uptimeSeconds / 60),
-
-    uptimeSecs: uptimeSeconds % 60,
-
-    threatsBlocked: totalThreatsBlocked,
-
-    predictiveAI: latestAIPrediction,
-
-    fft: latestVibrationFFT,
-
-    safety: {
-
-      systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus,
-
-      alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms,
-
-      tripped: isSafetyTripped
-
-    },
-
+    ...state, uptimeSeconds: up, uptimeMinutes: Math.floor(up / 60), uptimeSecs: up % 60,
+    threatsBlocked: totalThreatsBlocked, predictiveAI: latestAIPrediction,
+    fft: aiFresh ? latestVibrationFFT : null,
+    aiEngine: { online: aiFresh, ageMs: aiLastOkAt ? now - aiLastOkAt : null },
+    safety: { systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus, alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms, tripped: isSafetyTripped },
     autonomousMPC: mpcDuty
-
   });
-
 }
-
-
+setInterval(tick, TELEMETRY_INTERVAL);
 
 const PORT = process.env.PORT || 3000;
 

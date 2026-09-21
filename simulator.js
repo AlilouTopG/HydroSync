@@ -267,9 +267,10 @@ function updatePredictiveMaintenanceModel() {
   ah.cavitationIndex = Math.max(1.0, Math.min(99.0, 2.0 + cavitationStress + (Math.random() * 1.5)));
 
   let baseVib = 0.18 + (Math.random() * 0.08);
+  // Ensure injected fault vibration propagates regardless of running state
+  baseVib += state.faultBias.vibMms;
   if (isRunning) {
     baseVib += (dutyFraction * 1.45);
-    baseVib += state.faultBias.vibMms;
     if (state.motorTemp > 75.0) {
       baseVib += ((state.motorTemp - 75.0) / 10.0) * 0.85;
     }
@@ -359,7 +360,8 @@ function pidLoop() {
     const holding = state.rainHold && state.vwc >= state.setpoint - RAIN_HOLD_MARGIN_PCT;
     if (!holding) {
       state.integralAcc += state.error * DT;
-      state.integralAcc = Math.max(-25, Math.min(25, state.integralAcc));
+      const lim = 30 / (state.ki || 0.08);
+    state.integralAcc = Math.max(-lim, Math.min(lim, state.integralAcc));
     }
 
     const derivative = (state.error - state.lastError) / DT;
