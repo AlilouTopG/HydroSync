@@ -4705,6 +4705,8 @@
             socket &&
             socket.connected
           ) {
+            socket.emit("client:emergency_stop");
+            
             socket.emit(
               "client:manual_override",
               {

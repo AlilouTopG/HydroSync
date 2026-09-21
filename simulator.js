@@ -1,4 +1,4 @@
-/**
+﻿/**
  * simulator.js - HydroSync Industrial SCADA Physics, ESG & Safety Engine
  * 
  * Compliant with:
@@ -17,6 +17,7 @@ const WATER_PRICE_PER_LITER = 0.045; // $ per liter
 const DZD_PER_USD = 134.5; // DZD exchange rate
 const KWH_PER_PUMPED_LITER = 0.00045; // Pumping energy at 3.5 bar
 const KG_CO2_PER_KWH = 0.52; // Grid carbon emission intensity
+const RAIN_HOLD_MARGIN_PCT = 20.0;
 
 // DSP Sampling Parameters for AI FFT Diagnostics
 const WAVEFORM_SAMPLES = 256;
@@ -97,6 +98,8 @@ let state = {
   error: 0.0,
   lastError: 0.0,
   integralAcc: 0.0,
+  faultBias: { vibMms: 0, heatC: 0 },
+  rainHold: false,
 
   // Multi-Zone Micro-Plots with Cumulative Water Accounting
   activeZoneId: 'A1',
@@ -207,7 +210,7 @@ function updateMotorThermalModel() {
   const heatGen = (dutyFraction * dutyFraction) * 2.2;
   const heatDissipation = 0.08 * (state.motorTemp - state.ambientTemp);
 
-  state.motorTemp += (heatGen - heatDissipation) * DT;
+  state.motorTemp += (heatGen + state.faultBias.heatC - heatDissipation) * DT;
   state.motorTemp = Math.max(state.ambientTemp, state.motorTemp);
 
   if (state.motorTemp >= 85.0 && !state.interlocks.thermalTrip) {
@@ -266,6 +269,7 @@ function updatePredictiveMaintenanceModel() {
   let baseVib = 0.18 + (Math.random() * 0.08);
   if (isRunning) {
     baseVib += (dutyFraction * 1.45);
+    baseVib += state.faultBias.vibMms;
     if (state.motorTemp > 75.0) {
       baseVib += ((state.motorTemp - 75.0) / 10.0) * 0.85;
     }
@@ -352,8 +356,11 @@ function pidLoop() {
     rawPwmCommand = state.manualPwm;
   } else {
     state.error = state.setpoint - state.vwc;
-    state.integralAcc += state.error * DT;
-    state.integralAcc = Math.max(-25.0, Math.min(25.0, state.integralAcc));
+    const holding = state.rainHold && state.vwc >= state.setpoint - RAIN_HOLD_MARGIN_PCT;
+    if (!holding) {
+      state.integralAcc += state.error * DT;
+      state.integralAcc = Math.max(-25, Math.min(25, state.integralAcc));
+    }
 
     const derivative = (state.error - state.lastError) / DT;
     state.lastError = state.error;
@@ -363,7 +370,8 @@ function pidLoop() {
     state.dTerm = state.kd * derivative;
 
     let computed = state.pTerm + state.iTerm + state.dTerm;
-    rawPwmCommand = Math.max(0.0, Math.min(100.0, computed));
+    // ensure rawPwmCommand forces 0 when holding:
+    rawPwmCommand = holding ? 0.0 : Math.max(0.0, Math.min(100.0, computed));
   }
 
   // Interlock overrides
@@ -533,10 +541,6 @@ function setSettings(settings) {
 function injectDisturbance(type) {
   activeDisturbance = type;
   disturbanceDuration = 25;
-  if (type === 'rain') {
-    state.interlocks.pipeBurst = false;
-    state.burstPipeCounter = 0;
-  }
 }
 
 function setActiveZone(zoneId) {
@@ -593,6 +597,22 @@ function getAuditHistory() {
   return auditHistory;
 }
 
+function setRainHold(a) {
+  state.rainHold = Boolean(a);
+}
+
+function injectFault(t) {
+  if (t === 'bearing') {
+    state.faultBias.vibMms = 7.5;
+    state.assetHealth.bearingWearPct = Math.max(state.assetHealth.bearingWearPct, 60);
+  } else if (t === 'overheat') {
+    state.faultBias.heatC = 6.0;
+  } else if (t === 'clear') {
+    state.faultBias.vibMms = 0;
+    state.faultBias.heatC = 0;
+  }
+}
+
 module.exports = {
   getState,
   pidLoop,
@@ -605,5 +625,7 @@ module.exports = {
   setLiveWeather,
   refillTank,
   servicePumpAsset,
-  getAuditHistory
+  getAuditHistory,
+  setRainHold,
+  injectFault
 };

@@ -157,7 +157,15 @@ app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore', ind
 const isProduction = process.env.NODE_ENV === 'production';
 
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
-const originOk = (o) => !o || !isProduction || ALLOWED_ORIGINS.has(o);
+const RENDER_SUBDOMAIN_RE = /^https:\/\/[a-zA-Z0-9-]+\.onrender\.com$/;
+const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+const originOk = (o) =>
+  !o ||
+  !isProduction ||
+  ALLOWED_ORIGINS.has(o) ||
+  RENDER_SUBDOMAIN_RE.test(o) ||
+  LOCALHOST_RE.test(o);
 
 const io = new Server(server, {
   cors: {
@@ -473,6 +481,9 @@ async function fetchSatelliteWeather(key = 'setif') {
 
       };
 
+    // Hook rain hold directly into the simulator
+    simulator.setRainHold(willRainSoon);
+
     }
 
   } catch (err) {
@@ -597,10 +608,49 @@ io.on('connection', (socket) => {
     simulator.setManualMode(false, 0);
 
     console.log('âœ… [SCADA TRIP RESET]: Operator cleared the safety lock.');
+    broadcastTelemetry();
+
+  });
+
+
+
+
+  // ðŸš¨ Public Emergency Stop (idempotent, no PIN required)
+  socket.on('client:emergency_stop', () => {
+
+    if (!isSafetyTripped) {
+
+      isSafetyTripped = true;
+
+      activeSafetyReason = 'OPERATOR EMERGENCY STOP';
+
+      simulator.setManualMode(true, 0);
+
+    }
 
     broadcastTelemetry();
 
   });
+
+
+
+
+  // ðŸ§ª Operator Fault Injection (requires auth)
+  socket.on('client:inject_fault', (type) => {
+
+    if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
+
+    if (['bearing', 'overheat', 'clear'].includes(type)) {
+
+      simulator.injectFault(type);
+
+      broadcastTelemetry();
+
+    }
+
+  });
+
+
 
 
 
