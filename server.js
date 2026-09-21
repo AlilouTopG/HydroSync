@@ -36,6 +36,8 @@ const app = express();
 
 const server = http.createServer(app);
 
+// Trust proxy for correct client IP extraction behind reverse proxies
+app.set('trust proxy', 1);
 
 
 app.disable('x-powered-by');
@@ -182,7 +184,12 @@ const io = new Server(server, {
 
 let serverStartTime = Date.now();
 
-const OPERATOR_PIN = process.env.OPERATOR_PIN || '8492';
+const OPERATOR_PIN_HASH = process.env.OPERATOR_PIN
+  ? crypto.createHash('sha256').update(process.env.OPERATOR_PIN).digest()
+  : (process.env.NODE_ENV === 'production'
+      ? (() => { throw new Error('OPERATOR_PIN must be set in production'); })()
+      : crypto.createHash('sha256').update('8492').digest()
+    );
 
 
 
@@ -202,22 +209,9 @@ let totalThreatsBlocked = 0;
 
 
 
-function safeCompare(a, b) {
-
-  const bufA = Buffer.from(String(a));
-
-  const bufB = Buffer.from(String(b));
-
-  if (bufA.length !== bufB.length) {
-
-    crypto.timingSafeEqual(bufA, bufA);
-
-    return false;
-
-  }
-
-  return crypto.timingSafeEqual(bufA, bufB);
-
+function safeCompare(submittedPin) {
+  const submittedHash = crypto.createHash('sha256').update(String(submittedPin)).digest();
+  return crypto.timingSafeEqual(submittedHash, OPERATOR_PIN_HASH);
 }
 
 
@@ -514,13 +508,20 @@ setInterval(() => fetchSatelliteWeather(activeLocationKey), 10 * 60 * 1000);
 
 io.on('connection', (socket) => {
 
-  const clientIp = socket.handshake.address || 'unknown';
+  const clientIp = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() || socket.handshake.address || 'unknown';
 
   clientFirewallState.set(socket.id, { tokens: 10, lastRefill: Date.now(), authorized: false });
 
 
 
   const initialState = simulator.getState();
+
+  // Build safety object matching broadcastTelemetry shape exactly to prevent nominal flash on late joins
+  const initialSafety = {
+    systemStatus: isSafetyTripped ? 'CRITICAL' : 'NORMAL',
+    alarms: isSafetyTripped ? [activeSafetyReason] : [],
+    tripped: isSafetyTripped
+  };
 
   socket.emit('telemetry', { 
 
@@ -530,9 +531,9 @@ io.on('connection', (socket) => {
 
     predictiveAI: latestAIPrediction,
 
-    isSafetyTripped,
+    safety: initialSafety,
 
-    activeSafetyReason
+    fft: latestVibrationFFT
 
   });
 
@@ -562,7 +563,7 @@ io.on('connection', (socket) => {
 
 
 
-    if (typeof submittedPin === 'string' && safeCompare(submittedPin.trim(), OPERATOR_PIN)) {
+    if (typeof submittedPin === 'string' && safeCompare(submittedPin.trim())) {
 
       failedAttemptsByIp.delete(clientIp);
 
@@ -604,7 +605,7 @@ io.on('connection', (socket) => {
 
     const client = clientFirewallState.get(socket.id);
 
-    const isAuthed = (client && client.authorized) || (typeof pin === 'string' && safeCompare(pin.trim(), OPERATOR_PIN));
+    const isAuthed = (client && client.authorized) || (typeof pin === 'string' && safeCompare(pin.trim()));
 
 
 

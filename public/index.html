@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -75,7 +75,7 @@
             <i class="fa-solid fa-shield-halved" id="safetyIcon"></i>
             <div>
               <strong id="safetyTitle">ALL SYSTEMS NOMINAL</strong>
-              <p id="safetyDesc">IEC 61508 Functional Safety Loops Active — No Hardware Faults.</p>
+              <p id="safetyDesc">IEC 61508-Inspired Interlocks Active — No Hardware Faults.</p>
             </div>
           </div>
           <div class="safety-metrics">
@@ -520,7 +520,7 @@
           <div class="chart-wrap" style="height: 320px;"><canvas id="zoneWaterChart"></canvas></div>
         </section>
         <section class="glass-card farm-focus-card">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Certified</span></div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Aligned</span></div>
           <div class="focus-grid">
             <div class="focus-item"><span>Baseline Traditional Volume</span><strong>18.0 L/min (Continuous Flood)</strong></div>
             <div class="focus-item"><span>Precision Dynamic Savings</span><strong id="esgTotalSavedLiters" class="highlight-cyan">142.5 Liters</strong></div>
@@ -538,7 +538,7 @@
       <div class="modal-head"><span><i class="fa-solid fa-user-shield"></i> SCADA Master Authorization</span><button class="icon-btn modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
       <p class="muted" style="margin-bottom: 12px; font-size: 13px;">Enter industrial operator passcode to unlock manual actuators, PID tuning, and system overrides.</p>
       <div class="field">
-        <label for="operatorPinInput">Operator PIN (Default: 8492)</label>
+        <label for="operatorPinInput">Operator PIN</label>
         <input type="password" id="operatorPinInput" placeholder="••••" maxlength="8" style="text-align: center; font-size: 20px; letter-spacing: 4px;" />
       </div>
       <p id="authErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-bottom: 10px;"><i class="fa-solid fa-circle-exclamation"></i> Invalid Passcode. Attempt logged.</p>
