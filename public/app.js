@@ -900,10 +900,10 @@
         );
 
         // Use Python Edge AI engine FFT (d.fft) as single source of truth
-        if (d.fft && d.fft.magnitude) {
-          HydroSyncCharts.updateFFTChart(
-            d.fft.magnitude
-          );
+        // Support both singular (magnitude) and plural (magnitudes) property names
+        var fftMag = d.fft && (d.fft.magnitudes || d.fft.magnitude);
+        if (fftMag) {
+          HydroSyncCharts.updateFFTChart(fftMag);
         }
       }
     }
@@ -1391,17 +1391,14 @@
 
     setText(
       "dashboardMpcDuty",
-      typeof d.autonomousMPC === "number"
-        ? Math.round(
-            Math.max(
-              0,
-              Math.min(
-                100,
-                d.autonomousMPC
-              )
-            )
-          ) + "%"
-        : "--%"
+      (function () {
+        var mpcVal = (d.autonomousMPC && typeof d.autonomousMPC.duty === 'number')
+          ? d.autonomousMPC.duty
+          : (typeof d.autonomousMPC === 'number' ? d.autonomousMPC : null);
+        return mpcVal === null
+          ? "--%"
+          : Math.round(Math.max(0, Math.min(100, mpcVal))) + "%";
+      })()
     );
 
     setText(
@@ -4764,12 +4761,7 @@
             socket &&
             socket.connected
           ) {
-            socket.emit(
-              "client:operator_reset",
-              {
-                pin: "8492"
-              }
-            );
+            socket.emit("client:operator_reset");
 
             socket.emit(
               "client:manual_override",
@@ -5232,8 +5224,8 @@
             "polling"
           ],
 
-          reconnectionAttempts:
-            10
+          reconnectionAttempts: Infinity,
+          reconnectionDelayMax: 5000
         });
     } catch (e) {
       return;

@@ -1,4 +1,4 @@
-/**
+﻿/**
 
  * server.js - HydroSync SCADA Server (Hardened Production Release)
 
@@ -150,34 +150,21 @@ app.get('/api/ai/diagnostics', async (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore', index: ['index.html'] }));
 
-app.use(express.static(path.join(__dirname), { dotfiles: 'ignore', index: ['index.html'] }));
+
 
 
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+const originOk = (o) => !o || !isProduction || ALLOWED_ORIGINS.has(o);
+
 const io = new Server(server, {
-
   cors: {
-
-    origin: (origin, callback) => {
-
-      if (!origin) return callback(null, true);
-
-      if (!isProduction || origin.includes('onrender.com') || origin.includes('vercel.app') || origin.includes('localhost')) {
-
-        return callback(null, true);
-
-      }
-
-      return callback(new Error('Blocked by SCADA CORS Policy'), false);
-
-    },
-
+    origin: (o, cb) => originOk(o) ? cb(null, true) : cb(new Error('Blocked by SCADA CORS Policy'), false),
     methods: ['GET', 'POST']
-
-  }
-
+  },
+  allowRequest: (req, cb) => cb(null, originOk(req.headers.origin))
 });
 
 
@@ -597,27 +584,9 @@ io.on('connection', (socket) => {
 
   // مسار إعادة الضبط الصناعي وفك القفل (Operator Trip Reset)
 
-  socket.on('client:operator_reset', (payload) => {
+  socket.on('client:operator_reset', () => {
 
-    if (!firewallValidate(socket, 2)) return;
-
-    const pin = (typeof payload === 'object' && payload.pin) ? payload.pin : payload;
-
-    const client = clientFirewallState.get(socket.id);
-
-    const isAuthed = (client && client.authorized) || (typeof pin === 'string' && safeCompare(pin.trim()));
-
-
-
-    if (!isAuthed) {
-
-      socket.emit('firewall:alert', { type: 'UNAUTHORIZED_ACCESS', msg: 'Operator PIN required to reset safety interlock.' });
-
-      return;
-
-    }
-
-
+    if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
 
     isSafetyTripped = false;
 
@@ -625,11 +594,9 @@ io.on('connection', (socket) => {
 
     resetSafetyState();
 
-    // إعادة المحاكي إلى الوضع التلقائي (Auto Closed-Loop) فوراً
-
     simulator.setManualMode(false, 0);
 
-    console.log(`✅ [SCADA TRIP RESET]: Operator successfully cleared the safety lock.`);
+    console.log('âœ… [SCADA TRIP RESET]: Operator cleared the safety lock.');
 
     broadcastTelemetry();
 
