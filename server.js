@@ -159,11 +159,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || 'https://hydrosync-0khc.onrender.com').split(',').map(s => s.trim()).filter(Boolean));
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
-const originOk = (o) =>
-  !o ||
-  !isProduction ||
-  ALLOWED_ORIGINS.has(o) ||
-  LOCALHOST_RE.test(o);
+const originOk = (o) => !o || (!isProduction && LOCALHOST_RE.test(o)) || ALLOWED_ORIGINS.has(o);
 
 const io = new Server(server, {
   cors: {
@@ -195,7 +191,11 @@ let activeSafetyReason = '';
 
 
 const AUTH_BUDGET = { fails: 0, resetAt: 0 };
-const authBudgetOk = () => { const t = Date.now(); if (t > AUTH_BUDGET.resetAt) { AUTH_BUDGET.fails = 0; AUTH_BUDGET.resetAt = t + 300000; } return AUTH_BUDGET.fails < 30; };
+const authBudgetOk = () => {
+  const t = Date.now();
+  if (t > AUTH_BUDGET.resetAt) { AUTH_BUDGET.fails = 0; AUTH_BUDGET.resetAt = t + 60000; }
+  return AUTH_BUDGET.fails < 60;
+};
 
 const clientFirewallState = new Map();
 
@@ -585,7 +585,7 @@ io.on('connection', (socket) => {
 
       if (lockData.count >= 5) {
 
-        lockData.lockedUntil = now + 15 * 60 * 1000;
+        lockData.lockedUntil = now + 2 * 60 * 1000;
 
       }
 

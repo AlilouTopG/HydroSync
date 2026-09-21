@@ -4,15 +4,17 @@ HydroSync Enterprise - Machine Learning & Signal Processing Engine
 Language: Python 3.10+
 
 Lead: AI / ML Engineer
-
 """
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 import numpy as np
 from scipy.fft import rfft, rfftfreq
 from scipy.signal import find_peaks
 import os
+import math
 
 
 DEBUG = False
@@ -22,6 +24,11 @@ latest_fft = {"frequencies_hz": [], "magnitudes": []}
 
 
 app = FastAPI(title="HydroSync AI Analytics Core")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(status_code=422, content={"detail": "Invalid vibration payload."})
 
 
 class TelemetryPayload(BaseModel):
@@ -42,6 +49,8 @@ class VibrationPayload(BaseModel):
             raise ValueError("vibrationWaveform must have at least 32 samples")
         if len(v) > 4096:
             raise ValueError("vibrationWaveform must not exceed 4096 samples")
+        if not all(math.isfinite(x) for x in v):
+            raise ValueError("vibrationWaveform must not contain NaN or Infinity")
         return v
 
 
@@ -154,14 +163,15 @@ def receive_vibration(data: VibrationPayload):
         spectral_centroid = 0.0
         spectral_bandwidth = 0.0
 
-    # Top FFT peaks
-    peak_indices = np.argsort(spectrum)[-5:][::-1]
+    # Real Peak Separation using find_peaks
+    peaks, _ = find_peaks(spectrum, distance=3)
+    top_peak_indices = peaks[:5]
     peaks = [
         {
-            "frequency_hz": round(float(frequencies[i]), 2),
-            "magnitude": round(float(spectrum[i]), 4),
+            "frequency_hz": round(float(frequencies[p]), 2),
+            "magnitude": round(float(spectrum[p]), 4),
         }
-        for i in peak_indices
+        for p in top_peak_indices
     ]
 
     if DEBUG:
