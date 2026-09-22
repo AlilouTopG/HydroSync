@@ -111,7 +111,7 @@ async function recordTelemetry(state, aiData = {}) {
       Number(state.tankVolumePct) || null,
       Number(state.pumpDuty) || 0,
       Number(state.flowRate) || 0,
-      Boolean(state.isRunning),
+      Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
 
       Number(asset.imbalanceLevel) || 0,
       Number(asset.bearingWearPct) || 0,

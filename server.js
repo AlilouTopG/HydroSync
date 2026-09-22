@@ -850,6 +850,7 @@ io.on('connection', (socket) => {
 
 const TELEMETRY_INTERVAL = 1000;
 let aiInFlight = false, aiLastOkAt = 0;
+let dbInFlight = false;
 let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
 let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
@@ -868,6 +869,23 @@ function postVibration(state) {
     .then(d => { latestVibrationFeatures = d.features; latestVibrationFFT = d.fft; aiLastOkAt = Date.now(); })
     .catch(() => {})
     .finally(() => { aiInFlight = false; });
+}
+
+function persistTelemetry(state) {
+  if (dbInFlight) return;
+
+  dbInFlight = true;
+
+  telemetryCollector.recordTelemetry(state, {
+    features: latestVibrationFeatures,
+    fft: latestVibrationFFT
+  })
+    .catch(err => {
+      if (DEBUG) console.error('[Historian] insert failed:', err.message);
+    })
+    .finally(() => {
+      dbInFlight = false;
+    });
 }
 
 function tick() {
@@ -889,14 +907,7 @@ function tick() {
   }
   mpcDuty = calculateIrrigationDuty(Number(state.vwc) || 20, Number(state.setpoint || state.target) || 55, Number(latestAIPrediction.maxRainProb12h) || 0);
   broadcastTelemetry();
-  telemetryCollector.recordTelemetry(state, {
-    features: latestVibrationFeatures,
-    fft: latestVibrationFFT
-  }).catch(err => {
-    if (DEBUG) {
-      console.error(`[DB] Telemetry insert failed: ${err.message}`);
-    }
-  });
+  persistTelemetry(state);
 }
 
 function broadcastTelemetry() {
