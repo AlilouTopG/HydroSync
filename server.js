@@ -22,6 +22,8 @@ const { Server } = require('socket.io');
 
 const simulator = require('./simulator');
 
+const telemetryCollector = require('./database/telemetryCollector');
+
 const DEBUG = false;
 
 
@@ -887,6 +889,14 @@ function tick() {
   }
   mpcDuty = calculateIrrigationDuty(Number(state.vwc) || 20, Number(state.setpoint || state.target) || 55, Number(latestAIPrediction.maxRainProb12h) || 0);
   broadcastTelemetry();
+  telemetryCollector.recordTelemetry(state, {
+    features: latestVibrationFeatures,
+    fft: latestVibrationFFT
+  }).catch(err => {
+    if (DEBUG) {
+      console.error(`[DB] Telemetry insert failed: ${err.message}`);
+    }
+  });
 }
 
 function broadcastTelemetry() {
@@ -901,21 +911,60 @@ function broadcastTelemetry() {
     autonomousMPC: mpcDuty
   });
 }
-setInterval(tick, TELEMETRY_INTERVAL);
+const telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
+let isShuttingDown = false;
+
+async function gracefulShutdown() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  let shutdownError = null;
+  clearInterval(telemetryInterval);
+
+  try {
+    await telemetryCollector.endExperiment();
+    await new Promise((resolve, reject) => {
+      io.close((err) => err ? reject(err) : resolve());
+    });
+  } catch (err) {
+    shutdownError = err;
+  }
+
+  server.close((err) => {
+    if (err && err.code !== 'ERR_SERVER_NOT_RUNNING' && !shutdownError) {
+      shutdownError = err;
+    }
+
+    if (shutdownError) {
+      console.error(`[SHUTDOWN] Failed to shut down cleanly: ${shutdownError.message}`);
+      process.exit(1);
+    }
+
+    console.log('HydroSync server shut down cleanly.');
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+
+server.listen(PORT, async () => {
+
+  try {
+    await telemetryCollector.startExperiment();
+    console.log(`🗄️ TimescaleDB telemetry collection [ONLINE]`);
+  } catch (err) {
+    console.error(`[DB] Failed to start telemetry experiment: ${err.message}`);
+  }
 
   console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
-
   console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting`);
-
   console.log(`⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]`);
-
   console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
-
   console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
 
-}); 
+});
 

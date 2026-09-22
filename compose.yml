@@ -1,0 +1,17 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg17
+    container_name: hydrosync-timescaledb
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: hydrosync
+      POSTGRES_PASSWORD: hydrosync_dev_password
+      POSTGRES_DB: hydrosync
+    volumes:
+      - hydrosync-timescaledb-data:/var/lib/postgresql/data
+
+volumes:
+  hydrosync-timescaledb-data:
+    external: true
