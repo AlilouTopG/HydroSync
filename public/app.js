@@ -119,6 +119,7 @@
   var vibLabels = [];
   var vibSeries = [];
   var lastWaveformData = null;
+  var lastFftData = null;
 
   var CROP_PROFILES = {
     "Wheat": { setpoint: 48.0, kp: 2.2, ki: 0.08, kd: 0.4 },
@@ -131,6 +132,49 @@
 
   function $(id) {
     return document.getElementById(id);
+  }
+
+  function pythonFftPayload(source) {
+    if (!source || typeof source !== "object") return null;
+    var fft = source.fft;
+    if (
+      fft &&
+      Array.isArray(fft.magnitudes) &&
+      fft.magnitudes.length > 0
+    ) {
+      return fft;
+    }
+    return null;
+  }
+
+  function setFftSourceLabel(fromPython) {
+    var el = $("fftSourcePill");
+    if (!el) return;
+    el.innerHTML = fromPython
+      ? '<span class="pulse-dot sm"></span> PYTHON FFT'
+      : '<span class="pulse-dot sm"></span> LOCAL FFT FALLBACK';
+  }
+
+  function updateDspCharts(waveform, fftPayload) {
+    if (!window.HydroSyncCharts) return;
+    if (waveform) {
+      HydroSyncCharts.updateWaveformChart(waveform);
+    }
+    var pythonFft = pythonFftPayload({ fft: fftPayload });
+    if (pythonFft) {
+      HydroSyncCharts.updateFFTChart(
+        pythonFft.magnitudes,
+        pythonFft.frequencies_hz
+      );
+      setFftSourceLabel(true);
+      return;
+    }
+    if (waveform) {
+      HydroSyncCharts.updateFFTChart(
+        HydroSyncCharts.computeFFT(waveform)
+      );
+      setFftSourceLabel(false);
+    }
   }
 
   /* ---------- Audio Synthesizer ---------- */
@@ -882,6 +926,8 @@
         ? d.assetHealth.vibrationWaveform
         : d.vibrationWaveform;
 
+    lastFftData = pythonFftPayload(d);
+
     if (waveformSource) {
       lastWaveformData = waveformSource;
 
@@ -895,15 +941,10 @@
         window.HydroSyncCharts &&
         isHealthVisible
       ) {
-        HydroSyncCharts.updateWaveformChart(
-          waveformSource
+        updateDspCharts(
+          waveformSource,
+          lastFftData
         );
-
-        // Use Python Edge AI engine FFT (d.fft) as single source of truth
-        // Support both singular (magnitude) and plural (magnitudes) property names
-        var fftMag = d.fft && (d.fft.magnitudes || d.fft.magnitude);
-        if (!fftMag) fftMag = HydroSyncCharts.computeFFT(waveformSource);
-        HydroSyncCharts.updateFFTChart(fftMag);
       }
     }
 
@@ -1479,9 +1520,17 @@
       }
 
       if (msg) {
+        var hasPythonFft =
+          pythonFftPayload(data) ||
+          pythonFftPayload(data.vibration);
+
         msg.textContent =
           online
-            ? "Python diagnostic gateway connected."
+            ? (
+                hasPythonFft
+                  ? "Python FFT engine connected. Streaming spectral diagnostics."
+                  : "Python diagnostic gateway connected."
+              )
             : (
                 data.msg ||
                 "Local safety baseline active."
@@ -2726,14 +2775,9 @@
             if (
               lastWaveformData
             ) {
-              HydroSyncCharts.updateWaveformChart(
-                lastWaveformData
-              );
-
-              HydroSyncCharts.updateFFTChart(
-                HydroSyncCharts.computeFFT(
-                  lastWaveformData
-                )
+              updateDspCharts(
+                lastWaveformData,
+                lastFftData
               );
             }
           }
