@@ -69,6 +69,7 @@ let state = {
     vibrationIsoZone: 'ZONE_A',
     cavitationIndex: 2.1,
     bearingWearPct: 4.8,
+    imbalanceLevel: 0.0,  // 0-100%, time-invariant rotor mass unbalance
     operatingHoursTotal: 1420.4,
     rulHours: 6580,
     recommendedAction: 'NOMINAL_OPERATION',
@@ -132,7 +133,7 @@ let disturbanceDuration = 0;
  *  DSP TIME-SERIES VIBRATION SYNTHESIZER (ISO 10816 + FFT HARMONICS)
  * ========================================================================== */
 
-function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavitation) {
+function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavitation, imbalanceLevel) {
   if (!isRunning || targetRms < 0.05) {
     const idleSamples = new Array(WAVEFORM_SAMPLES);
     for (let i = 0; i < WAVEFORM_SAMPLES; i++) {
@@ -160,6 +161,14 @@ function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavit
       const impact = Math.sin(2 * Math.PI * fBearing * t);
       s += (bearingSeverity * 2.2) * impact * (1.0 + 0.5 * Math.sin(2 * Math.PI * f0 * t));
     }
+
+        // IMBALANCE: elevated 1x and 2x synchronous frequencies (time-invariant)
+    if (imbalanceLevel > 0) {
+      const imbalanceFactor = imbalanceLevel / 100.0;
+      s += (imbalanceFactor * 3.5) * Math.sin(2 * Math.PI * f0 * t);      // 1x elevation
+      s += (imbalanceFactor * 1.8) * Math.sin(2 * Math.PI * (2 * f0) * t); // 2x elevation
+    }
+
 
     if (cavitationFactor > 0.0) {
       s += (cavitationFactor * 2.5) * (Math.random() - 0.5);
@@ -308,7 +317,8 @@ function updatePredictiveMaintenanceModel() {
     isRunning,
     state.effectivePwm,
     ah.bearingWearPct,
-    ah.cavitationIndex
+    ah.cavitationIndex,
+    ah.imbalanceLevel
   );
   ah.vibrationWaveform = dspWave.samples;
   ah.dominantFrequencyHz = dspWave.dominantFreq;
@@ -615,6 +625,12 @@ function injectFault(t) {
   }
 }
 
+function setImbalanceLevel(level) {
+  state.assetHealth.imbalanceLevel = Math.max(0, Math.min(100, Number(level)));
+}
+
+
+
 module.exports = {
   getState,
   pidLoop,
@@ -629,5 +645,6 @@ module.exports = {
   servicePumpAsset,
   getAuditHistory,
   setRainHold,
-  injectFault
+  injectFault,
+  setImbalanceLevel  // ← NEW
 };
