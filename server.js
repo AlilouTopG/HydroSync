@@ -110,7 +110,9 @@ app.get('/api/export-audit.csv', (req, res) => {
 
 // 3. Python AI Engine Bridge Endpoint (مجهز لعبد الحق وسيرين)
 
-const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
+// 127.0.0.1, not localhost: uvicorn binds 0.0.0.0 (IPv4 only), while localhost
+// also resolves to ::1, so a share of the requests hit IPv6 and are refused.
+const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://127.0.0.1:8000';
 
 let latestVibrationFeatures = null;
 
