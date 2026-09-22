@@ -1,4 +1,4 @@
-﻿/**
+/**
 
  * server.js - HydroSync SCADA Server (Hardened Production Release)
 
@@ -116,17 +116,91 @@ let latestVibrationFeatures = null;
 
 let latestVibrationFFT = null;
 
+let pythonBridgeOfflineLogged = false;
+
+function isUsableFft(fft) {
+
+  return Boolean(
+
+    fft &&
+
+    Array.isArray(fft.magnitudes) &&
+
+    fft.magnitudes.length > 0 &&
+
+    Array.isArray(fft.frequencies_hz)
+
+  );
+
+}
+
+function cachePythonVibration(data) {
+
+  if (!data || typeof data !== 'object') return;
+
+  if (data.features) latestVibrationFeatures = data.features;
+
+  if (isUsableFft(data.fft)) latestVibrationFFT = data.fft;
+
+}
+
 app.get('/api/ai/diagnostics', async (req, res) => {
 
   try {
 
-    const response = await fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) });
+    const [diagRes, vibRes] = await Promise.all([
 
-    if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
+      fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) }),
 
-    const data = await response.json();
+      fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(3000) }).catch(() => null)
 
-    res.json({ status: 'ONLINE', engine: 'Python-FastAPI', diagnostics: data });
+    ]);
+
+    if (!diagRes.ok) throw new Error(`AI Engine status: ${diagRes.status}`);
+
+    const diagnostics = await diagRes.json();
+
+    let vibration = null;
+
+    if (vibRes && vibRes.ok) {
+
+      vibration = await vibRes.json();
+
+      cachePythonVibration(vibration);
+
+    }
+
+    const fftPayload = isUsableFft(vibration && vibration.fft)
+
+      ? vibration.fft
+
+      : latestVibrationFFT;
+
+    const diagnosticsOut = {
+
+      ...(diagnostics && typeof diagnostics === 'object' ? diagnostics : {}),
+
+      fft: fftPayload,
+
+      features: latestVibrationFeatures
+
+    };
+
+    res.json({
+
+      status: 'ONLINE',
+
+      engine: 'Python-FastAPI',
+
+      diagnostics: diagnosticsOut,
+
+      vibration,
+
+      fft: fftPayload,
+
+      features: latestVibrationFeatures
+
+    });
 
   } catch (err) {
 
@@ -136,7 +210,69 @@ app.get('/api/ai/diagnostics', async (req, res) => {
 
       engine: 'Node-ISO10816-Baseline',
 
+      diagnostics: {
+
+        fft: latestVibrationFFT,
+
+        features: latestVibrationFeatures
+
+      },
+
+      fft: latestVibrationFFT,
+
+      features: latestVibrationFeatures,
+
       msg: 'Python AI Engine in ai_engine/ is currently offline. Operating on local safety interlocks.'
+
+    });
+
+  }
+
+});
+
+
+
+app.get('/api/ai/vibration', async (req, res) => {
+
+  try {
+
+    const response = await fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(3000) });
+
+    if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
+
+    const data = await response.json();
+
+    cachePythonVibration(data);
+
+    res.json({
+
+      status: 'ONLINE',
+
+      engine: 'Python-FastAPI',
+
+      waveform: data.waveform,
+
+      fft: data.fft,
+
+      features: latestVibrationFeatures
+
+    });
+
+  } catch (err) {
+
+    res.json({
+
+      status: 'FALLBACK',
+
+      engine: 'Node-ISO10816-Baseline',
+
+      waveform: null,
+
+      fft: latestVibrationFFT,
+
+      features: latestVibrationFeatures,
+
+      msg: 'Python AI Engine is currently offline. Serving last cached FFT if available.'
 
     });
 
@@ -846,19 +982,29 @@ let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
 let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
 function postVibration(state) {
-  if (aiInFlight || !Array.isArray(state.vibrationWaveform) || !state.vibrationWaveform.length) return;
+  const waveform = (state.assetHealth && state.assetHealth.vibrationWaveform) || state.vibrationWaveform;
+  if (aiInFlight || !Array.isArray(waveform) || !waveform.length) return;
   aiInFlight = true;
   fetch(AI_ENGINE_URL + '/vibration', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(800),
     body: JSON.stringify({
-      vibrationWaveform: state.vibrationWaveform,
-      samplingRateHz: state.samplingRateHz || 1000,
-      bufferSize: state.bufferSize || state.vibrationWaveform.length
+      vibrationWaveform: waveform,
+      samplingRateHz: (state.assetHealth && state.assetHealth.samplingRateHz) || 1000,
+      bufferSize: (state.assetHealth && state.assetHealth.bufferSize) || waveform.length
     })
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(d => { latestVibrationFeatures = d.features; latestVibrationFFT = d.fft; aiLastOkAt = Date.now(); })
-    .catch(() => {})
+    .then(d => {
+      cachePythonVibration(d);
+      aiLastOkAt = Date.now();
+      pythonBridgeOfflineLogged = false;
+    })
+    .catch(() => {
+      if (!pythonBridgeOfflineLogged) {
+        pythonBridgeOfflineLogged = true;
+        console.warn(`⚠️ Python AI Engine unreachable at ${AI_ENGINE_URL}/vibration — FFT charts will use local fallback until it comes online.`);
+      }
+    })
     .finally(() => { aiInFlight = false; });
 }
 
@@ -909,6 +1055,8 @@ server.listen(PORT, () => {
   console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
 
   console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
+
+  console.log(`🔗 Python Vibration FFT Proxy Ready at /api/ai/vibration`);
 
 }); 
 
