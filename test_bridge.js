@@ -1,16 +1,34 @@
 /**
- * HydroSync Node ↔ Python AI bridge check.
- * Calls GET /api/ai/diagnostics and reports ONLINE FFT vs FALLBACK.
+ * HydroSync Node <-> Python AI bridge check.
+ *
+ * Validates the SCADA gateway in whichever state it is in:
+ *   - ONLINE   : Python engine reachable, full FFT contract is asserted.
+ *   - FALLBACK : Python engine down, Node must degrade gracefully so the
+ *                dashboard can switch to its local FFT ("LOCAL FFT FALLBACK").
  *
  * Usage: npm test
- * Requires: Node SCADA on :3000 (and Python engine on :8000 for ONLINE).
+ * Requires: Node SCADA on :3000. Start the Python engine on :8000 to exercise
+ * the ONLINE path; stop it and re-run to exercise the FALLBACK path.
  */
 
 const http = require('http');
 
-const DIAGNOSTICS_URL =
-  process.env.HYDROSYNC_DIAGNOSTICS_URL ||
-  'http://localhost:3000/api/ai/diagnostics';
+const BASE_URL = process.env.HYDROSYNC_BASE_URL || 'http://localhost:3000';
+const DIAGNOSTICS_URL = BASE_URL + '/api/ai/diagnostics';
+const VIBRATION_URL = BASE_URL + '/api/ai/vibration';
+
+let passed = 0;
+const failures = [];
+
+function check(label, condition, detail) {
+  if (condition) {
+    passed++;
+    console.log('   PASS  ' + label);
+  } else {
+    failures.push(label + (detail ? ' -> ' + detail : ''));
+    console.log('   FAIL  ' + label + (detail ? ' -> ' + detail : ''));
+  }
+}
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
@@ -22,18 +40,17 @@ function fetchJson(url) {
       });
       res.on('end', () => {
         if (!raw || !String(raw).trim()) {
-          reject(new Error('Empty response body (not valid JSON).'));
+          reject(new Error('Empty response body from ' + url));
           return;
         }
         try {
-          resolve({
-            statusCode: res.statusCode,
-            data: JSON.parse(raw)
-          });
+          resolve({ statusCode: res.statusCode, data: JSON.parse(raw) });
         } catch (err) {
           reject(
             new Error(
-              'Response is not valid JSON: ' +
+              'Response from ' +
+                url +
+                ' is not valid JSON: ' +
                 String(raw).slice(0, 180).replace(/\s+/g, ' ')
             )
           );
@@ -45,9 +62,7 @@ function fetchJson(url) {
       req.destroy();
       reject(
         new Error(
-          'Timed out reaching ' +
-            url +
-            '. Is `node server.js` running on port 3000?'
+          'Timed out reaching ' + url + '. Is the SCADA server running (npm start)?'
         )
       );
     });
@@ -66,69 +81,132 @@ function fetchJson(url) {
   });
 }
 
-function fftFromDiagnostics(data) {
-  if (!data || typeof data !== 'object') return null;
-  if (data.diagnostics && data.diagnostics.fft) return data.diagnostics.fft;
-  if (data.fft) return data.fft;
-  if (data.vibration && data.vibration.fft) return data.vibration.fft;
-  return null;
-}
-
-async function main() {
-  console.log('🔗 HydroSync bridge test → ' + DIAGNOSTICS_URL);
-
-  const { statusCode, data } = await fetchJson(DIAGNOSTICS_URL);
-
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-    throw new Error('JSON parsed, but the payload is not an object.');
-  }
-
-  console.log('   HTTP ' + statusCode);
-  console.log('   status: ' + data.status);
-  console.log('   engine: ' + (data.engine || '(none)'));
-
-  if (data.status === 'FALLBACK') {
-    console.log('⚠️  FALLBACK — Python AI Engine is offline or unreachable.');
-    if (data.msg) console.log('   ' + data.msg);
-    console.log(
-      '   Start it with: python ai_engine/main.py  (FastAPI must listen on :8000)'
-    );
-    console.log(
-      '✅ Bridge test passed (Node responded; fallback handled gracefully).'
-    );
-    return;
-  }
-
-  if (data.status !== 'ONLINE') {
-    throw new Error(
-      'Unexpected diagnostics status "' +
-        data.status +
-        '". Expected ONLINE or FALLBACK.'
-    );
-  }
-
-  const fft = fftFromDiagnostics(data);
-  const magnitudes = fft && fft.magnitudes;
-
-  if (!Array.isArray(magnitudes) || magnitudes.length === 0) {
-    throw new Error(
-      'ONLINE but diagnostics.fft.magnitudes is missing or empty. ' +
-        'Python /diagnostics is up, but no FFT spectrum has been produced yet. ' +
-        'Confirm POST /vibration is reaching ai_engine (leave the SCADA running ~2s, then re-run npm test).'
-    );
-  }
-
-  const freq = fft.frequencies_hz;
-  console.log(
-    '✅ ONLINE — Python FFT spectrum received (' +
-      magnitudes.length +
-      ' bins' +
-      (Array.isArray(freq) ? ', ' + freq.length + ' frequencies' : '') +
-      ').'
+function isFiniteNumberArray(value) {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((n) => typeof n === 'number' && Number.isFinite(n))
   );
 }
 
+/**
+ * The frontend reads d.fft.magnitudes (plural). A previous regression shipped
+ * d.fft.magnitude (singular), which silently froze the spectrum chart, so the
+ * singular spelling is asserted against explicitly rather than tolerated.
+ */
+function assertFftContract(source, fft) {
+  check(source + ': fft object present', !!fft && typeof fft === 'object');
+  if (!fft || typeof fft !== 'object') return;
+
+  check(
+    source + ': fft.magnitudes is a non-empty numeric array',
+    isFiniteNumberArray(fft.magnitudes),
+    'got ' + JSON.stringify(fft.magnitudes && fft.magnitudes.slice && fft.magnitudes.slice(0, 3))
+  );
+
+  check(
+    source + ': fft.frequencies_hz is a non-empty numeric array',
+    isFiniteNumberArray(fft.frequencies_hz),
+    'got ' + JSON.stringify(fft.frequencies_hz && fft.frequencies_hz.slice && fft.frequencies_hz.slice(0, 3))
+  );
+
+  if (Array.isArray(fft.magnitudes) && Array.isArray(fft.frequencies_hz)) {
+    check(
+      source + ': magnitudes and frequencies_hz have equal length',
+      fft.magnitudes.length === fft.frequencies_hz.length,
+      fft.magnitudes.length + ' vs ' + fft.frequencies_hz.length
+    );
+  }
+
+  check(
+    source + ': no singular fft.magnitude (regression guard)',
+    fft.magnitude === undefined,
+    'singular "magnitude" key is present - the chart hook expects "magnitudes"'
+  );
+}
+
+async function main() {
+  console.log('HydroSync Node <-> Python bridge test');
+  console.log('base: ' + BASE_URL);
+  console.log('');
+
+  const diag = await fetchJson(DIAGNOSTICS_URL);
+  console.log('GET /api/ai/diagnostics  HTTP ' + diag.statusCode);
+
+  const data = diag.data;
+  check(
+    'diagnostics: payload is an object',
+    data && typeof data === 'object' && !Array.isArray(data)
+  );
+  check(
+    'diagnostics: status is ONLINE or FALLBACK',
+    data.status === 'ONLINE' || data.status === 'FALLBACK',
+    'got ' + JSON.stringify(data.status)
+  );
+
+  const online = data.status === 'ONLINE';
+  console.log('   mode: ' + data.status + '  engine: ' + (data.engine || '(none)'));
+  console.log('');
+
+  const vib = await fetchJson(VIBRATION_URL);
+  console.log('GET /api/ai/vibration    HTTP ' + vib.statusCode);
+  check(
+    'vibration: status matches diagnostics mode',
+    vib.data.status === data.status,
+    vib.data.status + ' vs ' + data.status
+  );
+
+  if (online) {
+    assertFftContract('diagnostics', data.fft);
+    assertFftContract('vibration', vib.data.fft);
+
+    const waveform = vib.data.waveform;
+    check(
+      'vibration: waveform is a non-empty numeric array',
+      isFiniteNumberArray(waveform),
+      'got ' + (Array.isArray(waveform) ? waveform.length + ' samples' : typeof waveform)
+    );
+
+    if (isFiniteNumberArray(waveform) && Array.isArray(vib.data.fft && vib.data.fft.magnitudes)) {
+      const expectedBins = Math.floor(waveform.length / 2) + 1;
+      check(
+        'vibration: bin count matches rFFT of waveform length',
+        vib.data.fft.magnitudes.length === expectedBins,
+        vib.data.fft.magnitudes.length + ' bins for ' + waveform.length + ' samples (expected ' + expectedBins + ')'
+      );
+    }
+
+    check(
+      'vibration: ISO 10816 features present',
+      !!vib.data.features && typeof vib.data.features.vibration_rms === 'number',
+      'features.vibration_rms missing or not numeric'
+    );
+  } else {
+    console.log('   Python engine is offline - asserting graceful degradation.');
+    check(
+      'fallback: explanatory msg returned to the operator',
+      typeof data.msg === 'string' && data.msg.length > 0
+    );
+    check(
+      'fallback: engine label identifies the Node baseline',
+      typeof data.engine === 'string' && data.engine.length > 0,
+      'got ' + JSON.stringify(data.engine)
+    );
+    console.log('');
+    console.log('   The dashboard should now show "LOCAL FFT FALLBACK".');
+    console.log('   Start the engine with: python ai_engine/main.py   (FastAPI on :8000)');
+  }
+
+  console.log('');
+  if (failures.length > 0) {
+    console.log(failures.length + ' check(s) failed, ' + passed + ' passed.');
+    process.exit(1);
+  }
+  console.log('All ' + passed + ' checks passed (' + data.status + ' mode).');
+}
+
 main().catch((err) => {
-  console.error('❌ Bridge test failed: ' + err.message);
+  console.error('');
+  console.error('Bridge test failed: ' + err.message);
   process.exit(1);
 });

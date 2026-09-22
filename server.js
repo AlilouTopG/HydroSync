@@ -659,9 +659,11 @@ io.on('connection', (socket) => {
     tripped: isSafetyTripped
   };
 
-  socket.emit('telemetry', { 
+  const initialAi = aiEngineStatus();
 
-    ...initialState, 
+  socket.emit('telemetry', {
+
+    ...initialState,
 
     threatsBlocked: totalThreatsBlocked,
 
@@ -669,7 +671,9 @@ io.on('connection', (socket) => {
 
     safety: initialSafety,
 
-    fft: latestVibrationFFT
+    fft: initialAi.online ? latestVibrationFFT : null,
+
+    aiEngine: initialAi
 
   });
 
@@ -976,6 +980,16 @@ io.on('connection', (socket) => {
 
 const TELEMETRY_INTERVAL = 1000;
 let aiInFlight = false, aiLastOkAt = 0;
+const AI_FRESHNESS_MS = 3000;
+
+// Shared by the connection snapshot and the 1Hz broadcast so a late joiner never
+// sees a stale Python spectrum flash before the first periodic frame corrects it.
+function aiEngineStatus(now = Date.now()) {
+  return {
+    online: now - aiLastOkAt < AI_FRESHNESS_MS,
+    ageMs: aiLastOkAt ? now - aiLastOkAt : null
+  };
+}
 let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
 let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
@@ -1028,13 +1042,13 @@ function tick() {
 }
 
 function broadcastTelemetry() {
-  const state = simulator.getState(), now = Date.now(), aiFresh = now - aiLastOkAt < 3000;
+  const state = simulator.getState(), now = Date.now(), ai = aiEngineStatus(now);
   const up = Math.floor((now - serverStartTime) / 1000);
   io.emit('telemetry', {
     ...state, uptimeSeconds: up, uptimeMinutes: Math.floor(up / 60), uptimeSecs: up % 60,
     threatsBlocked: totalThreatsBlocked, predictiveAI: latestAIPrediction,
-    fft: aiFresh ? latestVibrationFFT : null,
-    aiEngine: { online: aiFresh, ageMs: aiLastOkAt ? now - aiLastOkAt : null },
+    fft: ai.online ? latestVibrationFFT : null,
+    aiEngine: ai,
     safety: { systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus, alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms, tripped: isSafetyTripped },
     autonomousMPC: mpcDuty
   });
