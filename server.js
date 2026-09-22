@@ -114,6 +114,13 @@ app.get('/api/export-audit.csv', (req, res) => {
 // also resolves to ::1, so a share of the requests hit IPv6 and are refused.
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://127.0.0.1:8000';
 
+// The engine computes an FFT in ~50ms, but the round trip measured on WSL2 sits
+// around 3s because of connection overhead. The timeout has to clear that, and
+// the freshness window has to clear the timeout, otherwise a healthy engine that
+// answers slowly gets reported as offline and the UI badge flickers.
+const AI_REQUEST_TIMEOUT_MS = 4000;
+const AI_FRESHNESS_MS = 8000;
+
 let latestVibrationFeatures = null;
 
 let latestVibrationFFT = null;
@@ -152,9 +159,9 @@ app.get('/api/ai/diagnostics', async (req, res) => {
 
     const [diagRes, vibRes] = await Promise.all([
 
-      fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) }),
+      fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) }),
 
-      fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(3000) }).catch(() => null)
+      fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) }).catch(() => null)
 
     ]);
 
@@ -238,7 +245,7 @@ app.get('/api/ai/vibration', async (req, res) => {
 
   try {
 
-    const response = await fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) });
 
     if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
 
@@ -990,8 +997,6 @@ io.on('connection', (socket) => {
 
 const TELEMETRY_INTERVAL = 1000;
 let aiInFlight = false, aiLastOkAt = 0;
-const AI_FRESHNESS_MS = 3000;
-
 // Shared by the connection snapshot and the 1Hz broadcast so a late joiner never
 // sees a stale Python spectrum flash before the first periodic frame corrects it.
 function aiEngineStatus(now = Date.now()) {
@@ -1008,7 +1013,7 @@ function postVibration(state) {
   if (aiInFlight || !Array.isArray(waveform) || !waveform.length) return;
   aiInFlight = true;
   fetch(AI_ENGINE_URL + '/vibration', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(800),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     body: JSON.stringify({
       vibrationWaveform: waveform,
       samplingRateHz: (state.assetHealth && state.assetHealth.samplingRateHz) || 1000,
@@ -1021,10 +1026,11 @@ function postVibration(state) {
       aiLastOkAt = Date.now();
       pythonBridgeOfflineLogged = false;
     })
-    .catch(() => {
+    .catch((err) => {
+      const reason = (err && (err.cause && err.cause.code)) || (err && err.name) || 'unknown';
       if (!pythonBridgeOfflineLogged) {
         pythonBridgeOfflineLogged = true;
-        console.warn(`⚠️ Python AI Engine unreachable at ${AI_ENGINE_URL}/vibration — FFT charts will use local fallback until it comes online.`);
+        console.warn(`⚠️ Python AI Engine unreachable at ${AI_ENGINE_URL}/vibration [${reason}] — FFT charts will use local fallback until it comes online.`);
       }
     })
     .finally(() => { aiInFlight = false; });
