@@ -280,6 +280,9 @@ function updatePredictiveMaintenanceModel() {
   baseVib += state.faultBias.vibMms;
   if (isRunning) {
     baseVib += (dutyFraction * 1.45);
+    if (ah.imbalanceLevel > 0) {
+      baseVib += (ah.imbalanceLevel / 100.0) * (1.5 + dutyFraction * 3.5);
+    }
     if (state.motorTemp > 75.0) {
       baseVib += ((state.motorTemp - 75.0) / 10.0) * 0.85;
     }

@@ -656,7 +656,7 @@ io.on('connection', (socket) => {
 
     // ⚖️ Operator Imbalance Control (requires auth)
   socket.on('client:set_imbalance', (level) => {
-    if (!firewallValidate(socket, 1)) return;
+    if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
     const normalizedLevel = Math.max(0, Math.min(100, Number(level)));
     simulator.setImbalanceLevel(normalizedLevel);
     broadcastTelemetry();
