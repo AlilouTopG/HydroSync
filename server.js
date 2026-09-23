@@ -112,23 +112,106 @@ app.get('/api/export-audit.csv', (req, res) => {
 
 // 3. Python AI Engine Bridge Endpoint (مجهز لعبد الحق وسيرين)
 
-const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
+// 127.0.0.1, not localhost: uvicorn binds 0.0.0.0 (IPv4 only), while localhost
+// also resolves to ::1, so a share of the requests hit IPv6 and are refused.
+const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://127.0.0.1:8000';
+
+// The engine computes an FFT in ~50ms, but the round trip measured on WSL2 sits
+// around 3s because of connection overhead. The timeout has to clear that, and
+// the freshness window has to clear the timeout, otherwise a healthy engine that
+// answers slowly gets reported as offline and the UI badge flickers.
+const AI_REQUEST_TIMEOUT_MS = 4000;
+const AI_FRESHNESS_MS = 8000;
 
 let latestVibrationFeatures = null;
 
 let latestVibrationFFT = null;
 
+let pythonBridgeOfflineLogged = false;
+
+function isUsableFft(fft) {
+
+  return Boolean(
+
+    fft &&
+
+    Array.isArray(fft.magnitudes) &&
+
+    fft.magnitudes.length > 0 &&
+
+    Array.isArray(fft.frequencies_hz)
+
+  );
+
+}
+
+function cachePythonVibration(data) {
+
+  if (!data || typeof data !== 'object') return;
+
+  if (data.features) latestVibrationFeatures = data.features;
+
+  if (isUsableFft(data.fft)) latestVibrationFFT = data.fft;
+
+}
+
 app.get('/api/ai/diagnostics', async (req, res) => {
 
   try {
 
-    const response = await fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(3000) });
+    const [diagRes, vibRes] = await Promise.all([
 
-    if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
+      fetch(`${AI_ENGINE_URL}/diagnostics`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) }),
 
-    const data = await response.json();
+      fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) }).catch(() => null)
 
-    res.json({ status: 'ONLINE', engine: 'Python-FastAPI', diagnostics: data });
+    ]);
+
+    if (!diagRes.ok) throw new Error(`AI Engine status: ${diagRes.status}`);
+
+    const diagnostics = await diagRes.json();
+
+    let vibration = null;
+
+    if (vibRes && vibRes.ok) {
+
+      vibration = await vibRes.json();
+
+      cachePythonVibration(vibration);
+
+    }
+
+    const fftPayload = isUsableFft(vibration && vibration.fft)
+
+      ? vibration.fft
+
+      : latestVibrationFFT;
+
+    const diagnosticsOut = {
+
+      ...(diagnostics && typeof diagnostics === 'object' ? diagnostics : {}),
+
+      fft: fftPayload,
+
+      features: latestVibrationFeatures
+
+    };
+
+    res.json({
+
+      status: 'ONLINE',
+
+      engine: 'Python-FastAPI',
+
+      diagnostics: diagnosticsOut,
+
+      vibration,
+
+      fft: fftPayload,
+
+      features: latestVibrationFeatures
+
+    });
 
   } catch (err) {
 
@@ -138,7 +221,69 @@ app.get('/api/ai/diagnostics', async (req, res) => {
 
       engine: 'Node-ISO10816-Baseline',
 
+      diagnostics: {
+
+        fft: latestVibrationFFT,
+
+        features: latestVibrationFeatures
+
+      },
+
+      fft: latestVibrationFFT,
+
+      features: latestVibrationFeatures,
+
       msg: 'Python AI Engine in ai_engine/ is currently offline. Operating on local safety interlocks.'
+
+    });
+
+  }
+
+});
+
+
+
+app.get('/api/ai/vibration', async (req, res) => {
+
+  try {
+
+    const response = await fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) });
+
+    if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
+
+    const data = await response.json();
+
+    cachePythonVibration(data);
+
+    res.json({
+
+      status: 'ONLINE',
+
+      engine: 'Python-FastAPI',
+
+      waveform: data.waveform,
+
+      fft: data.fft,
+
+      features: latestVibrationFeatures
+
+    });
+
+  } catch (err) {
+
+    res.json({
+
+      status: 'FALLBACK',
+
+      engine: 'Node-ISO10816-Baseline',
+
+      waveform: null,
+
+      fft: latestVibrationFFT,
+
+      features: latestVibrationFeatures,
+
+      msg: 'Python AI Engine is currently offline. Serving last cached FFT if available.'
 
     });
 
@@ -525,9 +670,11 @@ io.on('connection', (socket) => {
     tripped: isSafetyTripped
   };
 
-  socket.emit('telemetry', { 
+  const initialAi = aiEngineStatus();
 
-    ...initialState, 
+  socket.emit('telemetry', {
+
+    ...initialState,
 
     threatsBlocked: totalThreatsBlocked,
 
@@ -535,7 +682,9 @@ io.on('connection', (socket) => {
 
     safety: initialSafety,
 
-    fft: latestVibrationFFT
+    fft: initialAi.online ? latestVibrationFFT : null,
+
+    aiEngine: initialAi
 
   });
 
@@ -851,23 +1000,45 @@ io.on('connection', (socket) => {
 const TELEMETRY_INTERVAL = 1000;
 let aiInFlight = false, aiLastOkAt = 0;
 let dbInFlight = false;
+
+// Shared by the connection snapshot and the 1Hz broadcast so a late joiner never
+// sees a stale Python spectrum flash before the first periodic frame corrects it.
+function aiEngineStatus(now = Date.now()) {
+  return {
+    online: now - aiLastOkAt < AI_FRESHNESS_MS,
+    ageMs: aiLastOkAt ? now - aiLastOkAt : null
+  };
+}
+
+
 let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
 let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
 function postVibration(state) {
-  if (aiInFlight || !Array.isArray(state.vibrationWaveform) || !state.vibrationWaveform.length) return;
+  const waveform = (state.assetHealth && state.assetHealth.vibrationWaveform) || state.vibrationWaveform;
+  if (aiInFlight || !Array.isArray(waveform) || !waveform.length) return;
   aiInFlight = true;
   fetch(AI_ENGINE_URL + '/vibration', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(800),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     body: JSON.stringify({
-      vibrationWaveform: state.vibrationWaveform,
-      samplingRateHz: state.samplingRateHz || 1000,
-      bufferSize: state.bufferSize || state.vibrationWaveform.length
+      vibrationWaveform: waveform,
+      samplingRateHz: (state.assetHealth && state.assetHealth.samplingRateHz) || 1000,
+      bufferSize: (state.assetHealth && state.assetHealth.bufferSize) || waveform.length
     })
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(d => { latestVibrationFeatures = d.features; latestVibrationFFT = d.fft; aiLastOkAt = Date.now(); })
-    .catch(() => {})
+    .then(d => {
+      cachePythonVibration(d);
+      aiLastOkAt = Date.now();
+      pythonBridgeOfflineLogged = false;
+    })
+    .catch((err) => {
+      const reason = (err && (err.cause && err.cause.code)) || (err && err.name) || 'unknown';
+      if (!pythonBridgeOfflineLogged) {
+        pythonBridgeOfflineLogged = true;
+        console.warn(`⚠️ Python AI Engine unreachable at ${AI_ENGINE_URL}/vibration [${reason}] — FFT charts will use local fallback until it comes online.`);
+      }
+    })
     .finally(() => { aiInFlight = false; });
 }
 
@@ -911,13 +1082,13 @@ function tick() {
 }
 
 function broadcastTelemetry() {
-  const state = simulator.getState(), now = Date.now(), aiFresh = now - aiLastOkAt < 3000;
+  const state = simulator.getState(), now = Date.now(), ai = aiEngineStatus(now);
   const up = Math.floor((now - serverStartTime) / 1000);
   io.emit('telemetry', {
     ...state, uptimeSeconds: up, uptimeMinutes: Math.floor(up / 60), uptimeSecs: up % 60,
     threatsBlocked: totalThreatsBlocked, predictiveAI: latestAIPrediction,
-    fft: aiFresh ? latestVibrationFFT : null,
-    aiEngine: { online: aiFresh, ageMs: aiLastOkAt ? now - aiLastOkAt : null },
+    fft: ai.online ? latestVibrationFFT : null,
+    aiEngine: ai,
     safety: { systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus, alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms, tripped: isSafetyTripped },
     autonomousMPC: mpcDuty
   });
@@ -971,11 +1142,11 @@ server.listen(PORT, async () => {
     console.error(`[DB] Failed to start telemetry experiment: ${err.message}`);
   }
 
-  console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
-  console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting`);
-  console.log(`⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]`);
-  console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
-  console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
+console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
+console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting`);
+console.log(`⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]`);
+console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
+console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
+console.log(`🔗 Python Vibration FFT Proxy Ready at /api/ai/vibration`);
 
 });
-
