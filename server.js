@@ -1,4 +1,4 @@
-/**
+﻿/**
 
  * server.js - HydroSync SCADA Server (Hardened Production Release)
 
@@ -21,6 +21,8 @@ const crypto = require('crypto');
 const { Server } = require('socket.io');
 
 const simulator = require('./simulator');
+
+const telemetryCollector = require('./database/telemetryCollector');
 
 const DEBUG = false;
 
@@ -997,6 +999,8 @@ io.on('connection', (socket) => {
 
 const TELEMETRY_INTERVAL = 1000;
 let aiInFlight = false, aiLastOkAt = 0;
+let dbInFlight = false;
+
 // Shared by the connection snapshot and the 1Hz broadcast so a late joiner never
 // sees a stale Python spectrum flash before the first periodic frame corrects it.
 function aiEngineStatus(now = Date.now()) {
@@ -1005,6 +1009,8 @@ function aiEngineStatus(now = Date.now()) {
     ageMs: aiLastOkAt ? now - aiLastOkAt : null
   };
 }
+
+
 let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
 let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
@@ -1036,6 +1042,23 @@ function postVibration(state) {
     .finally(() => { aiInFlight = false; });
 }
 
+function persistTelemetry(state) {
+  if (dbInFlight) return;
+
+  dbInFlight = true;
+
+  telemetryCollector.recordTelemetry(state, {
+    features: latestVibrationFeatures,
+    fft: latestVibrationFFT
+  })
+    .catch(err => {
+      if (DEBUG) console.error('[Historian] insert failed:', err.message);
+    })
+    .finally(() => {
+      dbInFlight = false;
+    });
+}
+
 function tick() {
   simulator.pidLoop();
   const state = simulator.getState();
@@ -1055,6 +1078,7 @@ function tick() {
   }
   mpcDuty = calculateIrrigationDuty(Number(state.vwc) || 20, Number(state.setpoint || state.target) || 55, Number(latestAIPrediction.maxRainProb12h) || 0);
   broadcastTelemetry();
+  persistTelemetry(state);
 }
 
 function broadcastTelemetry() {
@@ -1069,23 +1093,60 @@ function broadcastTelemetry() {
     autonomousMPC: mpcDuty
   });
 }
-setInterval(tick, TELEMETRY_INTERVAL);
+const telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
+let isShuttingDown = false;
 
-  console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
+async function gracefulShutdown() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
 
-  console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting`);
+  let shutdownError = null;
+  clearInterval(telemetryInterval);
 
-  console.log(`⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]`);
+  try {
+    await telemetryCollector.endExperiment();
+    await new Promise((resolve, reject) => {
+      io.close((err) => err ? reject(err) : resolve());
+    });
+  } catch (err) {
+    shutdownError = err;
+  }
 
-  console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
+  server.close((err) => {
+    if (err && err.code !== 'ERR_SERVER_NOT_RUNNING' && !shutdownError) {
+      shutdownError = err;
+    }
 
-  console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
+    if (shutdownError) {
+      console.error(`[SHUTDOWN] Failed to shut down cleanly: ${shutdownError.message}`);
+      process.exit(1);
+    }
 
-  console.log(`🔗 Python Vibration FFT Proxy Ready at /api/ai/vibration`);
+    console.log('HydroSync server shut down cleanly.');
+    process.exit(0);
+  });
+}
 
-}); 
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
+server.listen(PORT, async () => {
+
+  try {
+    await telemetryCollector.startExperiment();
+    console.log(`🗄️ TimescaleDB telemetry collection [ONLINE]`);
+  } catch (err) {
+    console.error(`[DB] Failed to start telemetry experiment: ${err.message}`);
+  }
+
+console.log(`🌿 HydroSync SCADA running at http://localhost:${PORT}`);
+console.log(`🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting`);
+console.log(`⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]`);
+console.log(`🧠 Weather-Aware Autonomous MPC Irrigation Engine [ONLINE]`);
+console.log(`🔗 Python AI Engine Gateway Ready at /api/ai/diagnostics`);
+console.log(`🔗 Python Vibration FFT Proxy Ready at /api/ai/vibration`);
+
+});

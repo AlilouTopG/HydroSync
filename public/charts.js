@@ -15,7 +15,7 @@
   function initWaveformChart(canvasId) {
     var canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === 'undefined') return;
-    
+
     // منع خطأ Canvas Reuse عند إعادة فتح التبويب
     if (waveformChart) {
       waveformChart.destroy();
