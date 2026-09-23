@@ -1,5 +1,5 @@
 /* ==========================================================================
-   HydroSync v2.0 Enterprise — Industrial SCADA Client
+   HydroSync v2.1 Professional — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
    ISA 5.1 P&ID Screen, Modbus TCP Mapping, AI MPC & ESG Accounting
    ========================================================================== */
@@ -16,8 +16,6 @@
   var labels = [];
   var vwcSeries = [];
   var spSeries = [];
-  var pwmSeries = [];
-  var cumWaterL = 0; 
   var booted = false;
   
   var state = { 
@@ -29,6 +27,8 @@
   var isOperatorAuthorized = false;
   var aiLastAlert = 0;
   var lastAudioAlert = 0;
+  var lastTelemetry = null;
+  var lastModalTrigger = null;
 
   // 🔌 Web Serial API Variables
   var usbPort = null;
@@ -63,6 +63,20 @@
   };
 
   function $(id) { return document.getElementById(id); }
+
+  function numberOr(value, fallback) {
+    var n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function escapeHTML(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
 
   /* ---------- Audio Synthesizer ---------- */
   var audioCtx = null;
@@ -139,15 +153,12 @@
   }
 
   function setStatus(online) {
-    var badge = $("connectionStatus"), dot = $("pingDot"), txt = $("statusText");
+    var badge = $("connectionStatus"), txt = $("statusText");
     if (!badge || !txt) return;
-    badge.classList.toggle("online", !!online);
-    badge.classList.toggle("offline", !online);
-    txt.textContent = online ? "ONLINE" : "OFFLINE";
-    if (dot) {
-      dot.style.background = online ? "var(--emerald)" : "var(--danger)";
-      dot.style.boxShadow = online ? "0 0 10px rgba(16,185,129,.8)" : "0 0 10px rgba(239,68,68,.8)";
-    }
+    var isOnline = !!online;
+    badge.classList.toggle("online", isOnline);
+    badge.classList.toggle("offline", !isOnline);
+    txt.textContent = isOnline ? "ONLINE" : "OFFLINE";
   }
 
   function setRing(id, frac) {
@@ -159,7 +170,13 @@
 
   function setText(id, text) {
     var el = $(id);
-    if (el) el.innerHTML = text;
+    if (el) el.textContent = text == null ? "" : String(text);
+  }
+
+  // Use only for trusted, locally constructed markup.
+  function setHTML(id, html) {
+    var el = $(id);
+    if (el) el.innerHTML = html == null ? "" : String(html);
   }
 
   /* ---------- Chart Setup ---------- */
@@ -226,10 +243,15 @@
   /* ---------- Telemetry Dispatcher ---------- */
   function onTelemetry(d) {
     if (!d || typeof d !== "object") return;
-    var vwc = +d.vwc || 0, sp = +d.setpoint || 0, pwm = +d.pumpDuty || 0;
-    var flow = +d.flowRate || 0, saved = +d.waterSaved || 0;
-    var err = (typeof d.error === "number") ? d.error : sp - vwc;
-    var mTemp = (typeof d.motorTemp === "number") ? d.motorTemp : 24.0;
+    var previous = lastTelemetry || {};
+    var vwc = numberOr(d.vwc, numberOr(previous.vwc, 0));
+    var sp = numberOr(d.setpoint, numberOr(previous.setpoint, state.setpoint));
+    var pwm = numberOr(d.pumpDuty, numberOr(previous.pwm, 0));
+    var flow = numberOr(d.flowRate, numberOr(previous.flow, 0));
+    var saved = numberOr(d.waterSaved, numberOr(previous.saved, 0));
+    var err = numberOr(d.error, sp - vwc);
+    var mTemp = numberOr(d.motorTemp, numberOr(previous.motorTemp, 24.0));
+    lastTelemetry = { vwc: vwc, setpoint: sp, pwm: pwm, flow: flow, saved: saved, motorTemp: mTemp };
 
     setText("uptimeTimer", fmtUptime(d.uptimeSeconds));
     setText("vcwValue", vwc.toFixed(1));
@@ -251,7 +273,7 @@
     
     var litersSaved = (typeof d.waterSavedL === "number") ? d.waterSavedL : 0;
     var moneySaved = (litersSaved * WATER_PRICE).toFixed(3);
-    setText("savedLitersValue", litersSaved.toFixed(1) + " L <span style='color:var(--emerald); margin-left:6px;'><i class='fa-solid fa-sack-dollar'></i> $" + moneySaved + "</span>");
+    setHTML("savedLitersValue", litersSaved.toFixed(1) + " L <span style='color:var(--ok); margin-left:6px;'><i class='fa-solid fa-sack-dollar'></i> $" + moneySaved + "</span>");
     
     setText("errorValue", "e(t) " + (err >= 0 ? "+" : "") + err.toFixed(1));
     setText("KpTerm", (+d.pTerm || 0).toFixed(2));
@@ -309,10 +331,6 @@
 
     if (d.esgMetrics && Array.isArray(d.zones)) updateAnalyticsUI(d.esgMetrics, d.zones, litersSaved);
 
-    pwmSeries.push(pwm);
-    while (pwmSeries.length > FIFO_MAX) pwmSeries.shift();
-    cumWaterL += (flow / 60);
-    
     if (typeof d.tankCapacityL === "number") state.tankCapacity = d.tankCapacityL;
     if (typeof d.soilType === "string") state.soilType = d.soilType;
     
@@ -331,7 +349,7 @@
       syncControls();
       syncSettingsForm();
       seedChart(vwc, sp);
-      log("<strong style='color:var(--emerald)'>[SYSTEM]</strong> SCADA Core linked. ISA 5.1 &amp; Modbus mapping active.");
+      log("<strong style='color:var(--ok)'>[SYSTEM]</strong> SCADA Core linked. ISA 5.1 &amp; Modbus mapping active.");
     } else {
       pushPoint(vwc, sp);
     }
@@ -375,7 +393,7 @@
     var now = Date.now();
     if (now - aiLastAlert > 20000) {
       if (pwm > 85 && vwc < sp - 15) {
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output with low response in Sector " + state.activeZone + ". Leak check advised.");
+        log("<strong style='color:var(--brand)'><i class='fa-solid fa-robot'></i> [AI CO-PILOT]</strong> High output with low response in Sector " + state.activeZone + ". Leak check advised.");
         aiLastAlert = now;
       }
     }
@@ -439,8 +457,8 @@
       setText("pidPtVal", pressureBar + " bar");
       setText("pidSoilVal", vwc.toFixed(1) + "% VWC");
 
-      setText("pidKpiPressure", pressureBar + " <small>bar</small>");
-      setText("pidKpiFlow", flow.toFixed(1) + " <small>L/min</small>");
+      setHTML("pidKpiPressure", pressureBar + " <small>bar</small>");
+      setHTML("pidKpiFlow", flow.toFixed(1) + " <small>L/min</small>");
       setText("pidKpiValve", isRunning ? "OPEN" : "CLOSED");
 
       var xvTag = $("pidXvState");
@@ -476,11 +494,11 @@
     for (var i = 0; i < registers.length; i++) {
       var r = registers[i];
       html += "<tr>" +
-        "<td style='color:var(--cyan); font-weight:700;'>" + r.reg + "</td>" +
-        "<td style='color:var(--muted);'>" + r.type + "</td>" +
+        "<td style='color:var(--brand); font-weight:700;'>" + r.reg + "</td>" +
+        "<td style='color:var(--text-dim);'>" + r.type + "</td>" +
         "<td>" + r.tag + "</td>" +
         "<td style='color:#38BDF8; font-weight:600;'>" + r.raw + "</td>" +
-        "<td style='color:var(--emerald); font-weight:600;'>" + r.val + "</td>" +
+        "<td style='color:var(--ok); font-weight:600;'>" + r.val + "</td>" +
         "</tr>";
     }
     tbody.innerHTML = html;
@@ -507,6 +525,7 @@
           card.classList.remove("dry", "optimal", "wet");
           card.classList.add(zoneBand(m));
           card.classList.toggle("active", z.id === state.activeZone);
+          card.setAttribute("aria-pressed", String(z.id === state.activeZone));
         })(zones[i]);
       }
       setText("activeZoneBadge", "Active: Zone " + state.activeZone);
@@ -566,12 +585,12 @@
       if (statusChip) statusChip.hidden = false;
       if (statusText) statusText.textContent = "USB Connected (115200)";
 
-      log("<strong style='color:var(--emerald)'><i class='fa-brands fa-usb'></i> [USB HW]</strong> Serial COM Port linked successfully at 115200 baud.");
+      log("<strong style='color:var(--ok)'><i class='fa-brands fa-usb'></i> [USB HW]</strong> Serial COM Port linked successfully at 115200 baud.");
       playTone(1000, 'sine', 0.2, 0.1);
 
       readUSBStream();
     } catch (err) {
-      log("<strong style='color:var(--danger)'>[USB ERROR]</strong> Failed to open COM port: " + err.message);
+      log("<strong style='color:var(--crit)'>[USB ERROR]</strong> Failed to open COM port: " + err.message);
     }
   }
 
@@ -599,7 +618,7 @@
         }
       }
     } catch (error) {
-      log("<strong style='color:var(--danger)'>[USB DISCONNECT]</strong> Hardware link terminated.");
+      log("<strong style='color:var(--crit)'>[USB DISCONNECT]</strong> Hardware link terminated.");
     } finally {
       reader.releaseLock();
     }
@@ -653,10 +672,10 @@
 
     if (viewName === "fleet") {
       setTimeout(function () { initFleetMap(); }, 150);
-      log("<strong style='color:var(--cyan)'><i class='fa-solid fa-map-location-dot'></i> [GIS FLEET]</strong> Switched to National Satellite Fleet Overview.");
+      log("<strong style='color:var(--brand)'><i class='fa-solid fa-map-location-dot'></i> [GIS FLEET]</strong> Switched to National Satellite Fleet Overview.");
     } else if (viewName === "predictive") {
       setTimeout(function () { if (horizonChart) horizonChart.resize(); }, 150);
-      log("<strong style='color:var(--cyan)'><i class='fa-solid fa-brain'></i> [PREDICTIVE AI]</strong> Switched to Model Predictive Control (MPC) Climate Horizon.");
+      log("<strong style='color:var(--brand)'><i class='fa-solid fa-brain'></i> [PREDICTIVE AI]</strong> Switched to Model Predictive Control (MPC) Climate Horizon.");
     } else if (viewName === "health") {
       setTimeout(function () { 
         if (!vibrationChart) initVibrationChart();
@@ -672,14 +691,14 @@
           }
         }
       }, 150);
-      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-screwdriver-wrench'></i> [ASSET HEALTH]</strong> Switched to ISO 10816 Mechanical Diagnostics Console.");
+      log("<strong style='color:var(--ok)'><i class='fa-solid fa-screwdriver-wrench'></i> [ASSET HEALTH]</strong> Switched to ISO 10816 Mechanical Diagnostics Console.");
     } else if (viewName === "analytics") {
       setTimeout(function () {
         if (zoneWaterChart) zoneWaterChart.resize();
       }, 150);
-      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-chart-pie'></i> [ANALYTICS]</strong> Switched to Agronomic Accounting & ESG Impact Console.");
+      log("<strong style='color:var(--ok)'><i class='fa-solid fa-chart-pie'></i> [ANALYTICS]</strong> Switched to Agronomic Accounting & ESG Impact Console.");
     } else if (viewName === "pidView") {
-      log("<strong style='color:var(--cyan)'><i class='fa-solid fa-diagram-project'></i> [P&amp;ID PROCESS]</strong> Switched to ISA 5.1 &amp; Modbus TCP Live Register Overview.");
+      log("<strong style='color:var(--brand)'><i class='fa-solid fa-diagram-project'></i> [P&amp;ID PROCESS]</strong> Switched to ISA 5.1 &amp; Modbus TCP Live Register Overview.");
     }
   }
 
@@ -746,7 +765,7 @@
     var locSelect = $("locationSelect");
     if (locSelect) locSelect.value = farm.id;
 
-    log("<strong style='color:var(--emerald)'><i class='fa-solid fa-satellite'></i> [FLEET FOCUS]</strong> Linked SCADA to <strong>" + farm.name + "</strong>");
+    log("<strong style='color:var(--ok)'><i class='fa-solid fa-satellite'></i> [FLEET FOCUS]</strong> Linked SCADA to <strong>" + farm.name + "</strong>");
   }
 
   /* ==========================================================================
@@ -861,9 +880,9 @@
     if (!ah) return;
 
     setText("healthIndexKpi", (ah.healthIndex || 98.4).toFixed(1) + "%");
-    setText("vibRmsKpi", (ah.vibrationRms || 0.22).toFixed(2) + " <small>mm/s</small>");
+    setHTML("vibRmsKpi", (ah.vibrationRms || 0.22).toFixed(2) + " <small>mm/s</small>");
     setText("cavitationKpi", (ah.cavitationIndex || 2.1).toFixed(1) + "%");
-    setText("rulHoursKpi", Math.round(ah.rulHours || 6580).toLocaleString() + " <small>Hours</small>");
+    setHTML("rulHoursKpi", Math.round(ah.rulHours || 6580).toLocaleString() + " <small>Hours</small>");
 
     setText("bearingWearVal", (ah.bearingWearPct || 4.8).toFixed(1) + "%");
     setText("operatingHoursVal", (ah.operatingHoursTotal || 1420.4).toFixed(1) + " Hours");
@@ -914,9 +933,9 @@
     if (!esg) return;
 
     setText("esgEfficiencyKpi", (esg.efficiencyScorePct || 93.8).toFixed(1) + "%");
-    setText("esgEnergyKpi", (esg.energySavedKwh || 64.1).toFixed(1) + " <small>kWh</small>");
-    setText("esgCarbonKpi", (esg.co2OffsetKg || 33.3).toFixed(1) + " <small>kg CO₂</small>");
-    setText("esgMoneyDzdKpi", Math.round(esg.totalSavedDzd || 19166).toLocaleString() + " <small>DZD</small>");
+    setHTML("esgEnergyKpi", (esg.energySavedKwh || 64.1).toFixed(1) + " <small>kWh</small>");
+    setHTML("esgCarbonKpi", (esg.co2OffsetKg || 33.3).toFixed(1) + " <small>kg CO₂</small>");
+    setHTML("esgMoneyDzdKpi", Math.round(esg.totalSavedDzd || 19166).toLocaleString() + " <small>DZD</small>");
 
     setText("esgTotalSavedLiters", (litersSaved || 142.5).toFixed(1) + " Liters");
     setText("esgMoneyUsdVal", "$" + (esg.totalSavedUsd || 6.41).toFixed(2) + " USD");
@@ -1056,13 +1075,13 @@
         pressFlash(serviceBtn);
         if (!isOperatorAuthorized) {
           openModal("authModal");
-          log("<strong style='color:var(--amber)'>[ACCESS DENIED]</strong> Operator authorization required to log preventive maintenance.");
+          log("<strong style='color:var(--warn)'>[ACCESS DENIED]</strong> Operator authorization required to log preventive maintenance.");
           return;
         }
         if (socket && socket.connected) {
           socket.emit("client:service_asset");
         }
-        log("<strong style='color:var(--emerald)'><i class='fa-solid fa-wrench'></i> [MAINTENANCE LOGGED]</strong> Pump overhaul complete: Rotor bearings recalibrated and fatigue reset.");
+        log("<strong style='color:var(--ok)'><i class='fa-solid fa-wrench'></i> [MAINTENANCE LOGGED]</strong> Pump overhaul complete: Rotor bearings recalibrated and fatigue reset.");
       });
     }
 
@@ -1073,7 +1092,7 @@
         playClick();
         pressFlash(exportBtn);
         window.location.href = "/api/export-audit.csv";
-        log("<strong style='color:var(--emerald)'><i class='fa-solid fa-file-arrow-down'></i> [AUDIT EXPORT]</strong> Industrial CSV Telemetry log downloaded successfully.");
+        log("<strong style='color:var(--ok)'><i class='fa-solid fa-file-arrow-down'></i> [AUDIT EXPORT]</strong> Industrial CSV Telemetry log downloaded successfully.");
       });
     }
 
@@ -1091,7 +1110,7 @@
         usbBtn.classList.remove("active");
         if (connectBtn) connectBtn.hidden = true;
         if (statusChip) statusChip.hidden = true;
-        log("<strong style='color:var(--cyan)'>[MODE]</strong> Switched to Digital Twin Virtual Simulator.");
+        log("<strong style='color:var(--brand)'>[MODE]</strong> Switched to Digital Twin Virtual Simulator.");
       });
 
       usbBtn.addEventListener("click", function () {
@@ -1101,7 +1120,7 @@
         simBtn.classList.remove("active");
         if (connectBtn && !usbPort) connectBtn.hidden = false;
         if (statusChip && usbPort) statusChip.hidden = false;
-        log("<strong style='color:var(--emerald)'><i class='fa-brands fa-usb'></i> [MODE]</strong> Physical Hardware Ingestion engaged. Ready for live sensors.");
+        log("<strong style='color:var(--ok)'><i class='fa-brands fa-usb'></i> [MODE]</strong> Physical Hardware Ingestion engaged. Ready for live sensors.");
       });
     }
 
@@ -1115,7 +1134,7 @@
         playClick();
         if (socket && socket.connected) socket.emit("client:set_location", key);
         var locName = e.target.options[e.target.selectedIndex].text;
-        log("<strong style='color:var(--cyan)'><i class='fa-solid fa-satellite'></i> [SATELLITE]</strong> Pulling live weather for: <strong>" + locName + "</strong>");
+        log("<strong style='color:var(--brand)'><i class='fa-solid fa-satellite'></i> [SATELLITE]</strong> Pulling live weather for: <strong>" + escapeHTML(locName) + "</strong>");
       });
     }
 
@@ -1144,6 +1163,10 @@
       var allCards = zc.querySelectorAll(".zone-card");
       Array.prototype.forEach.call(allCards, function (c) { c.classList.remove("active"); });
       card.classList.add("active");
+      card.setAttribute("aria-pressed", "true");
+      Array.prototype.forEach.call(allCards, function (c) {
+        if (c !== card) c.setAttribute("aria-pressed", "false");
+      });
 
       if (socket && socket.connected) {
         socket.emit("client:select_zone", id);
@@ -1163,8 +1186,8 @@
     }
     
     var dr = $("droughtBtn"), ra = $("rainBtn"), rs = $("resetBtn"), shutoff = $("shutoffBtn");
-    if (dr) dr.addEventListener("click", disturbance("drought", "<span style='color:var(--amber)'>Severe Drought</span>"));
-    if (ra) ra.addEventListener("click", disturbance("rain", "<span style='color:var(--cyan)'>Heavy Rain</span>"));
+    if (dr) dr.addEventListener("click", disturbance("drought", "<span style='color:var(--warn)'>Severe Drought</span>"));
+    if (ra) ra.addEventListener("click", disturbance("rain", "<span style='color:var(--brand)'>Heavy Rain</span>"));
     
     if (shutoff) shutoff.addEventListener("click", function (e) {
       playEmergencySiren();
@@ -1177,7 +1200,7 @@
       setText("manualPwmValue", "0%");
       if (socket && socket.connected) socket.emit("client:manual_override", { enabled: true, manualPwm: 0 });
       if (isHardwareMode) writeToUSB("EMERGENCY:1");
-      log("<strong style='color:var(--danger)'><i class='fa-solid fa-octagon-xmark'></i> [EMERGENCY]</strong> Manual shutoff engaged!");
+      log("<strong style='color:var(--crit)'><i class='fa-solid fa-octagon-xmark'></i> [EMERGENCY]</strong> Manual shutoff engaged!");
     });
     
     if (rs) rs.addEventListener("click", function (e) {
@@ -1195,7 +1218,7 @@
       var t = $("manualToggle"); if (t) t.checked = false;
       setManualUI(false);
       var shut = $("shutoffBtn"); if (shut) shut.classList.remove("armed");
-      log("<strong style='color:var(--emerald)'><i class='fa-solid fa-rotate-left'></i> [RESET]</strong> Industrial safety trip reset & PID parameters restored.");
+      log("<strong style='color:var(--ok)'><i class='fa-solid fa-rotate-left'></i> [RESET]</strong> Industrial safety trip reset & PID parameters restored.");
     });
 
     // Audio Mute/Unmute
@@ -1230,13 +1253,27 @@
     bindModals();
   }
 
-  function openModal(id) {
+  function openModal(id, trigger) {
     var m = $(id); if (!m) return;
-    m.classList.add("open"); m.setAttribute("aria-hidden", "false");
+    lastModalTrigger = trigger || document.activeElement;
+    m.classList.add("open");
+    m.setAttribute("aria-hidden", "false");
+    var authError = $("authErrorMsg");
+    if (id === "authModal" && authError) {
+      authError.hidden = true;
+      authError.style.display = "none";
+    }
+    var focusTarget = m.querySelector("input, select, button:not([data-close])");
+    if (focusTarget) setTimeout(function () { focusTarget.focus(); }, 0);
   }
   function closeModal(m) {
     if (typeof m === "string") m = $(m); if (!m) return;
-    m.classList.remove("open"); m.setAttribute("aria-hidden", "true");
+    m.classList.remove("open");
+    m.setAttribute("aria-hidden", "true");
+    if (lastModalTrigger && typeof lastModalTrigger.focus === "function") {
+      lastModalTrigger.focus();
+    }
+    lastModalTrigger = null;
   }
   function syncSettingsForm() {
     var s = $("settingsSetpoint"), c = $("settingsTankCap"), soil = $("soilType");
@@ -1252,7 +1289,7 @@
         e.preventDefault();
         playClick();
         var targetId = trigger.getAttribute("data-modal");
-        if (targetId) openModal(targetId);
+        if (targetId) openModal(targetId, trigger);
       });
     });
 
@@ -1263,6 +1300,11 @@
       Array.prototype.forEach.call(closers, function (b) {
         b.addEventListener("click", function () { closeModal(o); });
       });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      var open = document.querySelector(".modal-overlay.open");
+      if (open) closeModal(open);
     });
     
     var save = $("settingsSave");
@@ -1312,19 +1354,19 @@
         authBtn.classList.remove("lock");
         authBtn.classList.add("unlocked");
       }
-      log("<strong style='color:var(--emerald)'>[SECURITY]</strong> SCADA Console unlocked: Full Operator Access.");
+      log("<strong style='color:var(--ok)'>[SECURITY]</strong> SCADA Console unlocked: Full Operator Access.");
     });
 
     socket.on("auth:failed", function (data) {
       playEmergencySiren();
       var err = $("authErrorMsg");
-      if (err) err.style.display = "block";
-      log("<strong style='color:var(--danger)'>[SECURITY]</strong> " + (data.msg || "Invalid Passcode"));
+      if (err) { err.hidden = false; err.style.display = "block"; }
+      log("<strong style='color:var(--crit)'>[SECURITY]</strong> " + escapeHTML(data && data.msg ? data.msg : "Invalid Passcode"));
     });
 
     socket.on("firewall:alert", function (data) {
       playCautionBeep();
-      log("<strong style='color:var(--danger)'>[FIREWALL]</strong> " + data.msg);
+      log("<strong style='color:var(--crit)'>[FIREWALL]</strong> " + escapeHTML(data && data.msg ? data.msg : "Firewall alert"));
     });
 
     window.addEventListener("resize", function () { 
