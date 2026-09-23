@@ -59,11 +59,12 @@ function evaluateSafety(telemetry) {
   }
 
   // ج. معيار الاهتزاز الميكانيكي وتآكل المحامل (ISO 10816 Class II)
-  if (telemetry.vibrationRms >= 7.1) {
+  // Class II thresholds: Warning >= 2.8 mm/s, Critical Trip >= 4.5 mm/s (ISO 10816-3 Group 2 Rigid C/D boundary)
+  if (telemetry.vibrationRms >= 4.5) {
     actions.tripPump = true;
     actions.systemStatus = 'CRITICAL';
     actions.alarms.push(`CRITICAL: Unacceptable vibration (${telemetry.vibrationRms} mm/s). Emergency stop.`);
-  } else if (telemetry.vibrationRms >= 4.5) {
+  } else if (telemetry.vibrationRms >= 2.8) {
     actions.systemStatus = actions.systemStatus === 'CRITICAL' ? 'CRITICAL' : 'WARNING';
     actions.alarms.push(`WARNING: Unsatisfactory vibration (${telemetry.vibrationRms} mm/s). Maintenance needed.`);
   }

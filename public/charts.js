@@ -15,7 +15,7 @@
   function initWaveformChart(canvasId) {
     var canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === 'undefined') return;
-    
+
     // منع خطأ Canvas Reuse عند إعادة فتح التبويب
     if (waveformChart) {
       waveformChart.destroy();
@@ -154,9 +154,14 @@
     });
   }
 
-  function updateFFTChart(magnitudes) {
+  function updateFFTChart(magnitudes, frequenciesHz) {
     if (!fftChart || !Array.isArray(magnitudes) || magnitudes.length === 0) return;
     fftChart.data.datasets[0].data = magnitudes;
+    if (Array.isArray(frequenciesHz) && frequenciesHz.length === magnitudes.length) {
+      fftChart.data.labels = frequenciesHz.map(function (f) {
+        return Number(f).toFixed(1);
+      });
+    }
     fftChart.update('none');
   }
 

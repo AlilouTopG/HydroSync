@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -43,7 +43,7 @@
       <a href="#terms" class="nav-item" data-modal="termsModal"><i class="fa-solid fa-file-shield"></i><span>Terms &amp; Compliance</span></a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> System Status: Nominal</div>
+      <div class="sdg-badge"><i class="fa-solid fa-circle-check"></i> <span id="sidebarSystemStatus">System Status: Nominal</span></div>
       <p class="sidebar-version">HydroSync Enterprise OS</p>
     </div>
   </aside>
@@ -75,12 +75,35 @@
             <i class="fa-solid fa-shield-halved" id="safetyIcon"></i>
             <div>
               <strong id="safetyTitle">ALL SYSTEMS NOMINAL</strong>
-              <p id="safetyDesc">IEC 61508 Functional Safety Loops Active — No Hardware Faults.</p>
+              <p id="safetyDesc">IEC 61508-Inspired Interlocks Active — No Hardware Faults.</p>
             </div>
           </div>
           <div class="safety-metrics">
             <div class="safety-chip" id="motorTempChip"><i class="fa-solid fa-temperature-half"></i> Motor: <span id="motorTempVal">24.0°C</span></div>
             <div class="safety-chip" id="interlockCountChip"><i class="fa-solid fa-lock"></i> Interlocks: <span id="interlockVal">0 Active</span></div>
+          </div>
+        </section>
+
+        <section class="glass-card alarm-panel" id="alarmPanel" aria-label="Active safety alarms">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-bell"></i> Active Alarms</span>
+            <span class="alarm-count" id="alarmCount">0</span>
+          </div>
+          <div class="alarm-list" id="alarmList">
+            <div class="alarm-empty"><i class="fa-solid fa-circle-check"></i><span>No active alarms</span></div>
+          </div>
+        </section>
+
+        <section class="glass-card ai-summary-panel" id="aiSummaryPanel" aria-label="AI diagnostics summary">
+          <div class="card-top">
+            <span class="card-title"><i class="fa-solid fa-brain"></i> AI Diagnostics</span>
+            <span class="ai-status-badge" id="aiEngineStatus">CHECKING</span>
+          </div>
+          <div class="ai-engine-line"><span class="pulse-dot sm" id="aiEngineDot"></span><span id="aiEngineName">Python-FastAPI Engine</span></div>
+          <p id="aiEngineMessage">Synchronizing with diagnostic gateway…</p>
+          <div class="ai-summary-grid">
+            <div><span>MPC Duty</span><strong id="dashboardMpcDuty">--%</strong></div>
+            <div><span>Rain Hold</span><strong id="dashboardRainHold">--</strong></div>
           </div>
         </section>
 
@@ -130,12 +153,12 @@
             <span class="badge" id="activeZoneBadge">Active: Zone A1</span>
           </div>
           <div class="zones-grid" id="zonesContainer">
-            <div class="zone-card active" data-zone="A1"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
-            <div class="zone-card" data-zone="A2"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
-            <div class="zone-card" data-zone="A3"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
-            <div class="zone-card" data-zone="B1"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
-            <div class="zone-card" data-zone="B2"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
-            <div class="zone-card" data-zone="B3"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
+            <div class="zone-card active" data-zone="A1" tabindex="0" role="button"><span class="zone-id">A1</span><span class="crop-tag">Wheat</span><strong class="zone-val">48%</strong></div>
+            <div class="zone-card" data-zone="A2" tabindex="0" role="button"><span class="zone-id">A2</span><span class="crop-tag">Tomatoes</span><strong class="zone-val">64%</strong></div>
+            <div class="zone-card" data-zone="A3" tabindex="0" role="button"><span class="zone-id">A3</span><span class="crop-tag">Olives</span><strong class="zone-val">35%</strong></div>
+            <div class="zone-card" data-zone="B1" tabindex="0" role="button"><span class="zone-id">B1</span><span class="crop-tag">Barley</span><strong class="zone-val">41%</strong></div>
+            <div class="zone-card" data-zone="B2" tabindex="0" role="button"><span class="zone-id">B2</span><span class="crop-tag">Corn</span><strong class="zone-val">59%</strong></div>
+            <div class="zone-card" data-zone="B3" tabindex="0" role="button"><span class="zone-id">B3</span><span class="crop-tag">Potatoes</span><strong class="zone-val">54%</strong></div>
           </div>
         </section>
 
@@ -187,6 +210,27 @@
             </div>
             <div class="card-values"><div><span>Saved</span><strong id="conservationValueDisplay">--%</strong></div><div><span>Liters / ROI</span><strong id="savedLitersValue">-- L</strong></div></div>
           </article>
+
+          <article class="glass-card compact-kpi-card" id="tankKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-database"></i> Tank Level</span><span class="card-unit">%</span></div>
+            <div class="compact-kpi-value"><strong id="tankKpiValue">--%</strong><span id="tankKpiLiters">-- / -- L</span></div>
+            <div class="kpi-meter"><span id="tankKpiMeter"></span></div>
+            <div class="compact-kpi-meta"><span>Reserve</span><strong id="tankKpiStatus">--</strong></div>
+          </article>
+
+          <article class="glass-card compact-kpi-card" id="energyKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-bolt"></i> Energy Saved</span><span class="card-unit">kWh</span></div>
+            <div class="compact-kpi-value"><strong id="energyKpiValue">--</strong><span>Efficiency gain</span></div>
+            <div class="kpi-accent-line"><span id="energyKpiTrend">--</span></div>
+            <div class="compact-kpi-meta"><span>CO₂ offset</span><strong id="energyKpiCarbon">-- kg</strong></div>
+          </article>
+
+          <article class="glass-card compact-kpi-card" id="esgKpiCard">
+            <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> ESG Efficiency</span><span class="card-unit">%</span></div>
+            <div class="compact-kpi-value"><strong id="esgKpiValue">--%</strong><span>Water efficiency</span></div>
+            <div class="kpi-meter"><span id="esgKpiMeter"></span></div>
+            <div class="compact-kpi-meta"><span>SDG 6.4</span><strong id="esgKpiSdg">Aligned</strong></div>
+          </article>
         </section>
 
         <!-- 5. VISUAL TWIN (SYNOPTIC) -->
@@ -217,6 +261,11 @@
           <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
         </section>
 
+        <section class="glass-card chart-card secondary-chart-card" id="pumpFlowTelemetry" aria-label="Pump and flow telemetry">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-area"></i> Pump Duty &amp; Flow Rate</span><span class="chart-chip-label">LIVE</span></div>
+          <div class="chart-wrap"><canvas id="pumpFlowChart"></canvas></div>
+        </section>
+
         <!-- 7. CONTROLS & WEATHER SIMULATION -->
         <div class="two-col">
           <section class="glass-card pid-card" id="pid" aria-label="PID controls">
@@ -242,6 +291,11 @@
               <button class="btn shutoff" id="shutoffBtn"><i class="fa-solid fa-octagon-xmark"></i> Emergency Shutoff</button>
               <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
             </div>
+            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+              <button class="btn danger" id="faultBearingBtn">Inject Bearing Fault</button>
+              <button class="btn danger" id="faultHeatBtn">Inject Overheat</button>
+              <button class="btn ghost" id="faultClearBtn">Clear Faults</button>
+            </div>
             <p class="muted small" id="juryBadge">Telemetry synchronizing with Open-Meteo satellite feed.</p>
           </section>
         </div>
@@ -261,6 +315,9 @@
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-droplet"></i> Fleet Water Reserve</span><strong class="kpi-val highlight-emerald">84.2% <small>Capacity</small></strong></div>
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-shield-heart"></i> National Fleet Health</span><strong class="kpi-val highlight-cyan">99.4% <small>Optimal</small></strong></div>
         </section>
+        <div style="text-align: center; margin-bottom: 12px;">
+          <span class="badge badge-subtle">Simulated Fleet Telemetry</span>
+        </div>
         <section class="glass-card fleet-map-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-satellite"></i> National Agro-Hub Fleet Map (Algeria)</span><div class="map-legend"><span class="legend-dot nominal"></span> Nominal <span class="legend-dot active"></span> Irrigating</div></div>
           <div id="fleetMap" class="fleet-map-container"></div>
@@ -304,10 +361,13 @@
       <div id="viewHealth" class="view-screen" hidden>
         <section class="fleet-kpi-bar">
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-heart-pulse"></i> Overall Asset Health</span><strong class="kpi-val highlight-emerald" id="healthIndexKpi">98.4%</strong></div>
-          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span><strong class="kpi-val highlight-cyan" id="vibRmsKpi">0.22 <small>mm/s</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-wave-square"></i> Vibration Velocity (RMS)</span><strong class="kpi-val highlight-cyan" id="fleetVibration">0.22 <small>mm/s</small></strong></div>
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Cavitation Strain</span><strong class="kpi-val highlight-wind" id="cavitationKpi">2.1%</strong></div>
-          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span><strong class="kpi-val" id="rulHoursKpi">6,580 <small>Hours</small></strong></div>
+          <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span><strong class="kpi-val" id="fleetRul">6,580 <small>Hours</small></strong></div>
         </section>
+        <div style="text-align: center; margin-bottom: 12px;">
+          <span class="badge badge-subtle">Simulated Asset Health Telemetry</span>
+        </div>
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
           <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
@@ -319,7 +379,7 @@
             <span class="card-title">
               <i class="fa-solid fa-wave-square"></i> Vibration Diagnostics — Time &amp; Frequency Domain
             </span>
-            <span class="live-pill">
+            <span class="live-pill" id="fftSourcePill">
               <span class="pulse-dot sm"></span> REAL-TIME DSP
             </span>
           </div>
@@ -471,7 +531,7 @@
           <div class="chart-wrap" style="height: 320px;"><canvas id="zoneWaterChart"></canvas></div>
         </section>
         <section class="glass-card farm-focus-card">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Certified</span></div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Aligned</span></div>
           <div class="focus-grid">
             <div class="focus-item"><span>Baseline Traditional Volume</span><strong>18.0 L/min (Continuous Flood)</strong></div>
             <div class="focus-item"><span>Precision Dynamic Savings</span><strong id="esgTotalSavedLiters" class="highlight-cyan">142.5 Liters</strong></div>
@@ -489,7 +549,7 @@
       <div class="modal-head"><span><i class="fa-solid fa-user-shield"></i> SCADA Master Authorization</span><button class="icon-btn modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
       <p class="muted" style="margin-bottom: 12px; font-size: 13px;">Enter industrial operator passcode to unlock manual actuators, PID tuning, and system overrides.</p>
       <div class="field">
-        <label for="operatorPinInput">Operator PIN (Default: 8492)</label>
+        <label for="operatorPinInput">Operator PIN</label>
         <input type="password" id="operatorPinInput" placeholder="••••" maxlength="8" style="text-align: center; font-size: 20px; letter-spacing: 4px;" />
       </div>
       <p id="authErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-bottom: 10px;"><i class="fa-solid fa-circle-exclamation"></i> Invalid Passcode. Attempt logged.</p>
@@ -528,7 +588,8 @@
         </p>
         <p style="margin-bottom: 10px;">
           <strong style="color:var(--cyan);">3. حماية البيانات والاتصال الصناعي (Modbus / Web Serial)</strong><br/>
-          تتم معالجة تدفقات التيليميتري وسجلات الـ PLC محلياً على المضيف (Local Host) مع عزل كامل لمنع أي اختراق، ولا يتم تصدير أي سجلات تشغيلية إلا بتصريح يدوي عبر تقارير الـ CSV المعتمدة.
+          تتم معالجة البيانات وفق بروتوكولات الأمان الصناعي مع مراقبة مشددة للاتصالات السحابية والطرفية.
+          <br/><small style="color:var(--muted);">Telemetry is processed in accordance with industrial IoT security practices, featuring reverse-proxy sanitization, scoped operator authorization, and secure WebSocket telemetry.</small>
         </p>
         <p>
           <strong style="color:var(--cyan);">4. مسؤولية المشغل وصيانة الأصول (ISO 10816)</strong><br/>
