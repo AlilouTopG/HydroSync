@@ -121,7 +121,7 @@ const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://127.0.0.1:8000';
 // the freshness window has to clear the timeout, otherwise a healthy engine that
 // answers slowly gets reported as offline and the UI badge flickers.
 const AI_REQUEST_TIMEOUT_MS = 4000;
-const AI_FRESHNESS_MS = 8000;
+const AI_FRESHNESS_MS = 4000;
 
 let latestVibrationFeatures = null;
 
