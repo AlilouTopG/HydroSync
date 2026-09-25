@@ -6,6 +6,9 @@
  */
 
 const express = require('express');
+const app = express();
+app.use(express.json());
+
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
@@ -17,7 +20,7 @@ require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const DEBUG = false;a
+const DEBUG = false;
 
 
 
@@ -27,9 +30,6 @@ const { evaluateSafety, calculateIrrigationDuty, resetSafetyState } = require('.
 
 
 
-const app = express();
-const app = express();
-app.use(express.json()); 
 
 const server = http.createServer(app);
 
