@@ -1,34 +1,26 @@
 ﻿/**
-
  * server.js - HydroSync SCADA Server (Hardened Production Release)
-
  * Architecture: Node.js Telemetry Ingestion + Safety Interlocks + AI MPC Bridge
-
  * Security Hardening: Anti-SSRF, Strict CORS, CSP, Timing-Safe Auth, Rate-Limiter
-
  * Features: Live Weather, GIS Fleet Map, 24h AI MPC, Asset Health & CSV Audit Endpoint
-
  */
 
 const express = require('express');
+const app = express(); 
+app.use(express.json()); 
 
 const http = require('http');
-
 const path = require('path');
-
 const crypto = require('crypto');
-
 const { Server } = require('socket.io');
-
 const simulator = require('./simulator');
-
 const telemetryCollector = require('./database/telemetryCollector');
 
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const DEBUG = false;
+const DEBUG = false;a
 
 
 
