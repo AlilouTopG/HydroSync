@@ -615,5 +615,36 @@
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
   <script src="charts.js"></script>
   <script src="app.js"></script>
+<!-- ===================================================
+       🤖 SCADA AI Co-Pilot (Glassmorphism Chat)
+       =================================================== -->
+  <div id="aiCopilotWidget">
+    <!-- Chat Panel (Hidden by default) -->
+    <div id="aiChatPanel" class="glass-panel hidden">
+      <div class="chat-header">
+        <div class="chat-title">
+          <i class="fa-solid fa-microchip"></i>
+          <span>SCADA AI Co-Pilot</span>
+        </div>
+        <div class="chat-status"><span class="pulse-dot sm"></span> ONLINE</div>
+        <button id="closeChatBtn" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="chat-body" id="chatBody">
+        <div class="chat-msg ai-msg">
+          <div class="msg-content">System nominal. How can I assist you with telemetry analysis or asset diagnostics today?</div>
+          <div class="msg-time">SYS_RDY</div>
+        </div>
+      </div>
+      <div class="chat-footer">
+        <input type="text" id="chatInput" placeholder="Query system data..." autocomplete="off" />
+        <button id="sendChatBtn" aria-label="Send Query"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+    
+    <!-- Floating Action Button (Trigger) -->
+    <button id="aiFabTrigger" class="ai-fab" title="Open AI Co-Pilot">
+      <i class="fa-solid fa-robot"></i>
+    </button>
+  </div>
 </body>
 </html>

@@ -5456,4 +5456,77 @@
     boot();
   }
 
+/* ---------- AI Co-Pilot Chat Engine ---------- */
+  function initAICopilot() {
+    var aiFabTrigger = document.getElementById('aiFabTrigger');
+    var aiChatPanel = document.getElementById('aiChatPanel');
+    var closeChatBtn = document.getElementById('closeChatBtn');
+    var sendChatBtn = document.getElementById('sendChatBtn');
+    var chatInput = document.getElementById('chatInput');
+    var chatBody = document.getElementById('chatBody');
+
+    if (!aiFabTrigger || !aiChatPanel) return;
+
+    // Toggle Chat Visibility
+    aiFabTrigger.addEventListener('click', function() {
+      playClick();
+      aiChatPanel.classList.toggle('hidden');
+      if (!aiChatPanel.classList.contains('hidden')) {
+        setTimeout(function() { chatInput.focus(); }, 100);
+      }
+    });
+
+    closeChatBtn.addEventListener('click', function() {
+      playClick();
+      aiChatPanel.classList.add('hidden');
+    });
+
+    // Helper: Build and append message
+    function appendMessage(sender, text) {
+      var msgDiv = document.createElement('div');
+      msgDiv.className = "chat-msg " + sender + "-msg";
+      
+      var timeString = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      
+      msgDiv.innerHTML = 
+        '<div class="msg-content">' + escapeHTML(text) + '</div>' +
+        '<div class="msg-time">' + timeString + '</div>';
+      
+      chatBody.appendChild(msgDiv);
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    // Handle Sending
+    function sendMessage() {
+      var text = chatInput.value.trim();
+      if (!text) return;
+
+      appendMessage('user', text);
+      chatInput.value = '';
+      playClick();
+
+      // Simulate AI typing and response delay
+      setTimeout(function() {
+        var responses = [
+          "Analyzing telemetry... Flow rate and VWC are within optimal parameters.",
+          "ISO 10816 data indicates vibration is within acceptable Zone A limits. No bearing wear detected.",
+          "Based on the MPC forecast, I recommend holding irrigation due to a 74% rain probability.",
+          "No hardware faults detected. IEC 61508 functional safety loops remain stable."
+        ];
+        var randomReply = responses[Math.floor(Math.random() * responses.length)];
+        appendMessage('ai', randomReply);
+        playClick(); // Tiny audio feedback when AI replies
+      }, 1200);
+    }
+
+    sendChatBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') sendMessage();
+    });
+  }
+
+  // Initialize the chat engine after app boots
+  document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(initAICopilot, 500);
+  });
 })();
