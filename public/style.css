@@ -2915,3 +2915,51 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
 button.zone-card {
   font: inherit;
 }
+/* ===================================================
+   🌟 لمسات التوأم الرقمي (Cyber-Twin Accents)
+   =================================================== */
+
+/* 1. خطوط خضراء زمردية أنيقة تحت البطاقات */
+.glass-card, .zone-card, .kpi-box, .farm-focus-card {
+  border-bottom: 2px solid rgba(16, 185, 129, 0.4) !important;
+  transition: border-bottom-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+/* توهج الخطوط إلى اللون السيان (الأزرق الفاتح) عند مرور الماوس */
+.glass-card:hover, .zone-card:hover, .kpi-box:hover {
+  border-bottom: 2px solid rgba(0, 229, 255, 0.8) !important;
+  box-shadow: 0 10px 25px rgba(0, 229, 255, 0.1);
+}
+
+/* 2. تأثير "نصف البصمة" أو الدوائر التقنية في زاوية البطاقات */
+.glass-card::after, .kpi-box::after {
+  content: "";
+  position: absolute;
+  bottom: -15px;
+  right: -15px;
+  width: 120px;
+  height: 120px;
+  /* رسم دوائر تشبه البصمة التقنية بخطوط رفيعة وشفافة جداً */
+  background-image: repeating-radial-gradient(
+    circle at 100% 100%,
+    transparent 0,
+    transparent 5px,
+    rgba(16, 185, 129, 0.06) 6px,
+    rgba(16, 185, 129, 0.06) 7px
+  );
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* رفع النصوص والأيقونات لتكون فوق رسمة البصمة */
+.glass-card > *, .kpi-box > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 3. خط أخضر مضيء تحت الأيقونات العلوية للزينة */
+.card-title i {
+  border-bottom: 1px solid rgba(16, 185, 129, 0.6);
+  padding-bottom: 3px;
+}
