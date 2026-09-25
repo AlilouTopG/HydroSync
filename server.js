@@ -6,9 +6,6 @@
  */
 
 const express = require('express');
-const app = express(); 
-app.use(express.json()); 
-
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
@@ -31,6 +28,8 @@ const { evaluateSafety, calculateIrrigationDuty, resetSafetyState } = require('.
 
 
 const app = express();
+const app = express();
+app.use(express.json()); 
 
 const server = http.createServer(app);
 
