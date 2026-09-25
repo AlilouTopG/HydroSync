@@ -1,20 +1,51 @@
 /* HydroSync v2.0 — Cyber-Industrial dark theme. Canvas #060913, cards #0D1322. */
 :root {
-  --canvas: #060913;
-  --card: #0D1322;
-  --card-2: #111a30;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text: #e8eef7;
-  --muted: #8b98b3;
-  --cyan: #00E5FF;
-  --emerald: #10B981;
-  --amber: #F59E0B;
-  --danger: #EF4444;
+  /* Chrome layer — cyber-twin identity lives here */
+  --bg-oled: #050811;          /* app shell, sidebar canvas */
+  --aurora-cyan: #00E5FF;      /* ambient accent only — never body text */
+  --aurora-emerald: #10B981;
+
+  /* Instrument layer — ISA-101 surface, strict */
+  --bg-panel: #0B1220;         /* slightly lifted from OLED */
+  --text-primary: #E7ECF5;     
+  --text-muted: #8B97AC;       
+  --cyan-data: #4FC7D9;        /* dimmed cyan for telemetry traces */
+
+  /* Alarm-reserved — nowhere else in the UI */
+  --status-nominal: #10B981;   
+  --status-warning: #F59E0B;   
+  --status-critical: #EF4444;  
+
+  /* Structure */
+  --border-subtle: #1B2536;    /* decorative panel dividers */
+  --border-interactive: #52698A; /* WCAG 1.4.11 compliant for focus/inputs */
+
+  /* Fallback mapped variables for existing codebase */
+  --canvas: var(--bg-oled);
+  --surface-1: var(--bg-panel);
+  --surface-2: #0f1728; 
+  --surface-3: #131d31; 
+  --surface-sunk: rgba(0, 0, 0, 0.34);
+  --line: var(--border-subtle);
+  --line-strong: var(--border-interactive);
+  --line-accent: rgba(0, 229, 255, 0.3);
+  --text: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --text-faint: #6f7d96;
+  --ok: var(--status-nominal);
+  --warn: var(--status-warning);
+  --crit: var(--status-critical);
+  --info: var(--cyan-data);
+  --brand: var(--aurora-cyan);
+
+  /* Typography & Spacing */
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --sans: "Space Grotesk", system-ui, sans-serif;
-  --sidebar-w: 264px;
-  --radius: 16px;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; 
+  --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 32px;
+  --lh-tight: 1.25; --lh-body: 1.55;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 28px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --sidebar-w: 260px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -30,14 +61,49 @@ body {
 
 /* ---------- Sidebar ---------- */
 .sidebar {
-  position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w);
-  background: linear-gradient(180deg, #0a0f1f 0%, #070b16 100%);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 18px;
-  padding: 22px 16px; z-index: 50;
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-w);
+  background: var(--bg-oled);
+  border-right: 1px solid rgba(0, 229, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-3);
+  z-index: 50;
+  overflow-y: auto;
+  overflow-x: hidden; /* strictly contains gradients */
 }
 
-.sidebar-brand { display: flex; gap: 12px; align-items: center; }
+/* Top Cyber Cyan Wash */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  left: -20%; right: -20%;
+  height: 220px;
+  background: radial-gradient(ellipse at center, var(--aurora-cyan), transparent 70%);
+  pointer-events: none;
+  filter: blur(60px);
+  opacity: 0.10; /* Fixed opacity, no animation per ISA-101 */
+  z-index: 0;
+}
+
+/* Bottom Emerald Wash */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  bottom: -80px;
+  left: -20%; right: -20%;
+  height: 220px;
+  background: radial-gradient(ellipse at center, var(--aurora-emerald), transparent 70%);
+  pointer-events: none;
+  filter: blur(60px);
+  opacity: 0.10;
+  z-index: 0;
+}
+
+.sidebar > * { position: relative; z-index: 1; }
 .brand-icon {
   width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
   background: linear-gradient(135deg, rgba(0,229,255,.22), rgba(16,185,129,.18));

@@ -15,7 +15,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="extracted-inline.css">
 </head>
 <body>
   <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
@@ -127,7 +126,7 @@
           <div class="climate-telemetry-grid">
             <div class="c-stat">
               <span class="c-label"><i class="fa-solid fa-cloud-sun"></i> ATMOSPHERE</span>
-              <strong id="wCondition"><i class="fa-solid fa-sun x-inl-0"></i> Clear</strong>
+              <strong id="wCondition"><i class="fa-solid fa-sun" style="color:#F59E0B"></i> Clear</strong>
             </div>
             <div class="c-stat">
               <span class="c-label"><i class="fa-solid fa-temperature-three-quarters"></i> AIR TEMP</span>
@@ -292,7 +291,7 @@
               <button class="btn shutoff" id="shutoffBtn"><i class="fa-solid fa-octagon-xmark"></i> Emergency Shutoff</button>
               <button class="btn ghost" id="resetBtn"><i class="fa-solid fa-rotate-right"></i> Normal Reset</button>
             </div>
-            <div class="x-inl-1">
+            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
               <button class="btn danger" id="faultBearingBtn">Inject Bearing Fault</button>
               <button class="btn danger" id="faultHeatBtn">Inject Overheat</button>
               <button class="btn ghost" id="faultClearBtn">Clear Faults</button>
@@ -316,7 +315,7 @@
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-droplet"></i> Fleet Water Reserve</span><strong class="kpi-val highlight-emerald">84.2% <small>Capacity</small></strong></div>
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-shield-heart"></i> National Fleet Health</span><strong class="kpi-val highlight-cyan">99.4% <small>Optimal</small></strong></div>
         </section>
-        <div class="x-inl-2">
+        <div style="text-align: center; margin-bottom: 12px;">
           <span class="badge badge-subtle">Simulated Fleet Telemetry</span>
         </div>
         <section class="glass-card fleet-map-card">
@@ -344,17 +343,17 @@
         </section>
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-area"></i> 24-Hour Satellite Precipitation &amp; Temperature Horizon</span><span class="live-pill"><span class="pulse-dot sm"></span> OPEN-METEO SATELLITE</span></div>
-          <div class="chart-wrap x-inl-3"><canvas id="horizonChart"></canvas></div>
+          <div class="chart-wrap" style="height: 320px;"><canvas id="horizonChart"></canvas></div>
         </section>
         <section class="glass-card farm-focus-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Model Predictive Control (MPC) Autonomous Dispatch</span><span class="badge" id="aiModeBadge">Mode: Autonomous MPC</span></div>
-          <div class="focus-grid x-inl-4">
+          <div class="focus-grid" style="margin-bottom: 16px;">
             <div class="focus-item"><span>Forecast Status</span><strong id="aiForecastStatus">Satellite Inflow Nominal</strong></div>
             <div class="focus-item"><span>Recommended Action</span><strong id="aiActionRecommend" class="highlight-cyan">Evaluating Horizon</strong></div>
             <div class="focus-item"><span>24h Expected Rain Vol</span><strong id="aiRainVolExpected">-- mm</strong></div>
             <div class="focus-item"><span>Irrigation Hold State</span><strong id="aiHoldStateBadge">INACTIVE</strong></div>
           </div>
-          <div class="manual-banner" id="aiBannerRationale"><i class="fa-solid fa-brain x-inl-5"></i><span id="aiRationaleText">Analyzing satellite micro-climate telemetry to optimize next irrigation cycle...</span></div>
+          <div class="manual-banner" id="aiBannerRationale"><i class="fa-solid fa-brain" style="color: var(--cyan); font-size: 16px;"></i><span id="aiRationaleText">Analyzing satellite micro-climate telemetry to optimize next irrigation cycle...</span></div>
         </section>
       </div>
 
@@ -366,16 +365,16 @@
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-triangle-exclamation"></i> Cavitation Strain</span><strong class="kpi-val highlight-wind" id="cavitationKpi">2.1%</strong></div>
           <div class="kpi-box"><span class="kpi-label"><i class="fa-solid fa-hourglass-half"></i> Remaining Useful Life</span><strong class="kpi-val" id="fleetRul">6,580 <small>Hours</small></strong></div>
         </section>
-        <div class="x-inl-2">
+        <div style="text-align: center; margin-bottom: 12px;">
           <span class="badge badge-subtle">Simulated Asset Health Telemetry</span>
         </div>
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-line"></i> Mechanical Vibration Velocity Spectrum vs ISO 10816 Thresholds</span><span class="live-pill" id="isoZoneBadge"><span class="pulse-dot sm"></span> ISO ZONE A (OPTIMAL)</span></div>
-          <div class="chart-wrap x-inl-6"><canvas id="vibrationChart"></canvas></div>
+          <div class="chart-wrap" style="height: 300px;"><canvas id="vibrationChart"></canvas></div>
         </section>
 
         <!-- ================= DSP Vibration Waveform & FFT Spectrum ================= -->
-        <section class="glass-card chart-card x-inl-7">
+        <section class="glass-card chart-card" style="margin-top: 20px;">
           <div class="card-top">
             <span class="card-title">
               <i class="fa-solid fa-wave-square"></i> Vibration Diagnostics — Time &amp; Frequency Domain
@@ -384,16 +383,16 @@
               <span class="pulse-dot sm"></span> REAL-TIME DSP
             </span>
           </div>
-          <div class="x-inl-8">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px;">
             <div>
-              <div class="x-inl-9">Time-Domain Waveform</div>
-              <div class="chart-wrap x-inl-10">
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">Time-Domain Waveform</div>
+              <div class="chart-wrap" style="height: 220px;">
                 <canvas id="vibrationWaveformChart"></canvas>
               </div>
             </div>
             <div>
-              <div class="x-inl-9">FFT Spectrum</div>
-              <div class="chart-wrap x-inl-10">
+              <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px;">FFT Spectrum</div>
+              <div class="chart-wrap" style="height: 220px;">
                 <canvas id="vibrationFFTChart"></canvas>
               </div>
             </div>
@@ -402,13 +401,13 @@
 
         <section class="glass-card farm-focus-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-microchip"></i> Pump Diagnostics &amp; Prognostics Ledger</span><button class="btn info" id="serviceAssetBtn"><i class="fa-solid fa-wrench"></i> Log Preventive Maintenance (Reset Fatigue)</button></div>
-          <div class="focus-grid x-inl-4">
+          <div class="focus-grid" style="margin-bottom: 16px;">
             <div class="focus-item"><span>Bearing &amp; Bushing Wear</span><strong id="bearingWearVal" class="highlight-cyan">4.8%</strong></div>
             <div class="focus-item"><span>Lifetime Run Time</span><strong id="operatingHoursVal">1,420.4 Hours</strong></div>
             <div class="focus-item"><span>Prognostics Decision</span><strong id="maintActionVal" class="highlight-emerald">NOMINAL_OPERATION</strong></div>
             <div class="focus-item"><span>Winding Thermals</span><strong id="maintMotorTempVal">24.0°C</strong></div>
           </div>
-          <div class="manual-banner x-inl-11" id="maintRationaleBanner"><i class="fa-solid fa-clipboard-check x-inl-12"></i><span id="maintRationaleText">Hydraulic impeller, winding thermals, and acoustic signature are within optimal operating baseline.</span></div>
+          <div class="manual-banner" id="maintRationaleBanner" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.35); color: var(--text);"><i class="fa-solid fa-clipboard-check" style="color: var(--emerald); font-size: 20px;"></i><span id="maintRationaleText">Hydraulic impeller, winding thermals, and acoustic signature are within optimal operating baseline.</span></div>
         </section>
       </div>
 
@@ -498,7 +497,7 @@
         <section class="glass-card farm-focus-card">
           <div class="card-top">
             <span class="card-title"><i class="fa-solid fa-network-wired"></i> Modbus TCP / PLC Register Address Mapping (Port 502)</span>
-            <span class="badge x-inl-13">Status: Synchronized</span>
+            <span class="badge" style="color:var(--emerald); border-color:rgba(16,185,129,0.4);">Status: Synchronized</span>
           </div>
           <div class="modbus-table-wrap">
             <table class="modbus-table">
@@ -529,10 +528,10 @@
         </section>
         <section class="glass-card chart-card">
           <div class="card-top"><span class="card-title"><i class="fa-solid fa-chart-column"></i> Sectoral Water Accounting by Crop Micro-Plot (Cumulative Liters)</span><button class="btn info" id="exportCsvBtn"><i class="fa-solid fa-file-arrow-down"></i> Export Industrial Audit (CSV)</button></div>
-          <div class="chart-wrap x-inl-3"><canvas id="zoneWaterChart"></canvas></div>
+          <div class="chart-wrap" style="height: 320px;"><canvas id="zoneWaterChart"></canvas></div>
         </section>
         <section class="glass-card farm-focus-card">
-          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge x-inl-14">UN SDG 6.4 Aligned</span></div>
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-leaf"></i> Environmental &amp; Economic Sustainability Impact (ESG)</span><span class="badge" style="border-color: rgba(16, 185, 129, 0.5); color: var(--emerald);">UN SDG 6.4 Aligned</span></div>
           <div class="focus-grid">
             <div class="focus-item"><span>Baseline Traditional Volume</span><strong>18.0 L/min (Continuous Flood)</strong></div>
             <div class="focus-item"><span>Precision Dynamic Savings</span><strong id="esgTotalSavedLiters" class="highlight-cyan">142.5 Liters</strong></div>
@@ -546,14 +545,14 @@
 
   <!-- ============ MODALS ============ -->
   <div class="modal-overlay" id="authModal" aria-hidden="true" role="dialog" aria-label="Operator Authorization">
-    <div class="modal-card x-inl-15">
+    <div class="modal-card" style="max-width: 380px;">
       <div class="modal-head"><span><i class="fa-solid fa-user-shield"></i> SCADA Master Authorization</span><button class="icon-btn modal-close" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
-      <p class="muted x-inl-16">Enter industrial operator passcode to unlock manual actuators, PID tuning, and system overrides.</p>
+      <p class="muted" style="margin-bottom: 12px; font-size: 13px;">Enter industrial operator passcode to unlock manual actuators, PID tuning, and system overrides.</p>
       <div class="field">
         <label for="operatorPinInput">Operator PIN</label>
-        <input type="password" id="operatorPinInput" placeholder="••••" maxlength="8" class="x-inl-17" />
+        <input type="password" id="operatorPinInput" placeholder="••••" maxlength="8" style="text-align: center; font-size: 20px; letter-spacing: 4px;" />
       </div>
-      <p id="authErrorMsg" class="x-inl-18"><i class="fa-solid fa-circle-exclamation"></i> Invalid Passcode. Attempt logged.</p>
+      <p id="authErrorMsg" style="color: var(--danger); font-size: 12px; display: none; margin-bottom: 10px;"><i class="fa-solid fa-circle-exclamation"></i> Invalid Passcode. Attempt logged.</p>
       <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn info" id="submitAuthBtn"><i class="fa-solid fa-unlock"></i> Unlock Console</button></div>
     </div>
   </div>
@@ -572,38 +571,38 @@
 
   <!-- 🛡️ TERMS & COMPLIANCE MODAL -->
   <div class="modal-overlay" id="termsModal" aria-hidden="true" role="dialog" aria-label="Terms of service and compliance">
-    <div class="modal-card x-inl-19">
+    <div class="modal-card" style="max-width: 600px;">
       <div class="modal-head">
         <span><i class="fa-solid fa-file-shield"></i> HydroSync Enterprise Terms &amp; Compliance Protocol</span>
         <button class="icon-btn modal-close" data-close aria-label="Close terms"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
-      <div class="terms-body x-inl-20">
-        <p class="x-inl-21">
-          <strong class="x-inl-22">1. نطاق التشغيل والسلامة الوظيفية (IEC 61508)</strong><br/>
+      <div class="terms-body" style="max-height: 250px; overflow-y: auto; padding-right: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: rgba(0,0,0,0.35); font-size: 12px; line-height: 1.6;">
+        <p style="margin-bottom: 10px;">
+          <strong style="color:var(--cyan);">1. نطاق التشغيل والسلامة الوظيفية (IEC 61508)</strong><br/>
           منصة HydroSync هي نظام تشغيل وتحكم سيبراني-صناعي (SCADA). يلتزم المشغل بعدم إلغاء حمايات السلامة الذاتية (Thermal Derating، منع الجفاف، وحماية التكهف) إلا في الحالات الميدانية المصرح بها وتحت مسؤوليته المباشرة.
         </p>
-        <p class="x-inl-21">
-          <strong class="x-inl-22">2. حوكمة المياه والمقاييس البيئية (UN SDG 6.4 &amp; ESG)</strong><br/>
+        <p style="margin-bottom: 10px;">
+          <strong style="color:var(--cyan);">2. حوكمة المياه والمقاييس البيئية (UN SDG 6.4 &amp; ESG)</strong><br/>
           يتم احتساب كميات المياه والطاقة الموفرة بناءً على خوارزميات التوأم الرقمي ومحرك التنبؤ المناخي (MPC). يُقر المشغل بأن هذه البيانات تشكل سجلاً معتمداً لتدقيق استهلاك الموارد المائية ومطابقة الأهداف البيئية.
         </p>
-        <p class="x-inl-21">
-          <strong class="x-inl-22">3. حماية البيانات والاتصال الصناعي (Modbus / Web Serial)</strong><br/>
+        <p style="margin-bottom: 10px;">
+          <strong style="color:var(--cyan);">3. حماية البيانات والاتصال الصناعي (Modbus / Web Serial)</strong><br/>
           تتم معالجة البيانات وفق بروتوكولات الأمان الصناعي مع مراقبة مشددة للاتصالات السحابية والطرفية.
-          <br/><small class="x-inl-23">Telemetry is processed in accordance with industrial IoT security practices, featuring reverse-proxy sanitization, scoped operator authorization, and secure WebSocket telemetry.</small>
+          <br/><small style="color:var(--muted);">Telemetry is processed in accordance with industrial IoT security practices, featuring reverse-proxy sanitization, scoped operator authorization, and secure WebSocket telemetry.</small>
         </p>
         <p>
-          <strong class="x-inl-22">4. مسؤولية المشغل وصيانة الأصول (ISO 10816)</strong><br/>
+          <strong style="color:var(--cyan);">4. مسؤولية المشغل وصيانة الأصول (ISO 10816)</strong><br/>
           يتحمل المشغل الميداني مسؤولية الاستجابة لتحذيرات طيف الاهتزاز الميكانيكي (Zone C و Zone D) وإجراء الصيانة الميدانية في المواعيد المقترحة لتفادي انهيار المضخات.
         </p>
       </div>
 
-      <label class="consent x-inl-24">
-        <input type="checkbox" id="consentCheck" checked class="x-inl-25" />
+      <label class="consent" style="margin-top: 14px; font-size: 13px; display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text);">
+        <input type="checkbox" id="consentCheck" checked style="width: 18px; height: 18px; accent-color: var(--emerald); cursor: pointer;" />
         <span>أقر بأنني قرأت وفهمت بنود التشغيل وبروتوكول الامتثال وأوافق على الالتزام بها بالكامل.</span>
       </label>
 
-      <div class="modal-actions x-inl-26">
+      <div class="modal-actions" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
         <button class="btn ghost" id="consentDecline" data-close>إغلاق</button>
         <button class="btn info" id="consentAccept" data-close>
           <i class="fa-solid fa-check"></i> اعتماد البروتوكول
