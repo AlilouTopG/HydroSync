@@ -4675,6 +4675,48 @@
     var shutoff =
       $("shutoffBtn");
 
+    // Emergency Stop Button
+    document.getElementById('shutoffBtn')?.addEventListener('click', () => {
+      socket.emit('client:emergency_stop');
+      console.log('Emergency Stop emitted');
+    });
+
+    // Clear Faults / Reset Button
+    document.getElementById('resetBtn')?.addEventListener('click', () => {
+      socket.emit('client:operator_reset');
+      console.log('Operator Reset emitted');
+    });
+
+    // Clear Faults Button (also emits operator_reset)
+    document.getElementById('faultClearBtn')?.addEventListener('click', () => {
+      socket.emit('client:inject_fault', 'clear');
+      socket.emit('client:operator_reset');
+    });
+
+    // Heavy Rain Button
+    document.getElementById('rainBtn')?.addEventListener('click', () => {
+      socket.emit('client:disturbance', 'rain');
+      console.log('Rain disturbance emitted');
+    });
+
+    // Drought Button
+    document.getElementById('droughtBtn')?.addEventListener('click', () => {
+      socket.emit('client:disturbance', 'drought');
+      console.log('Drought disturbance emitted');
+    });
+
+    // Overheat Fault Button
+    document.getElementById('faultHeatBtn')?.addEventListener('click', () => {
+      socket.emit('client:inject_fault', 'overheat');
+      console.log('Overheat fault emitted');
+    });
+
+    // Bearing Fault Button
+    document.getElementById('faultBearingBtn')?.addEventListener('click', () => {
+      socket.emit('client:inject_fault', 'bearing');
+      console.log('Bearing fault emitted');
+    });
+
     if (dr) {
       dr.addEventListener(
         "click",

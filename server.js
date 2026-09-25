@@ -17,6 +17,8 @@ const simulator = require('./simulator');
 const telemetryCollector = require('./database/telemetryCollector');
 
 require('dotenv').config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const DEBUG = false;
 
@@ -587,79 +589,23 @@ async function gracefulShutdown() {
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-// 🧠 HydroSync Ultimate Local NLP Engine (Agronomic Edition)
-app.post('/api/chat', (req, res) => {
+// 🧠 AI Co-Pilot Smart Chat Endpoint (Gemini 1.5 Flash)
+app.post('/api/chat', async (req, res) => {
   try {
     const { message, systemState } = req.body;
-    const q = message.toLowerCase().trim();
 
-    // 1. Massive Intent Dictionary
-    const intents = {
-      greeting: /hello|hi|hey|مرحبا|سلام|صباح|مساء|ahlan/i.test(q),
-      status: /status|state|working|how is the work|everything ok|حالة|شغال|كيف العمل|كيف الحال|امور|واش الحالة/i.test(q),
-      pump: /pump|flow|valve|pressure|مضخة|تدفق|صمام|ضغط/i.test(q),
-      vibration: /vibrat|iso|health|fft|اهتزاز|صحة|محرك/i.test(q),
-      weather: /weather|rain|forecast|meteo|طقس|مطر|جو/i.test(q),
-      moisture: /water|moisture|vwc|soil|irrigation|رطوبة|ماء|سقي|ري/i.test(q),
-      safety: /safety|interlock|trip|alarm|danger|أمان|انذار|خطر|مشكلة|طوارئ/i.test(q),
-      project_info: /hydrosync|what is this|project|مشروع|هيدروسينك|فكرة/i.test(q),
-      creator: /who made you|creator|developer|من صنعك|مبرمج|مهندس|عبد الحق|سيرين|علي/i.test(q),
-      joke: /joke|funny|نكتة|اضحكني|مزحة/i.test(q),
-      identity: /who are you|are you ai|chatgpt|gemini|من أنت|ذكاء اصطناعي/i.test(q),
-      optimization: /increase|improve|yield|production|harvest|crop|barley|corn|olive|wheat|a1|a2|a3|b1|b2|b3|انتاج|محصول|شعير|ذرة|زيتون/i.test(q)
-    };
+    const prompt = `You are the AI Co-Pilot for "HydroSync SCADA".
+    Act as a Senior Automation Engineer. Be concise, technical, and professional. Do not use markdown.
+    System State: Safety=${systemState.safety} | Zone=${systemState.activeZone}
+    Operator Query: "${message}"`;
 
-    // 2. Dynamic Responses based on Live Telemetry
-    let reply = "";
-    const isSafe = systemState.safety === 'NOMINAL';
-    const zone = systemState.activeZone || 'A1';
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
 
-    if (intents.identity) {
-      reply = "I am the HydroSync SCADA Co-Pilot, a specialized local AI engine built specifically for this industrial facility. I am completely independent and do not rely on external APIs.";
-    } else if (intents.creator) {
-      reply = "I was developed by the brilliant engineering team behind HydroSync. My core directive is to optimize agricultural irrigation and monitor industrial assets perfectly.";
-    } else if (intents.project_info) {
-      reply = "HydroSync is a cutting-edge precision agriculture and industrial SCADA digital twin. It integrates real-time telemetry, AI predictive weather, and edge-level safety interlocks.";
-    } else if (intents.joke) {
-      reply = "Why did the SCADA engineer cross the road? To reset the safety interlock on the other side! 🤖 ... But seriously, all systems are nominal and safe.";
-    } else if (intents.optimization) {
-      if (q.includes('a3') || q.includes('olive') || q.includes('زيتون')) {
-        reply = "🌳 To increase yield in Zone A3 (Olives), maintain VWC at 40-50% to prevent root rot. Utilize our MPC weather module to pause irrigation before rain, and ensure targeted fertigation during the flowering stage.";
-      } else if (q.includes('barley') || q.includes('wheat') || q.includes('شعير') || q.includes('قمح') || q.includes('a1') || q.includes('a2')) {
-        reply = "🌾 For cereals like Barley/Wheat (Zones A1/A2), HydroSync recommends maintaining a PID setpoint of 55-60% VWC during tillering. Our predictive weather AI will automatically pause pumps to save water if rain is forecasted.";
-      } else if (q.includes('corn') || q.includes('ذرة') || q.includes('b1') || q.includes('b2')) {
-        reply = "🌽 Corn is highly water-demanding. To maximize production, set the PID VWC target to 65-70% during the tasseling stage. HydroSync's closed-loop control will prevent drought stress dynamically.";
-      } else {
-        reply = "📈 To increase overall agricultural production, rely on the HydroSync AI MPC. It continuously adjusts PID setpoints based on real-time telemetry and satellite weather forecasts to ensure optimal root hydration and zero water waste.";
-      }
-    } else if (intents.greeting) {
-      reply = `Welcome to HydroSync Local AI. Active zone is [${zone}]. Telemetry stream is securely connected. Ready for your commands.`;
-    } else if (intents.status) {
-      reply = `The work is proceeding perfectly! System is 100% operational. Interlocks: [${systemState.safety}] | Current Zone: [${zone}]. The local data-driven engine is routing telemetry flawlessly.`;
-    } else if (intents.safety) {
-      reply = isSafe 
-        ? "✅ All Safety Interlocks are NOMINAL. No trip conditions detected in the hydraulic or mechanical layers. The facility is secure." 
-        : `🚨 WARNING: System is TRIPPED. Current active alarms: [${systemState.safety}]. Manual operator clearance required immediately.`;
-    } else if (intents.pump) {
-      reply = `Pump diagnostics: Hydraulic flow rates are actively monitored. ` + 
-              (isSafe ? `The PID controller is maintaining optimal dispatch for zone ${zone}.` : "Pump is LOCKED off due to safety interlocks.");
-    } else if (intents.vibration) {
-      reply = "⚙️ ISO-10816 Analysis: Vibration RMS and FFT frequency signatures are within safe operational thresholds. No structural or bearing anomalies detected.";
-    } else if (intents.moisture) {
-      reply = `💧 Volumetric Water Content (VWC) for ${zone} is being continuously tracked. The closed-loop MPC is dynamically adjusting setpoints to maximize water savings.`;
-    } else if (intents.weather) {
-      reply = "🌤️ Predictive Weather MPC module is active. Precipitation forecasts are analyzed every 10 minutes to autonomously pause irrigation if rain approaches.";
-    } else {
-      reply = "Message received. As an Industrial AI, my expertise covers 'pump status', 'safety alarms', 'vibration FFT', 'moisture', 'weather predictions', and 'crop yield optimization'. Please specify your query.";
-    }
-
-    // AI Thinking Delay Simulation (600ms)
-    setTimeout(() => {
-      res.json({ reply: reply });
-    }, 600);
-
+    res.json({ reply: result.response.text() });
   } catch (error) {
-    res.status(500).json({ reply: "Local AI Engine fault. Core system remains active." });
+    console.error('[AI Chat] Error:', error.message);
+    res.status(500).json({ reply: "Cloud AI unavailable. Operating in fallback monitoring mode." });
   }
 });
 
