@@ -105,9 +105,7 @@ if (vibRes && vibRes.ok) {
 vibration = await vibRes.json();
 cachePythonVibration(vibration);
 }
-const fftPayload = isUsableFft(vibration && vibration.fft)
-? vibration.fft
-: latestVibrationFFT;
+const fftPayload = isUsableFft(vibration && vibration.fft) ? vibration.fft : latestVibrationFFT;
 const diagnosticsOut = {
 ...(diagnostics && typeof diagnostics === 'object' ? diagnostics : {}),
 fft: fftPayload,
@@ -125,10 +123,7 @@ features: latestVibrationFeatures
 res.json({
 status: 'FALLBACK',
 engine: 'Node-ISO10816-Baseline',
-diagnostics: {
-fft: latestVibrationFFT,
-features: latestVibrationFeatures
-},
+diagnostics: { fft: latestVibrationFFT, features: latestVibrationFeatures },
 fft: latestVibrationFFT,
 features: latestVibrationFeatures,
 msg: 'Python AI Engine in ai_engine/ is currently offline. Operating on local safety interlocks.'
@@ -179,7 +174,6 @@ allowRequest: (req, cb) => cb(null, originOk(req.headers.origin))
 });
 
 let serverStartTime = Date.now();
-
 const OPERATOR_PIN_HASH = process.env.OPERATOR_PIN
 ? crypto.createHash('sha256').update(process.env.OPERATOR_PIN).digest()
 : (process.env.NODE_ENV === 'production'
@@ -210,25 +204,18 @@ return crypto.timingSafeEqual(submittedHash, OPERATOR_PIN_HASH);
 function firewallValidate(socket, cost = 1) {
 const now = Date.now();
 let client = clientFirewallState.get(socket.id);
-
 if (!client) {
 client = { tokens: 10, lastRefill: now, authorized: false };
 clientFirewallState.set(socket.id, client);
 }
-
 const elapsed = (now - client.lastRefill) / 1000;
 client.tokens = Math.min(10, client.tokens + elapsed * 3);
 client.lastRefill = now;
-
 if (client.tokens < cost) {
 totalThreatsBlocked++;
-socket.emit('firewall:alert', {
-type: 'RATE_LIMIT_EXCEEDED',
-msg: 'Command rate limit exceeded. Action dropped.'
-});
+socket.emit('firewall:alert', { type: 'RATE_LIMIT_EXCEEDED', msg: 'Command rate limit exceeded. Action dropped.' });
 return false;
 }
-
 client.tokens -= cost;
 return true;
 }
@@ -237,10 +224,7 @@ function verifyOperatorAuth(socket) {
 const client = clientFirewallState.get(socket.id);
 if (!client || !client.authorized) {
 totalThreatsBlocked++;
-socket.emit('firewall:alert', {
-type: 'UNAUTHORIZED_ACCESS',
-msg: 'Access Denied: Action requires authenticated Operator credentials.'
-});
+socket.emit('firewall:alert', { type: 'UNAUTHORIZED_ACCESS', msg: 'Access Denied: Action requires authenticated Operator credentials.' });
 return false;
 }
 return true;
@@ -266,12 +250,9 @@ rationale: 'Atmospheric conditions stable. Standard PID moisture control engaged
 
 async function fetchSatelliteWeather(key = 'setif') {
 try {
-if (!Object.prototype.hasOwnProperty.call(LOCATION_COORDINATES, key)) {
-key = 'setif';
-}
+if (!Object.prototype.hasOwnProperty.call(LOCATION_COORDINATES, key)) key = 'setif';
 const loc = LOCATION_COORDINATES[key];
 activeLocationKey = key;
-
 const url = new URL('https://api.open-meteo.com/v1/forecast');
 url.searchParams.set('latitude', loc.lat.toString());
 url.searchParams.set('longitude', loc.lon.toString());
@@ -296,9 +277,7 @@ const liveData = {
   rain: typeof cur.precipitation === 'number' ? cur.precipitation : 0.0,
   windSpeed: typeof cur.wind_speed_10m === 'number' ? cur.wind_speed_10m : 8.0,
   weatherCode: typeof cur.weather_code === 'number' ? cur.weather_code : 0,
-  et0: (Array.isArray(daily.et0_fao_evapotranspiration) && daily.et0_fao_evapotranspiration.length > 0)
-    ? Number(daily.et0_fao_evapotranspiration[0])
-    : 4.2
+  et0: (Array.isArray(daily.et0_fao_evapotranspiration) && daily.et0_fao_evapotranspiration.length > 0) ? Number(daily.et0_fao_evapotranspiration[0]) : 4.2
 };
 
 simulator.setLiveWeather(liveData);
@@ -319,17 +298,14 @@ if (hourly.time && Array.isArray(hourly.time)) {
       const prob = hourly.precipitation_probability ? Number(hourly.precipitation_probability[idx]) || 0 : 0;
       const rainMm = hourly.precipitation ? Number(hourly.precipitation[idx]) || 0 : 0;
       const temp = hourly.temperature_2m ? Number(hourly.temperature_2m[idx]) || 20 : 20;
-
       if (i <= 12 && prob > maxRainProb12h) maxRainProb12h = prob;
       totalRain24h += rainMm;
-
       horizon24.push({ hour: timeLabel, prob, rainMm, temp });
     }
   }
 
   const willRainSoon = maxRainProb12h >= 60 || totalRain24h >= 4.0;
   const expectedSaving = willRainSoon ? Math.round(1800 + totalRain24h * 450) : 0;
-
   latestAIPrediction = {
     horizon: horizon24,
     rainHoldActive: willRainSoon,
@@ -338,9 +314,7 @@ if (hourly.time && Array.isArray(hourly.time)) {
     confidence: willRainSoon ? Math.min(98, 80 + Math.round(maxRainProb12h * 0.2)) : 92,
     recommendation: willRainSoon ? 'AUTONOMOUS_RAIN_HOLD' : 'NOMINAL_IRRIGATION',
     waterSavedEstimateL: expectedSaving,
-    rationale: willRainSoon
-      ? `Precipitation front detected (Peak: ${maxRainProb12h}%, Cumul: ${totalRain24h.toFixed(1)}mm). Pump dispatch postponed to leverage natural precipitation.`
-      : `Clear atmospheric outlook across next 24h. Soil moisture depletion will follow standard PID setpoint.`
+    rationale: willRainSoon ? `Precipitation front detected (Peak: ${maxRainProb12h}%, Cumul: ${totalRain24h.toFixed(1)}mm). Pump dispatch postponed to leverage natural precipitation.` : `Clear atmospheric outlook across next 24h. Soil moisture depletion will follow standard PID setpoint.`
   };
   simulator.setRainHold(willRainSoon);
 }
@@ -361,11 +335,7 @@ const clientIp = xff.pop() || socket.handshake.address || 'unknown';
 clientFirewallState.set(socket.id, { tokens: 10, lastRefill: Date.now(), authorized: false });
 
 const initialState = simulator.getState();
-const initialSafety = {
-systemStatus: isSafetyTripped ? 'CRITICAL' : 'NORMAL',
-alarms: isSafetyTripped ? [activeSafetyReason] : [],
-tripped: isSafetyTripped
-};
+const initialSafety = { systemStatus: isSafetyTripped ? 'CRITICAL' : 'NORMAL', alarms: isSafetyTripped ? [activeSafetyReason] : [], tripped: isSafetyTripped };
 const initialAi = aiEngineStatus();
 
 socket.emit('telemetry', {
@@ -380,33 +350,26 @@ aiEngine: initialAi
 socket.on('client:auth', (submittedPin) => {
 if (!firewallValidate(socket, 1)) return;
 if (!authBudgetOk()) { socket.emit('auth:failed', { msg: 'Console temporarily locked.' }); return; }
-
 const lockData = failedAttemptsByIp.get(clientIp) || { count: 0, lockedUntil: 0 };
 const now = Date.now();
-
 if (lockData.lockedUntil > now) {
-  const waitSecs = Math.ceil((lockData.lockedUntil - now) / 1000);
-  socket.emit('auth:failed', { msg: `Console locked due to multiple failed attempts. Wait ${waitSecs}s.` });
-  return;
+const waitSecs = Math.ceil((lockData.lockedUntil - now) / 1000);
+socket.emit('auth:failed', { msg: Console locked due to multiple failed attempts. Wait ${waitSecs}s. });
+return;
 }
-
 if (typeof submittedPin === 'string' && safeCompare(submittedPin.trim())) {
-  failedAttemptsByIp.delete(clientIp);
-  const client = clientFirewallState.get(socket.id);
-  if (client) client.authorized = true;
-  socket.emit('auth:success', { authorized: true });
+failedAttemptsByIp.delete(clientIp);
+const client = clientFirewallState.get(socket.id);
+if (client) client.authorized = true;
+socket.emit('auth:success', { authorized: true });
 } else {
-  totalThreatsBlocked++;
-  AUTH_BUDGET.fails++;
-  lockData.count++;
-  if (lockData.count >= 5) {
-    lockData.lockedUntil = now + 2 * 60 * 1000;
-  }
-  failedAttemptsByIp.set(clientIp, lockData);
-  socket.emit('auth:failed', { msg: 'Invalid Operator Passcode.' });
+totalThreatsBlocked++;
+AUTH_BUDGET.fails++;
+lockData.count++;
+if (lockData.count >= 5) lockData.lockedUntil = now + 2 * 60 * 1000;
+failedAttemptsByIp.set(clientIp, lockData);
+socket.emit('auth:failed', { msg: 'Invalid Operator Passcode.' });
 }
-
-
 });
 
 socket.on('client:operator_reset', () => {
@@ -445,21 +408,13 @@ broadcastTelemetry();
 socket.on('client:update_pid', (params) => {
 if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
 if (!params || typeof params !== 'object') return;
-
 const kp = Number(params.kp);
 const ki = Number(params.ki);
 const kd = Number(params.kd);
-
 if (Number.isFinite(kp) && Number.isFinite(ki) && Number.isFinite(kd)) {
-  simulator.setPIDParams({
-    kp: Math.max(0, Math.min(10.0, kp)),
-    ki: Math.max(0, Math.min(2.0, ki)),
-    kd: Math.max(0, Math.min(5.0, kd))
-  });
-  broadcastTelemetry();
+simulator.setPIDParams({ kp: Math.max(0, Math.min(10.0, kp)), ki: Math.max(0, Math.min(2.0, ki)), kd: Math.max(0, Math.min(5.0, kd)) });
+broadcastTelemetry();
 }
-
-
 });
 
 socket.on('client:update_setpoint', (sp) => {
@@ -474,19 +429,11 @@ broadcastTelemetry();
 socket.on('client:update_settings', (settings) => {
 if (!firewallValidate(socket, 2) || !verifyOperatorAuth(socket)) return;
 if (!settings || typeof settings !== 'object') return;
-
 const cleanSetpoint = Number(settings.setpoint) || 55;
 const cleanCap = Math.max(20, Math.min(5000, Number(settings.tankCapacity) || 200));
 const cleanSoil = ['sandy', 'loam', 'clay'].includes(settings.soilType) ? settings.soilType : 'loam';
-
-simulator.setSettings({
-  setpoint: cleanSetpoint,
-  tankCapacity: cleanCap,
-  soilType: cleanSoil
-});
+simulator.setSettings({ setpoint: cleanSetpoint, tankCapacity: cleanCap, soilType: cleanSoil });
 broadcastTelemetry();
-
-
 });
 
 socket.on('client:disturbance', (type) => {
@@ -541,10 +488,7 @@ let aiInFlight = false, aiLastOkAt = 0;
 let dbInFlight = false;
 
 function aiEngineStatus(now = Date.now()) {
-return {
-online: now - aiLastOkAt < AI_FRESHNESS_MS,
-ageMs: aiLastOkAt ? now - aiLastOkAt : null
-};
+return { online: now - aiLastOkAt < AI_FRESHNESS_MS, ageMs: aiLastOkAt ? now - aiLastOkAt : null };
 }
 
 let safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
@@ -581,17 +525,9 @@ console.warn(⚠️ Python AI Engine unreachable at ${AI_ENGINE_URL}/vibration [
 function persistTelemetry(state) {
 if (dbInFlight) return;
 dbInFlight = true;
-
-telemetryCollector.recordTelemetry(state, {
-features: latestVibrationFeatures,
-fft: latestVibrationFFT
-})
-.catch(err => {
-if (DEBUG) console.error('[Historian] insert failed:', err.message);
-})
-.finally(() => {
-dbInFlight = false;
-});
+telemetryCollector.recordTelemetry(state, { features: latestVibrationFeatures, fft: latestVibrationFFT })
+.catch(err => { if (DEBUG) console.error('[Historian] insert failed:', err.message); })
+.finally(() => { dbInFlight = false; });
 }
 
 function tick() {
@@ -631,16 +567,13 @@ autonomousMPC: mpcDuty
 const telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
 
 const PORT = process.env.PORT || 3000;
-
 let isShuttingDown = false;
 
 async function gracefulShutdown() {
 if (isShuttingDown) return;
 isShuttingDown = true;
-
 let shutdownError = null;
 clearInterval(telemetryInterval);
-
 try {
 await telemetryCollector.endExperiment();
 await new Promise((resolve, reject) => {
@@ -649,63 +582,46 @@ io.close((err) => err ? reject(err) : resolve());
 } catch (err) {
 shutdownError = err;
 }
-
 server.close((err) => {
-if (err && err.code !== 'ERR_SERVER_NOT_RUNNING' && !shutdownError) {
-shutdownError = err;
-}
-
+if (err && err.code !== 'ERR_SERVER_NOT_RUNNING' && !shutdownError) shutdownError = err;
 if (shutdownError) {
-  console.error(`[SHUTDOWN] Failed to shut down cleanly: ${shutdownError.message}`);
-  process.exit(1);
+console.error([SHUTDOWN] Failed to shut down cleanly: ${shutdownError.message});
+process.exit(1);
 }
-
 console.log('HydroSync server shut down cleanly.');
 process.exit(0);
-
-
 });
 }
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-// ============================================================================
-// 🤖 AI Co-Pilot Smart Chat Endpoint (With Invincible Edge AI Fallback)
-// ============================================================================
+// AI Co-Pilot Smart Chat Endpoint (With Ultimate Edge Fallback)
 app.post('/api/chat', async (req, res) => {
 try {
 const { message, systemState } = req.body;
 
-// 1. محاولة الاتصال بـ الذكاء الاصطناعي السحابي (Gemini)
 try {
   const prompt = `You are a SCADA AI Co-Pilot. System State: Safety is ${systemState.safety}, Active Zone: ${systemState.activeZone}. Operator says: "${message}". Reply concisely as an engineer.`;
-  
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   const result = await model.generateContent(prompt);
-  
   return res.json({ reply: result.response.text() });
 } 
-// 2. نظام الطوارئ (Fallback): إذا رفضت جوجل الاتصال، يتدخل العقل المحلي!
 catch (apiError) {
   console.log('[AI Chat] Google API Blocked/Failed. Activating Edge Fallback System...');
-  
   const q = message.toLowerCase();
   let fallbackReply = "Command received. System telemetry is streaming normally. Please specify 'pump', 'vibration', 'weather', or 'moisture' for detailed diagnostics.";
-  
-  if (q.includes('vibrat') || q.includes('اهتزاز') || q.includes('iso')) {
+  if (q.includes('vibrat') || q.includes('اهتزاز')) {
     fallbackReply = "ISO 10816 limits analyzed: Current vibration RMS is within acceptable boundaries. No bearing wear detected on main shafts.";
-  } else if (q.includes('pump') || q.includes('flow') || q.includes('مضخة') || q.includes('صمام')) {
+  } else if (q.includes('pump') || q.includes('flow') || q.includes('مضخة')) {
     fallbackReply = `Pump telemetry online. Flow rates stable. Safety interlocks are currently: ${systemState.safety}.`;
-  } else if (q.includes('weather') || q.includes('طقس') || q.includes('rain')) {
+  } else if (q.includes('weather') || q.includes('طقس')) {
     fallbackReply = "MPC Predictive AI indicates clear skies. Irrigation schedules will proceed normally unless rain probability exceeds 70%.";
-  } else if (q.includes('water') || q.includes('moisture') || q.includes('رطوبة') || q.includes('vwc')) {
+  } else if (q.includes('water') || q.includes('moisture') || q.includes('رطوبة')) {
     fallbackReply = `Monitoring soil moisture specifically for ${systemState.activeZone}. VWC levels are being maintained precisely at setpoints.`;
-  } else if (q.includes('hello') || q.includes('hi') || q.includes('مرحبا') || q.includes('سلام')) {
+  } else if (q.includes('hello') || q.includes('hi') || q.includes('مرحبا')) {
     fallbackReply = "SCADA Edge AI Engine is online. Cloud AI is temporarily bypassed, but I am analyzing your local telemetry. How can I assist?";
   }
-
-  // السيرفر سيرد عليك دائماً ولن ينهار أبداً!
   return res.json({ reply: fallbackReply });
 }
 
@@ -722,7 +638,6 @@ console.log(🗄️ TimescaleDB telemetry collection [ONLINE]);
 } catch (err) {
 console.error([DB] Failed to start telemetry experiment: ${err.message});
 }
-
 console.log(🌿 HydroSync SCADA running at http://localhost:${PORT});
 console.log(🛡️ Enterprise Security Suite Active: Timing-Safe Auth, CSP, Rate-Limiting);
 console.log(⚙️ Core Safety Interlocks & ISO 10816 Diagnostics [ONLINE]);
