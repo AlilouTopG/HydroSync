@@ -1,51 +1,73 @@
 /* HydroSync v2.0 — Cyber-Industrial dark theme. Canvas #060913, cards #0D1322. */
 :root {
-  /* Chrome layer — cyber-twin identity lives here */
-  --bg-oled: #050811;          /* app shell, sidebar canvas */
-  --aurora-cyan: #00E5FF;      /* ambient accent only — never body text */
-  --aurora-emerald: #10B981;
-
-  /* Instrument layer — ISA-101 surface, strict */
-  --bg-panel: #0B1220;         /* slightly lifted from OLED */
-  --text-primary: #E7ECF5;     
-  --text-muted: #8B97AC;       
-  --cyan-data: #4FC7D9;        /* dimmed cyan for telemetry traces */
-
-  /* Alarm-reserved — nowhere else in the UI */
-  --status-nominal: #10B981;   
-  --status-warning: #F59E0B;   
-  --status-critical: #EF4444;  
-
-  /* Structure */
-  --border-subtle: #1B2536;    /* decorative panel dividers */
-  --border-interactive: #52698A; /* WCAG 1.4.11 compliant for focus/inputs */
-
-  /* Fallback mapped variables for existing codebase */
-  --canvas: var(--bg-oled);
-  --surface-1: var(--bg-panel);
-  --surface-2: #0f1728; 
-  --surface-3: #131d31; 
+  /* Surfaces — neutral, low contrast, calm */
+  --canvas: #060913;
+  --surface-1: #0b1220; /* cards */
+  --surface-2: #0f1728; /* raised panels, table head */
+  --surface-3: #131d31; /* inset wells */
   --surface-sunk: rgba(0, 0, 0, 0.34);
-  --line: var(--border-subtle);
-  --line-strong: var(--border-interactive);
-  --line-accent: rgba(0, 229, 255, 0.3);
-  --text: var(--text-primary);
-  --text-dim: var(--text-muted);
-  --text-faint: #6f7d96;
-  --ok: var(--status-nominal);
-  --warn: var(--status-warning);
-  --crit: var(--status-critical);
-  --info: var(--cyan-data);
-  --brand: var(--aurora-cyan);
 
-  /* Typography & Spacing */
-  --mono: "JetBrains Mono", ui-monospace, monospace;
-  --sans: "Space Grotesk", system-ui, sans-serif;
-  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; 
-  --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 32px;
-  --lh-tight: 1.25; --lh-body: 1.55;
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 28px;
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --sidebar-w: 260px;
+  /* Lines */
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.26);
+  --line-accent: rgba(0, 229, 255, 0.3);
+
+  /* Text */
+  --text: #e6ecf5;
+  --text-dim: #9aa8c0;
+  --text-faint: #6f7d96;
+
+  /* State — reserved, never decorative */
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --crit: #ef4444;
+  --info: #38bdf8;
+  --brand: #00e5ff;
+
+  /* Typography */
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --sans: "Space Grotesk", system-ui, -apple-system, sans-serif;
+
+  --fs-xs: 11px; /* labels, chips — hard floor */
+  --fs-sm: 12px;
+  --fs-md: 13px; /* body */
+  --fs-lg: 15px; /* card titles, emphasised values */
+  --fs-xl: 20px;
+  --fs-2xl: 26px; /* KPI figures */
+  --fs-3xl: 32px; /* gauge centre */
+
+  --lh-tight: 1.25;
+  --lh-body: 1.55;
+
+  /* Space — 4px base */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 28px;
+
+  /* Radii */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+
+  /* Elevation */
+  --shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  --shadow-mod: 0 30px 80px rgba(0, 0, 0, 0.6);
+
+  --sidebar-w: 260px;
+
+  /* Professional extension tokens */
+  --surface-0: #050914;
+  --glow-cyan: 0 0 28px rgba(0, 229, 255, 0.1);
+  --shadow-card: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --r-xl: 20px;
+  --z-sidebar: 50;
+  --z-header: 40;
+  --z-modal: 100;
+  --flow-speed: 1.4s;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,15 +86,14 @@ body {
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--sidebar-w);
-  background: var(--bg-oled);
-  border-right: 1px solid rgba(0, 229, 255, 0.1);
+  background: var(--surface-1);
+  border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
   padding: var(--s-5) var(--s-3);
   z-index: 50;
   overflow-y: auto;
-  overflow-x: hidden; /* strictly contains gradients */
 }
 
 /* Top Cyber Cyan Wash */
