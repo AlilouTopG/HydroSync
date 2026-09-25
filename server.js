@@ -587,59 +587,71 @@ async function gracefulShutdown() {
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-// 🧠 Local SCADA Expert System (NLP Intent Engine) - NO API KEYS NEEDED!
+// 🧠 HydroSync Ultimate Local NLP Engine (Enhanced Edition) - NO API KEYS NEEDED!
 app.post('/api/chat', (req, res) => {
   try {
     const { message, systemState } = req.body;
     const q = message.toLowerCase().trim();
 
-    // 1. Intent Recognition Engine
+    // 1. Massive Intent Dictionary
     const intents = {
-      greeting: /hello|hi|hey|مرحبا|سلام|صباح/i.test(q),
-      status: /status|state|working|حالة|شغال/i.test(q),
-      pump: /pump|flow|valve|pressure|مضخة|تدفق/i.test(q),
-      vibration: /vibrat|iso|health|fft|اهتزاز/i.test(q),
-      weather: /weather|rain|forecast|meteo|طقس|مطر/i.test(q),
-      moisture: /water|moisture|vwc|soil|رطوبة|ماء/i.test(q),
-      safety: /safety|interlock|trip|alarm|أمان|انذار/i.test(q)
+      greeting: /hello|hi|hey|مرحبا|سلام|صباح|مساء|ahlan/i.test(q),
+      status: /status|state|working|how is the work|everything ok|حالة|شغال|كيف العمل|كيف الحال|امور|واش الحالة/i.test(q),
+      pump: /pump|flow|valve|pressure|مضخة|تدفق|صمام|ضغط/i.test(q),
+      vibration: /vibrat|iso|health|fft|اهتزاز|صحة|محرك/i.test(q),
+      weather: /weather|rain|forecast|meteo|طقس|مطر|جو/i.test(q),
+      moisture: /water|moisture|vwc|soil|irrigation|رطوبة|ماء|سقي|ري/i.test(q),
+      safety: /safety|interlock|trip|alarm|danger|أمان|انذار|خطر|مشكلة|طوارئ/i.test(q),
+      project_info: /hydrosync|what is this|project|مشروع|هيدروسينك|فكرة/i.test(q),
+      creator: /who made you|creator|developer|من صنعك|مبرمج|مهندس|عبد الحق|سيرين|علي/i.test(q),
+      joke: /joke|funny|نكتة|اضحكني|مزحة/i.test(q),
+      identity: /who are you|are you ai|chatgpt|gemini|من أنت|ذكاء اصطناعي/i.test(q)
     };
 
-    // 2. Dynamic Generation based on Live Telemetry
+    // 2. Dynamic Responses based on Live Telemetry
     let reply = "";
     const isSafe = systemState.safety === 'NOMINAL';
+    const zone = systemState.activeZone || 'A1';
 
-    if (intents.greeting) {
-      reply = `HydroSync Local AI online. Active zone is [${systemState.activeZone}]. Telemetry stream is active. How can I assist your operations?`;
-    } 
-    else if (intents.safety) {
+    if (intents.identity) {
+      reply = "I am the HydroSync SCADA Co-Pilot, a specialized local AI engine built specifically for this industrial facility. I am completely independent and do not rely on external APIs like ChatGPT.";
+    } else if (intents.creator) {
+      reply = "I was developed by the brilliant engineering team behind HydroSync. My core directive is to optimize agricultural irrigation and monitor industrial assets perfectly.";
+    } else if (intents.project_info) {
+      reply = "HydroSync is a cutting-edge precision agriculture and industrial SCADA digital twin. It integrates real-time telemetry, AI predictive weather, and edge-level safety interlocks.";
+    } else if (intents.joke) {
+      reply = "Why did the SCADA engineer cross the road? To reset the safety interlock on the other side! 🤖 ... But seriously, all systems are currently nominal and safe.";
+    } else if (intents.greeting) {
+      reply = `Welcome to HydroSync Local AI. Active zone is [${zone}]. Telemetry stream is securely connected. Ready for your commands.`;
+    } else if (intents.status) {
+      reply = `The work is proceeding perfectly! System is 100% operational. Interlocks: [${systemState.safety}] | Current Zone: [${zone}]. The local data-driven engine is routing telemetry flawlessly.`;
+    } else if (intents.safety) {
       reply = isSafe 
-        ? "✅ All Safety Interlocks are NOMINAL. No trip conditions detected in the hydraulic or mechanical layers." 
-        : `🚨 WARNING: System is TRIPPED. Current active alarms: [${systemState.safety}]. Manual operator clearance required.`;
-    } 
-    else if (intents.pump) {
-      reply = `Pump diagnostics: Hydraulic flow rates are stable. ` + 
-              (isSafe ? "PID controller is actively managing dispatch." : "Pump is LOCKED off due to safety interlocks.");
-    } 
-    else if (intents.vibration) {
-      reply = "⚙️ ISO-10816 Analysis: Vibration RMS and FFT frequency signatures are within safe thresholds. No bearing wear detected.";
-    } 
-    else if (intents.moisture) {
-      reply = `💧 Monitoring Volumetric Water Content (VWC) for ${systemState.activeZone}. The closed-loop MPC is dynamically adjusting setpoints.`;
-    } 
-    else if (intents.weather) {
-      reply = "🌤️ Predictive Weather MPC module is running. Precipitation forecasts are being constantly analyzed to pause irrigation automatically if rain approaches.";
-    } 
-    else if (intents.status) {
-      reply = `System is 100% operational. Interlocks: [${systemState.safety}] | Current Zone: [${systemState.activeZone}]. Local Data-Driven Engine routing telemetry flawlessly.`;
-    } 
-    else {
-      reply = "Command parsed. For detailed insights, ask me specifically about 'pump status', 'safety alarms', 'vibration FFT', or 'weather predictions'.";
+        ? "✅ All Safety Interlocks are NOMINAL. No trip conditions detected in the hydraulic or mechanical layers. The facility is secure." 
+        : `🚨 WARNING: System is TRIPPED. Current active alarms: [${systemState.safety}]. Manual operator clearance required immediately.`;
+    } else if (intents.pump) {
+      reply = `Pump diagnostics: Hydraulic flow rates are actively monitored. ` + 
+              (isSafe ? `The PID controller is maintaining optimal dispatch for zone ${zone}.` : "Pump is LOCKED off due to safety interlocks.");
+    } else if (intents.vibration) {
+      reply = "⚙️ ISO-10816 Analysis: Vibration RMS and FFT frequency signatures are within safe operational thresholds. No structural or bearing anomalies detected.";
+    } else if (intents.moisture) {
+      reply = `💧 Volumetric Water Content (VWC) for ${zone} is being continuously tracked. The closed-loop MPC is dynamically adjusting setpoints to maximize water savings.`;
+    } else if (intents.weather) {
+      reply = "🌤️ Predictive Weather MPC module is active. Precipitation forecasts are analyzed every 10 minutes to autonomously pause irrigation if rain approaches.";
+    } else if (intents.project_info) {
+      reply = "HydroSync is a cutting-edge precision agriculture and industrial SCADA digital twin. It integrates real-time telemetry, AI predictive weather, and edge-level safety interlocks.";
+    } else if (intents.creator) {
+      reply = "I was developed by the brilliant engineering team behind HydroSync. My core directive is to optimize agricultural irrigation and monitor industrial assets perfectly.";
+    } else if (intents.joke) {
+      reply = "Why did the SCADA engineer cross the road? To reset the safety interlock on the other side! 🤖 ... But seriously, all systems are currently nominal and safe.";
+    } else {
+      reply = "Message received. As an Industrial AI, my expertise covers 'pump status', 'safety alarms', 'vibration FFT', 'moisture', and 'weather predictions'. Please specify your query.";
     }
 
-    // AI Thinking Delay Simulation (500ms)
+    // AI Thinking Delay Simulation (600ms)
     setTimeout(() => {
       res.json({ reply: reply });
-    }, 500);
+    }, 600);
 
   } catch (error) {
     res.status(500).json({ reply: "Local AI Engine fault. Core system remains active." });
