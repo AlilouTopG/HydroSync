@@ -2984,3 +2984,20 @@ button.zone-card {
   color: #00E5FF !important;
   text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
 }
+/* ===================================================
+   🌌 تموجات الألوان في القائمة الجانبية (Sidebar Aurora)
+   =================================================== */
+.sidebar {
+  /* 
+    تموج سيان (أزرق فاتح) من الأعلى، 
+    وتموج أخضر زمردي من الأسفل، 
+    مدمجة بسلاسة مع لون الخلفية الأصلي 
+  */
+  background: 
+    radial-gradient(ellipse at top center, rgba(0, 229, 255, 0.12) 0%, transparent 280px),
+    radial-gradient(ellipse at bottom center, rgba(16, 185, 129, 0.12) 0%, transparent 280px),
+    var(--surface-1) !important;
+    
+  /* إضافة خط فاصل أنيق ومضيء قليلاً من جهة اليمين */
+  border-right: 1px solid rgba(0, 229, 255, 0.15) !important;
+}
