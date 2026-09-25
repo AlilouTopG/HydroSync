@@ -19,6 +19,24 @@ const telemetryCollector = require('./database/telemetryCollector');
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// كود فحص الموديلات المسموحة لمفتاحك
+async function listMyModels() {
+  console.log("🔍 Checking allowed AI models for this API Key...");
+  try {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + process.env.GEMINI_API_KEY);
+    const data = await response.json();
+    if (data.models) {
+        const modelNames = data.models.map(m => m.name.replace('models/', ''));
+        console.log("✅ Your Key is ALLOWED to use these models:");
+        console.log(modelNames.join(' | '));
+    } else {
+        console.log("⚠️ API Response:", data);
+    }
+  } catch (err) {
+    console.log("❌ Check error:", err.message);
+  }
+}
+listMyModels();
 
 const DEBUG = false;
 
