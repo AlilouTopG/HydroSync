@@ -2990,7 +2990,7 @@ button.zone-card {
 .sidebar {
   /* 
     تموج سيان (أزرق فاتح) من الأعلى، 
-    وتموج أخضر زمردي من الأسفل، 
+    تموج أخضر زمردي من الأسفل، 
     مدمجة بسلاسة مع لون الخلفية الأصلي 
   */
   background: 
@@ -3013,10 +3013,12 @@ button.zone-card {
   flex-direction: column;
   align-items: flex-end;
   gap: 16px;
+  pointer-events: none; /* يسمح بمرور النقرات عبر الحاوية الشفافة */
 }
 
 /* Floating Action Button */
 .ai-fab {
+  pointer-events: auto; /* يبقي الزر قابلاً للنقر */
   width: 56px; height: 56px;
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(0, 229, 255, 0.15), rgba(16, 185, 129, 0.15));
@@ -3036,6 +3038,7 @@ button.zone-card {
 
 /* Glassmorphism Chat Panel */
 #aiChatPanel {
+  pointer-events: auto; /* يبقي نافذة المحادثة قابلة للنقر */
   width: 380px;
   max-height: 550px;
   background: rgba(5, 9, 20, 0.85); /* Deep OLED Glass */
