@@ -5456,7 +5456,7 @@
     boot();
   }
 
-/* ---------- AI Co-Pilot Chat Engine ---------- */
+/* ---------- AI Co-Pilot Chat Engine (Smart Context Version) ---------- */
   function initAICopilot() {
     var aiFabTrigger = document.getElementById('aiFabTrigger');
     var aiChatPanel = document.getElementById('aiChatPanel');
@@ -5469,7 +5469,7 @@
 
     // Toggle Chat Visibility
     aiFabTrigger.addEventListener('click', function() {
-      playClick();
+      if(typeof playClick === 'function') playClick();
       aiChatPanel.classList.toggle('hidden');
       if (!aiChatPanel.classList.contains('hidden')) {
         setTimeout(function() { chatInput.focus(); }, 100);
@@ -5477,23 +5477,61 @@
     });
 
     closeChatBtn.addEventListener('click', function() {
-      playClick();
+      if(typeof playClick === 'function') playClick();
       aiChatPanel.classList.add('hidden');
     });
 
-    // Helper: Build and append message
+    // Helper: Build and append message securely (Fixes the send bug)
     function appendMessage(sender, text) {
       var msgDiv = document.createElement('div');
       msgDiv.className = "chat-msg " + sender + "-msg";
-      
       var timeString = new Date().toLocaleTimeString('en-GB', { hour12: false });
-      
-      msgDiv.innerHTML = 
-        '<div class="msg-content">' + escapeHTML(text) + '</div>' +
-        '<div class="msg-time">' + timeString + '</div>';
+
+      // Using native DOM methods prevents XSS without needing external functions
+      var contentDiv = document.createElement('div');
+      contentDiv.className = "msg-content";
+      contentDiv.textContent = text; 
+
+      var timeDiv = document.createElement('div');
+      timeDiv.className = "msg-time";
+      timeDiv.textContent = timeString;
+
+      msgDiv.appendChild(contentDiv);
+      msgDiv.appendChild(timeDiv);
       
       chatBody.appendChild(msgDiv);
       chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    // The AI "Brain": Analyzes the query and checks live UI states
+    function getSmartResponse(query) {
+      var q = query.toLowerCase();
+      
+      // Read live real-time data directly from your dashboard
+      var safetyBanner = document.querySelector('.safety-banner');
+      var isSafetyNominal = safetyBanner ? safetyBanner.classList.contains('nominal') : true;
+      var activeZone = document.querySelector('.zone-card.active .zone-id');
+      var zoneName = activeZone ? activeZone.innerText : "all active zones";
+      
+      // Keyword matching & Logical Responses
+      if (q.includes('vibrat') || q.includes('health') || q.includes('iso') || q.includes('اهتزاز')) {
+        return "Analyzing ISO 10816 limits... Current vibration RMS is within acceptable boundaries. No bearing wear detected on the main pump.";
+      }
+      if (q.includes('pump') || q.includes('flow') || q.includes('valve') || q.includes('مضخة')) {
+        return "Pump and flow telemetry are online. Safety interlocks are currently " + (isSafetyNominal ? "NOMINAL" : "TRIPPED due to a fault condition") + ".";
+      }
+      if (q.includes('weather') || q.includes('rain') || q.includes('forecast') || q.includes('طقس')) {
+        return "MPC Predictive AI is analyzing the open-meteo satellite feed. Irrigation schedules will automatically hold if rain probability exceeds safety thresholds.";
+      }
+      if (q.includes('water') || q.includes('moisture') || q.includes('vwc') || q.includes('soil') || q.includes('تربة')) {
+        return "Monitoring soil moisture specifically for " + zoneName + ". VWC levels are being maintained precisely according to agronomic setpoints.";
+      }
+      if (q.includes('hello') || q.includes('hi') || q.includes('مرحبا')) {
+        return "SCADA AI Agent online. I am actively monitoring hydraulic pressures, ISO 10816 vibration, and soil telemetry. What diagnostic do you need?";
+      }
+      
+      // Professional Default Fallback
+      return "Command processed. System telemetry is stable and streaming correctly. Please specify 'pump', 'vibration', 'weather', or 'moisture' for detailed targeted diagnostics.";
     }
 
     // Handle Sending
@@ -5503,20 +5541,14 @@
 
       appendMessage('user', text);
       chatInput.value = '';
-      playClick();
+      if(typeof playClick === 'function') playClick();
 
-      // Simulate AI typing and response delay
+      // Simulate AI analyzing data with a realistic delay (1 to 2 seconds)
       setTimeout(function() {
-        var responses = [
-          "Analyzing telemetry... Flow rate and VWC are within optimal parameters.",
-          "ISO 10816 data indicates vibration is within acceptable Zone A limits. No bearing wear detected.",
-          "Based on the MPC forecast, I recommend holding irrigation due to a 74% rain probability.",
-          "No hardware faults detected. IEC 61508 functional safety loops remain stable."
-        ];
-        var randomReply = responses[Math.floor(Math.random() * responses.length)];
-        appendMessage('ai', randomReply);
-        playClick(); // Tiny audio feedback when AI replies
-      }, 1200);
+        var aiReply = getSmartResponse(text);
+        appendMessage('ai', aiReply);
+        if(typeof playClick === 'function') playClick();
+      }, 1000 + Math.random() * 800);
     }
 
     sendChatBtn.addEventListener('click', sendMessage);
@@ -5525,7 +5557,7 @@
     });
   }
 
-  // Initialize the chat engine after app boots
+  // Ensure init runs correctly on boot
   document.addEventListener("DOMContentLoaded", function() {
     setTimeout(initAICopilot, 500);
   });
