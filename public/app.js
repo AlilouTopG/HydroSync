@@ -4807,6 +4807,7 @@
             socket &&
             socket.connected
           ) {
+            log("<strong style='color:var(--cyan)'>[SYSTEM RESET]</strong> Operator reset triggered via Reset button.");
             socket.emit("client:operator_reset");
 
             socket.emit(
