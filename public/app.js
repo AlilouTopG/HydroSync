@@ -4773,6 +4773,8 @@
       el.addEventListener("click", function () {
         if (!isOperatorAuthorized) { openModal("authModal"); return; }
         if (socket && socket.connected) socket.emit("client:inject_fault", p[1]);
+        // For Clear Faults, also emit operator reset to clear system-wide trips
+        if (p[1] === 'clear' && socket && socket.connected) socket.emit("client:operator_reset");
         log("<strong style='color:var(--amber)'>[FAULT INJECTION]</strong> " + p[1]);
       });
     });
