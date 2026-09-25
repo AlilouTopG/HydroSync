@@ -587,7 +587,7 @@ async function gracefulShutdown() {
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-// 🧠 HydroSync Ultimate Local NLP Engine (Enhanced Edition) - NO API KEYS NEEDED!
+// 🧠 HydroSync Ultimate Local NLP Engine (Agronomic Edition)
 app.post('/api/chat', (req, res) => {
   try {
     const { message, systemState } = req.body;
@@ -605,7 +605,8 @@ app.post('/api/chat', (req, res) => {
       project_info: /hydrosync|what is this|project|مشروع|هيدروسينك|فكرة/i.test(q),
       creator: /who made you|creator|developer|من صنعك|مبرمج|مهندس|عبد الحق|سيرين|علي/i.test(q),
       joke: /joke|funny|نكتة|اضحكني|مزحة/i.test(q),
-      identity: /who are you|are you ai|chatgpt|gemini|من أنت|ذكاء اصطناعي/i.test(q)
+      identity: /who are you|are you ai|chatgpt|gemini|من أنت|ذكاء اصطناعي/i.test(q),
+      optimization: /increase|improve|yield|production|harvest|crop|barley|corn|olive|wheat|a1|a2|a3|b1|b2|b3|انتاج|محصول|شعير|ذرة|زيتون/i.test(q)
     };
 
     // 2. Dynamic Responses based on Live Telemetry
@@ -614,13 +615,23 @@ app.post('/api/chat', (req, res) => {
     const zone = systemState.activeZone || 'A1';
 
     if (intents.identity) {
-      reply = "I am the HydroSync SCADA Co-Pilot, a specialized local AI engine built specifically for this industrial facility. I am completely independent and do not rely on external APIs like ChatGPT.";
+      reply = "I am the HydroSync SCADA Co-Pilot, a specialized local AI engine built specifically for this industrial facility. I am completely independent and do not rely on external APIs.";
     } else if (intents.creator) {
       reply = "I was developed by the brilliant engineering team behind HydroSync. My core directive is to optimize agricultural irrigation and monitor industrial assets perfectly.";
     } else if (intents.project_info) {
       reply = "HydroSync is a cutting-edge precision agriculture and industrial SCADA digital twin. It integrates real-time telemetry, AI predictive weather, and edge-level safety interlocks.";
     } else if (intents.joke) {
-      reply = "Why did the SCADA engineer cross the road? To reset the safety interlock on the other side! 🤖 ... But seriously, all systems are currently nominal and safe.";
+      reply = "Why did the SCADA engineer cross the road? To reset the safety interlock on the other side! 🤖 ... But seriously, all systems are nominal and safe.";
+    } else if (intents.optimization) {
+      if (q.includes('a3') || q.includes('olive') || q.includes('زيتون')) {
+        reply = "🌳 To increase yield in Zone A3 (Olives), maintain VWC at 40-50% to prevent root rot. Utilize our MPC weather module to pause irrigation before rain, and ensure targeted fertigation during the flowering stage.";
+      } else if (q.includes('barley') || q.includes('wheat') || q.includes('شعير') || q.includes('قمح') || q.includes('a1') || q.includes('a2')) {
+        reply = "🌾 For cereals like Barley/Wheat (Zones A1/A2), HydroSync recommends maintaining a PID setpoint of 55-60% VWC during tillering. Our predictive weather AI will automatically pause pumps to save water if rain is forecasted.";
+      } else if (q.includes('corn') || q.includes('ذرة') || q.includes('b1') || q.includes('b2')) {
+        reply = "🌽 Corn is highly water-demanding. To maximize production, set the PID VWC target to 65-70% during the tasseling stage. HydroSync's closed-loop control will prevent drought stress dynamically.";
+      } else {
+        reply = "📈 To increase overall agricultural production, rely on the HydroSync AI MPC. It continuously adjusts PID setpoints based on real-time telemetry and satellite weather forecasts to ensure optimal root hydration and zero water waste.";
+      }
     } else if (intents.greeting) {
       reply = `Welcome to HydroSync Local AI. Active zone is [${zone}]. Telemetry stream is securely connected. Ready for your commands.`;
     } else if (intents.status) {
@@ -638,14 +649,8 @@ app.post('/api/chat', (req, res) => {
       reply = `💧 Volumetric Water Content (VWC) for ${zone} is being continuously tracked. The closed-loop MPC is dynamically adjusting setpoints to maximize water savings.`;
     } else if (intents.weather) {
       reply = "🌤️ Predictive Weather MPC module is active. Precipitation forecasts are analyzed every 10 minutes to autonomously pause irrigation if rain approaches.";
-    } else if (intents.project_info) {
-      reply = "HydroSync is a cutting-edge precision agriculture and industrial SCADA digital twin. It integrates real-time telemetry, AI predictive weather, and edge-level safety interlocks.";
-    } else if (intents.creator) {
-      reply = "I was developed by the brilliant engineering team behind HydroSync. My core directive is to optimize agricultural irrigation and monitor industrial assets perfectly.";
-    } else if (intents.joke) {
-      reply = "Why did the SCADA engineer cross the road? To reset the safety interlock on the other side! 🤖 ... But seriously, all systems are currently nominal and safe.";
     } else {
-      reply = "Message received. As an Industrial AI, my expertise covers 'pump status', 'safety alarms', 'vibration FFT', 'moisture', and 'weather predictions'. Please specify your query.";
+      reply = "Message received. As an Industrial AI, my expertise covers 'pump status', 'safety alarms', 'vibration FFT', 'moisture', 'weather predictions', and 'crop yield optimization'. Please specify your query.";
     }
 
     // AI Thinking Delay Simulation (600ms)
