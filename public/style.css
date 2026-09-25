@@ -2963,3 +2963,24 @@ button.zone-card {
   border-bottom: 1px solid rgba(16, 185, 129, 0.6);
   padding-bottom: 3px;
 }
+/* ===================================================
+   🎯 تمييز المربع المحدد (Active Zone Highlight)
+   =================================================== */
+.zone-card.active {
+  /* خلفية زرقاء سيان خفيفة جداً لتمييز المربع */
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.15), rgba(0, 0, 0, 0.3)) !important;
+  /* إطار كامل مضيء */
+  border: 1px solid rgba(0, 229, 255, 0.6) !important;
+  /* خط سفلي سميك وساطع */
+  border-bottom: 3px solid rgba(0, 229, 255, 1) !important;
+  /* توهج خارجي وداخلي يشبه الشاشات المجسمة */
+  box-shadow: 0 0 22px rgba(0, 229, 255, 0.4), inset 0 0 15px rgba(0, 229, 255, 0.15) !important;
+  /* رفع المربع قليلاً للأعلى */
+  transform: translateY(-4px) !important;
+}
+
+/* إضاءة اسم المنطقة (مثل A1, B2) باللون السيان ليزيد من وضوح التحديد */
+.zone-card.active .zone-id {
+  color: #00E5FF !important;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+}
