@@ -4693,6 +4693,9 @@
           "<span style='color:var(--cyan)'>Heavy Rain</span>"
         )
       );
+      ra.addEventListener("click", function() {
+        console.log('Rain disturbance emitted');
+      });
     }
 
     if (shutoff) {
@@ -4749,6 +4752,7 @@
             socket.connected
           ) {
             socket.emit("client:emergency_stop");
+            console.log('Emergency Stop emitted');
           }
 
           if (isHardwareMode) {
@@ -4776,6 +4780,9 @@
         // For Clear Faults, also emit operator reset to clear system-wide trips
         if (p[1] === 'clear' && socket && socket.connected) socket.emit("client:operator_reset");
         log("<strong style='color:var(--amber)'>[FAULT INJECTION]</strong> " + p[1]);
+        if (p[1] === 'overheat') {
+          console.log('Overheat fault emitted');
+        }
       });
     });
     if (rs) {
@@ -4808,6 +4815,7 @@
             socket.connected
           ) {
             log("<strong style='color:var(--cyan)'>[SYSTEM RESET]</strong> Operator reset triggered via Reset button.");
+            console.log('Operator Reset emitted');
             socket.emit("client:operator_reset");
 
             socket.emit(
