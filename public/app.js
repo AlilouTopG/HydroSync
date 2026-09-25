@@ -5456,7 +5456,7 @@
     boot();
   }
 
-/* ---------- AI Co-Pilot Chat Engine (Smart Context Version) ---------- */
+/* ---------- AI Co-Pilot Chat Engine (LLM Context Version) ---------- */
   function initAICopilot() {
     var aiFabTrigger = document.getElementById('aiFabTrigger');
     var aiChatPanel = document.getElementById('aiChatPanel');
@@ -5467,7 +5467,6 @@
 
     if (!aiFabTrigger || !aiChatPanel) return;
 
-    // Toggle Chat Visibility
     aiFabTrigger.addEventListener('click', function() {
       if(typeof playClick === 'function') playClick();
       aiChatPanel.classList.toggle('hidden');
@@ -5481,17 +5480,15 @@
       aiChatPanel.classList.add('hidden');
     });
 
-    // Helper: Build and append message securely (Fixes the send bug)
-    function appendMessage(sender, text) {
+    function appendMessage(sender, text, msgId) {
       var msgDiv = document.createElement('div');
       msgDiv.className = "chat-msg " + sender + "-msg";
-      var timeString = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      if (msgId) msgDiv.id = msgId;
 
-      // Using native DOM methods prevents XSS without needing external functions
+      var timeString = new Date().toLocaleTimeString('en-GB', { hour12: false });
       var contentDiv = document.createElement('div');
       contentDiv.className = "msg-content";
       contentDiv.textContent = text; 
-
       var timeDiv = document.createElement('div');
       timeDiv.className = "msg-time";
       timeDiv.textContent = timeString;
@@ -5503,39 +5500,7 @@
       chatBody.scrollTop = chatBody.scrollHeight;
     }
 
-    // The AI "Brain": Analyzes the query and checks live UI states
-    function getSmartResponse(query) {
-      var q = query.toLowerCase();
-      
-      // Read live real-time data directly from your dashboard
-      var safetyBanner = document.querySelector('.safety-banner');
-      var isSafetyNominal = safetyBanner ? safetyBanner.classList.contains('nominal') : true;
-      var activeZone = document.querySelector('.zone-card.active .zone-id');
-      var zoneName = activeZone ? activeZone.innerText : "all active zones";
-      
-      // Keyword matching & Logical Responses
-      if (q.includes('vibrat') || q.includes('health') || q.includes('iso') || q.includes('اهتزاز')) {
-        return "Analyzing ISO 10816 limits... Current vibration RMS is within acceptable boundaries. No bearing wear detected on the main pump.";
-      }
-      if (q.includes('pump') || q.includes('flow') || q.includes('valve') || q.includes('مضخة')) {
-        return "Pump and flow telemetry are online. Safety interlocks are currently " + (isSafetyNominal ? "NOMINAL" : "TRIPPED due to a fault condition") + ".";
-      }
-      if (q.includes('weather') || q.includes('rain') || q.includes('forecast') || q.includes('طقس')) {
-        return "MPC Predictive AI is analyzing the open-meteo satellite feed. Irrigation schedules will automatically hold if rain probability exceeds safety thresholds.";
-      }
-      if (q.includes('water') || q.includes('moisture') || q.includes('vwc') || q.includes('soil') || q.includes('تربة')) {
-        return "Monitoring soil moisture specifically for " + zoneName + ". VWC levels are being maintained precisely according to agronomic setpoints.";
-      }
-      if (q.includes('hello') || q.includes('hi') || q.includes('مرحبا')) {
-        return "SCADA AI Agent online. I am actively monitoring hydraulic pressures, ISO 10816 vibration, and soil telemetry. What diagnostic do you need?";
-      }
-      
-      // Professional Default Fallback
-      return "Command processed. System telemetry is stable and streaming correctly. Please specify 'pump', 'vibration', 'weather', or 'moisture' for detailed targeted diagnostics.";
-    }
-
-    // Handle Sending
-    function sendMessage() {
+    async function sendMessage() {
       var text = chatInput.value.trim();
       if (!text) return;
 
@@ -5543,12 +5508,40 @@
       chatInput.value = '';
       if(typeof playClick === 'function') playClick();
 
-      // Simulate AI analyzing data with a realistic delay (1 to 2 seconds)
-      setTimeout(function() {
-        var aiReply = getSmartResponse(text);
-        appendMessage('ai', aiReply);
+      var typingId = 'typing-' + Date.now();
+      appendMessage('ai', 'Analyzing system telemetry...', typingId);
+
+      var safetyBanner = document.querySelector('.safety-banner');
+      var isSafetyNominal = safetyBanner ? safetyBanner.classList.contains('nominal') : true;
+      var activeZone = document.querySelector('.zone-card.active .zone-id');
+      var zoneName = activeZone ? activeZone.innerText : "No zone selected";
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            systemState: {
+              safety: isSafetyNominal ? "NOMINAL" : "TRIPPED / FAULT",
+              activeZone: zoneName
+            }
+          })
+        });
+        
+        const data = await response.json();
+        
+        var typingEl = document.getElementById(typingId);
+        if (typingEl) typingEl.remove();
+        
+        appendMessage('ai', data.reply);
         if(typeof playClick === 'function') playClick();
-      }, 1000 + Math.random() * 800);
+
+      } catch (err) {
+        var typingEl = document.getElementById(typingId);
+        if (typingEl) typingEl.remove();
+        appendMessage('ai', 'Error: AI Engine offline or unreachable.');
+      }
     }
 
     sendChatBtn.addEventListener('click', sendMessage);

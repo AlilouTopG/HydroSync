@@ -24,6 +24,10 @@ const simulator = require('./simulator');
 
 const telemetryCollector = require('./database/telemetryCollector');
 
+require('dotenv').config();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 const DEBUG = false;
 
 
@@ -1132,6 +1136,32 @@ async function gracefulShutdown() {
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
+
+// AI Co-Pilot Smart Chat Endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, systemState } = req.body;
+
+    const prompt = `You are the AI Co-Pilot for "HydroSync SCADA", an advanced industrial and agricultural digital twin system.
+    You must act as a Senior Automation & Reliability Engineer. Be concise, highly technical, and professional. 
+    Respond in plain text (do not use markdown). Answer in the same language the user uses.
+
+    Current Live System State:
+    - Safety Interlocks: ${systemState.safety}
+    - Active Field Zone: ${systemState.activeZone}
+
+    Operator Query: "${message}"`;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+
+    res.json({ reply: responseText });
+  } catch (error) {
+    console.error('[AI Chat] Error:', error.message);
+    res.status(500).json({ reply: "Connection to AI core interrupted. Please check telemetry link." });
+  }
+});
 
 server.listen(PORT, async () => {
 
