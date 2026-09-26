@@ -5583,17 +5583,29 @@
         });
         
         const data = await response.json();
-        
+
         var typingEl = document.getElementById(typingId);
         if (typingEl) typingEl.remove();
-        
-        appendMessage('ai', data.reply);
-        if(typeof playClick === 'function') playClick();
+
+        // Always show the server's actual reply. When it also sent a diagnostic
+        // error code (502/503/504), append it so an operator can tell a config
+        // issue apart from a timeout apart from a genuine model failure --
+        // rather than every failure mode reading identically.
+        var replyText = (data && typeof data.reply === 'string' && data.reply)
+          ? data.reply
+          : 'No response received from Copilot.';
+        if (data && data.error) replyText += ' [' + data.error + ']';
+
+        appendMessage('ai', replyText);
+        if (response.ok && typeof playClick === 'function') playClick();
 
       } catch (err) {
+        // This branch only fires on a genuine network/parse failure --
+        // fetch() does not throw on 4xx/5xx responses, so a real server
+        // error JSON is already handled above, not here.
         var typingEl = document.getElementById(typingId);
         if (typingEl) typingEl.remove();
-        appendMessage('ai', 'Error: AI Engine offline or unreachable.');
+        appendMessage('ai', 'Error: could not reach the server (network or connectivity issue).');
       }
     }
 
