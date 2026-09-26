@@ -1236,7 +1236,19 @@ Operator Query: "${message}"`;
       new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini request timed out')), CHAT_TIMEOUT_MS))
     ]);
 
-    res.json({ reply: result.response.text() });
+    let finalReply = "";
+    try {
+      if (!result || !result.response) {
+         throw new Error("No response object returned from Gemini.");
+      }
+      finalReply = result.response.text();
+      if (!finalReply) throw new Error("Empty text returned.");
+    } catch (parseError) {
+      console.warn("[AI Chat] Safely caught empty response or safety block:", parseError.message);
+      finalReply = "Query requires more context. Please provide a specific engineering command (e.g., 'Status of Zone A1').";
+    }
+
+    res.json({ reply: finalReply });
   } catch (error) {
     // Full detail server-side; a distinct, honest reply per failure mode to the client —
     // the previous version reused one sentence for every branch, which is why the UI
