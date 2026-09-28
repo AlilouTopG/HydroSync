@@ -2,23 +2,31 @@ const pool = require('./db');
 
 let experimentId = null;
 
-async function startExperiment() {
+async function startExperiment({
+  name = `live_run_${new Date().toISOString()}`,
+  description = 'HydroSync simulator telemetry collection run',
+  source = 'simulator',
+  simulatorVersion = 'current',
+  metadata = {}
+} = {}) {
   const result = await pool.query(
     `
     INSERT INTO experiments (
       name,
       description,
       source,
-      simulator_version
+      simulator_version,
+      metadata
     )
-    VALUES ($1, $2, $3, $4)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING id
     `,
     [
-      `live_run_${new Date().toISOString()}`,
-      'HydroSync simulator telemetry collection run',
-      'simulator',
-      'current'
+      name,
+      description,
+      source,
+      simulatorVersion,
+      metadata
     ]
   );
 
@@ -36,134 +44,253 @@ async function recordTelemetry(state, aiData = {}) {
 
   const asset = state.assetHealth || {};
   const aiFeatures = aiData.features || {};
+  const multiAxis = aiData.multi_axis || {};
+  const multiAxisCombined = multiAxis.combined_features || {};
 
-  await pool.query(
-    `
-    INSERT INTO telemetry (
-      time,
-      experiment_id,
+  const enrichedFeatures = {
+    ...aiFeatures,
+    multi_axis_version: multiAxis.version || state.waveformVersion || null,
+    axes_available: multiAxis.axes_available || state.axesAvailable || null,
+    vector_rms: multiAxisCombined.vector_rms ?? null,
+    total_spectral_energy: multiAxisCombined.total_spectral_energy ?? null,
+    rms_ratio_y_x: multiAxisCombined.rms_ratio_y_x ?? null,
+    rms_ratio_z_x: multiAxisCombined.rms_ratio_z_x ?? null,
+    corr_xy: multiAxisCombined.corr_xy ?? null,
+    corr_xz: multiAxisCombined.corr_xz ?? null,
+    corr_yz: multiAxisCombined.corr_yz ?? null
+  };
 
-      motor_temp_c,
-      tank_volume_pct,
-      pump_duty_pct,
-      flow_rate,
-      is_running,
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-      imbalance_level_pct,
-      bearing_wear_pct,
-      cavitation_index,
+    const result = await client.query(
+      `
+      INSERT INTO telemetry (
+        time,
+        experiment_id,
 
-      vibration_waveform,
-      sampling_rate_hz,
-      buffer_size,
+        motor_temp_c,
+        tank_volume_pct,
+        pump_duty_pct,
+        flow_rate,
+        is_running,
 
-      vibration_rms,
-      dominant_frequency_hz,
-      one_x_amplitude,
-      two_x_amplitude,
-      two_x_to_one_x_ratio,
-      one_x_to_rms_ratio,
-      spectral_energy,
-      crest_factor,
-      kurtosis,
+        imbalance_level_pct,
+        bearing_wear_pct,
+        cavitation_index,
 
-      anomaly_score,
-      anomaly_detected,
-      predicted_fault,
-      fault_confidence,
+        vibration_waveform,
+        sampling_rate_hz,
+        buffer_size,
 
-      cavitation_probability,
-      bearing_probability,
-      imbalance_probability,
+        vibration_rms,
+        dominant_frequency_hz,
+        one_x_amplitude,
+        two_x_amplitude,
+        two_x_to_one_x_ratio,
+        one_x_to_rms_ratio,
+        spectral_energy,
+        crest_factor,
+        kurtosis,
 
-      fft_frequencies_hz,
-      fft_magnitudes,
+        anomaly_score,
+        anomaly_detected,
+        predicted_fault,
+        fault_confidence,
 
-      features,
-      model_metadata
-    )
-    VALUES (
-      NOW(),
-      $1,
+        cavitation_probability,
+        bearing_probability,
+        imbalance_probability,
 
-      $2, $3, $4, $5, $6,
+        fft_frequencies_hz,
+        fft_magnitudes,
 
-      $7, $8, $9,
+        features,
+        model_metadata
+      )
+      VALUES (
+        NOW(),
+        $1,
 
-      $10, $11, $12,
+        $2, $3, $4, $5, $6,
 
-      $13, $14, $15, $16, $17, $18, $19, $20, $21,
+        $7, $8, $9,
 
-      $22, $23, $24, $25,
+        $10, $11, $12,
 
-      $26, $27, $28,
+        $13, $14, $15, $16, $17, $18, $19, $20, $21,
 
-      $29, $30,
+        $22, $23, $24, $25,
 
-      $31,
-      $32
-    )
-    `,
-    [
-      experimentId,
+        $26, $27, $28,
 
-      Number(state.motorTemp) || null,
-      Number(state.tankVolumePct) || null,
-      Number(state.pumpDuty) || 0,
-      Number(state.flowRate) || 0,
-      Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
+        $29, $30,
 
-      Number(asset.imbalanceLevel) || 0,
-      Number(asset.bearingWearPct) || 0,
-      Number(asset.cavitationIndex) || 0,
+        $31,
+        $32
+      )
+      RETURNING time, time::text AS time_str, id
+      `,
+      [
+        experimentId,
 
-      Array.isArray(state.vibrationWaveform)
-        ? state.vibrationWaveform
-        : null,
+        Number(state.motorTemp) || null,
+        Number(state.tankVolumePct) || null,
+        Number(state.pumpDuty) || 0,
+        Number(state.flowRate) || 0,
+        Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
 
-      Number(state.samplingRateHz || asset.samplingRateHz) || null,
-      Number(state.bufferSize || asset.bufferSize) || null,
+        Number(asset.imbalanceLevel) || 0,
+        Number(asset.bearingWearPct) || 0,
+        Number(asset.cavitationIndex) || 0,
 
-      Number(aiFeatures.vibration_rms) || null,
-      Number(aiFeatures.dominant_frequency_hz) || null,
+        Array.isArray(state.vibrationWaveform)
+          ? state.vibrationWaveform
+          : null,
 
-      Number(aiFeatures.one_x_amplitude) || null,
+        Number(state.samplingRateHz || asset.samplingRateHz) || null,
+        Number(state.bufferSize || asset.bufferSize) || null,
 
-      
-      Number(aiFeatures.two_x_amplitude) || null,
-      Number(aiFeatures.two_x_to_one_x_ratio) || null,
-      Number(aiFeatures.one_x_to_rms_ratio) || null,
-      Number(aiFeatures.spectral_energy) || null,
-      Number(aiFeatures.crest_factor) || null,
-      Number(aiFeatures.kurtosis) || null,
+        Number(aiFeatures.vibration_rms ?? asset.vibrationRms) || null,
+        Number(aiFeatures.dominant_frequency_hz ?? asset.dominantFrequencyHz) || null,
 
-      Number(aiFeatures.anomaly_score) || null,
-      typeof aiFeatures.anomaly_detected === 'boolean'
-        ? aiFeatures.anomaly_detected
-        : null,
-      aiFeatures.predicted_fault || null,
-      Number(aiFeatures.fault_confidence) || null,
+        Number(aiFeatures.one_x_amplitude) || null,
+        Number(aiFeatures.two_x_amplitude) || null,
+        Number(aiFeatures.two_x_to_one_x_ratio) || null,
+        Number(aiFeatures.one_x_to_rms_ratio) || null,
+        Number(aiFeatures.spectral_energy) || null,
+        Number(aiFeatures.crest_factor) || null,
+        Number(aiFeatures.kurtosis) || null,
 
-      Number(aiFeatures.cavitation_probability) || null,
-      Number(aiFeatures.bearing_probability) || null,
-      Number(aiFeatures.imbalance_probability) || null,
+        Number(aiFeatures.anomaly_score) || null,
+        typeof aiFeatures.anomaly_detected === 'boolean'
+          ? aiFeatures.anomaly_detected
+          : null,
+        aiFeatures.predicted_fault || null,
+        Number(aiFeatures.fault_confidence) || null,
 
-      Array.isArray(aiData.fft?.frequencies_hz)
-        ? aiData.fft.frequencies_hz
-        : null,
+        Number(aiFeatures.cavitation_probability) || null,
+        Number(aiFeatures.bearing_probability) || null,
+        Number(aiFeatures.imbalance_probability) || null,
 
-      Array.isArray(aiData.fft?.magnitudes)
-        ? aiData.fft.magnitudes
-        : null,
+        Array.isArray(aiData.fft?.frequencies_hz)
+          ? aiData.fft.frequencies_hz
+          : null,
 
-      aiFeatures,
+        Array.isArray(aiData.fft?.magnitudes)
+          ? aiData.fft.magnitudes
+          : null,
 
-      {
-        engine: aiData.engine || 'python-fastapi',
-        collected_at: new Date().toISOString()
+        enrichedFeatures,
+
+        {
+          engine: aiData.engine || 'python-fastapi',
+          collection: state.datasetCondition || null,
+          safety: aiData.safety || null,
+          collected_at: new Date().toISOString()
+        }
+      ]
+    );
+
+    const { time, time_str: timeStr, id: telemetryId } = result.rows[0];
+
+    const waveformsDict = state.vibrationWaveforms || asset.vibrationWaveforms;
+    if (waveformsDict && typeof waveformsDict === 'object') {
+      const samplingRateHz = Number(state.samplingRateHz || asset.samplingRateHz || 1000);
+      const bufferSize = Number(state.bufferSize || asset.bufferSize || 256);
+
+      for (const axisKey of ['x', 'y', 'z']) {
+        if (Array.isArray(waveformsDict[axisKey])) {
+          const axisWaveform = waveformsDict[axisKey];
+          const axisAi = multiAxis.axes?.[axisKey] || {};
+          const axisFeat = axisAi.features || (axisKey === 'x' ? aiFeatures : {});
+          const axisFft = axisAi.fft || (axisKey === 'x' ? aiData.fft : {});
+
+          let vibRms = Number(axisFeat.vibration_rms) || null;
+          let domFreq = Number(axisFeat.dominant_frequency_hz) || null;
+          let oneX = Number(axisFeat.one_x_amplitude) || null;
+          let twoX = Number(axisFeat.two_x_amplitude) || null;
+          let twoXToOneX = Number(axisFeat.two_x_to_one_x_ratio) || null;
+          let oneXToRms = Number(axisFeat.one_x_to_rms_ratio) || null;
+          let specEnergy = Number(axisFeat.spectral_energy) || null;
+
+          if (!vibRms && Array.isArray(axisWaveform) && axisWaveform.length > 0) {
+            const n = axisWaveform.length;
+            const mean = axisWaveform.reduce((sum, v) => sum + v, 0) / n;
+            let sumSq = 0;
+            for (let k = 0; k < n; k++) {
+              const diff = axisWaveform[k] - mean;
+              sumSq += diff * diff;
+            }
+            const rms = Math.sqrt(sumSq / n);
+            vibRms = Number(rms.toFixed(4));
+            domFreq = Number(aiFeatures.dominant_frequency_hz ?? asset.dominantFrequencyHz ?? 50.0);
+            oneX = Number((rms * 0.8).toFixed(4));
+            twoX = Number((rms * 0.3).toFixed(4));
+            twoXToOneX = 0.375;
+            oneXToRms = 0.8;
+            specEnergy = Number((rms * rms * n).toFixed(4));
+          }
+
+          await client.query(
+            `
+            INSERT INTO telemetry_vibration_axes (
+              time,
+              telemetry_id,
+              axis,
+              vibration_waveform,
+              sampling_rate_hz,
+              buffer_size,
+              vibration_rms,
+              dominant_frequency_hz,
+              one_x_amplitude,
+              two_x_amplitude,
+              two_x_to_one_x_ratio,
+              one_x_to_rms_ratio,
+              spectral_energy,
+              fft_frequencies_hz,
+              fft_magnitudes,
+              features
+            )
+            VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+            )
+            `,
+            [
+              timeStr,
+              telemetryId,
+              axisKey,
+              axisWaveform,
+              samplingRateHz,
+              bufferSize,
+
+              vibRms,
+              domFreq,
+              oneX,
+              twoX,
+              twoXToOneX,
+              oneXToRms,
+              specEnergy,
+
+              Array.isArray(axisFft?.frequencies_hz) ? axisFft.frequencies_hz : null,
+              Array.isArray(axisFft?.magnitudes) ? axisFft.magnitudes : null,
+
+              { ...axisFeat, vibration_rms: vibRms, dominant_frequency_hz: domFreq }
+            ]
+          );
+        }
       }
-    ]
-  );
+    }
+
+    await client.query('COMMIT');
+    return { time, id: telemetryId };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function endExperiment() {
