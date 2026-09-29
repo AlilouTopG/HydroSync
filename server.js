@@ -1189,7 +1189,7 @@ function getGenAI() {
   return _genAI;
 }
 
-const CHAT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const CHAT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview';
 const CHAT_TIMEOUT_MS = 8000;
 
 // Lightweight per-IP token bucket so this route can't be used as a free,
