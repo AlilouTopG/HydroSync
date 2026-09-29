@@ -413,17 +413,42 @@ SELECT add_continuous_aggregate_policy(
 
 
 -- ============================================================
--- 11. DATA RETENTION / COMPRESSION
+-- 12. MULTI-AXIS VIBRATION TELEMETRY
 -- ============================================================
--- We are deliberately NOT enabling an automatic retention
--- policy yet.
---
--- HydroSync is currently in development and we want to keep
--- the historical training data.
---
--- Compression can be added after we have accumulated enough
--- real data and confirmed the production workload.
--- ============================================================
+-- Extensible child table storing synchronized X, Y, Z vibration axis data.
+
+CREATE TABLE IF NOT EXISTS telemetry_vibration_axes (
+    time TIMESTAMPTZ NOT NULL,
+    telemetry_id BIGINT NOT NULL,
+    axis TEXT NOT NULL CHECK (axis IN ('x', 'y', 'z')),
+    vibration_waveform DOUBLE PRECISION[] NOT NULL,
+    sampling_rate_hz DOUBLE PRECISION NOT NULL,
+    buffer_size INTEGER NOT NULL,
+    vibration_rms DOUBLE PRECISION,
+    dominant_frequency_hz DOUBLE PRECISION,
+    one_x_amplitude DOUBLE PRECISION,
+    two_x_amplitude DOUBLE PRECISION,
+    two_x_to_one_x_ratio DOUBLE PRECISION,
+    one_x_to_rms_ratio DOUBLE PRECISION,
+    spectral_energy DOUBLE PRECISION,
+    fft_frequencies_hz DOUBLE PRECISION[],
+    fft_magnitudes DOUBLE PRECISION[],
+    features JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (time, telemetry_id, axis)
+);
+
+SELECT create_hypertable(
+    'telemetry_vibration_axes',
+    by_range('time'),
+    if_not_exists => TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_vibration_axes_lookup
+    ON telemetry_vibration_axes (telemetry_id, time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_vibration_axes_axis_time
+    ON telemetry_vibration_axes (axis, time DESC);
 
 
 -- ============================================================

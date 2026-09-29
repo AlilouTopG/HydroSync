@@ -135,11 +135,23 @@ let disturbanceDuration = 0;
 
 function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavitation, imbalanceLevel) {
   if (!isRunning || targetRms < 0.05) {
-    const idleSamples = new Array(WAVEFORM_SAMPLES);
+    const idleX = new Array(WAVEFORM_SAMPLES);
+    const idleY = new Array(WAVEFORM_SAMPLES);
+    const idleZ = new Array(WAVEFORM_SAMPLES);
     for (let i = 0; i < WAVEFORM_SAMPLES; i++) {
-      idleSamples[i] = Number(((Math.random() - 0.5) * 0.06).toFixed(3));
+      idleX[i] = Number(((Math.random() - 0.5) * 0.06).toFixed(3));
+      idleY[i] = Number(((Math.random() - 0.5) * 0.05).toFixed(3));
+      idleZ[i] = Number(((Math.random() - 0.5) * 0.04).toFixed(3));
     }
-    return { samples: idleSamples, dominantFreq: 0.0 };
+    return {
+      x: idleX,
+      y: idleY,
+      z: idleZ,
+      samples: idleX,
+      dominantFreq: 0.0,
+      waveformVersion: '2.0',
+      axesAvailable: ['x', 'y', 'z']
+    };
   }
 
   const f0 = 45.0 + (pwm / 100.0) * 10.0;
@@ -147,50 +159,101 @@ function generateVibrationWaveform(targetRms, isRunning, pwm, bearingWear, cavit
   const fBearing = f0 * 3.56;
   const bearingSeverity = bearingWear / 100.0;
   const cavitationFactor = Math.max(0, (cavitation - 10.0) / 90.0);
+  const imbalanceFactor = imbalanceLevel / 100.0;
 
-  let sumSquares = 0.0;
-  const rawSignal = new Float64Array(WAVEFORM_SAMPLES);
+  let sumSqX = 0.0, sumSqY = 0.0, sumSqZ = 0.0;
+  const rawX = new Float64Array(WAVEFORM_SAMPLES);
+  const rawY = new Float64Array(WAVEFORM_SAMPLES);
+  const rawZ = new Float64Array(WAVEFORM_SAMPLES);
 
   for (let n = 0; n < WAVEFORM_SAMPLES; n++) {
     const t = n * dt;
+    const commonNoise = (Math.random() - 0.5);
 
-    let s = Math.sin(2 * Math.PI * f0 * t);
-    s += 0.35 * Math.sin(2 * Math.PI * (2 * f0) * t + 0.4);
-
+    // --- X-AXIS (Radial Horizontal: Imbalance Dominant 1x/2x) ---
+    let sx = Math.sin(2 * Math.PI * f0 * t);
+    sx += 0.35 * Math.sin(2 * Math.PI * (2 * f0) * t + 0.4);
+    if (imbalanceFactor > 0) {
+      sx += (imbalanceFactor * 3.8) * Math.sin(2 * Math.PI * f0 * t);
+      sx += (imbalanceFactor * 2.0) * Math.sin(2 * Math.PI * (2 * f0) * t);
+    }
     if (bearingSeverity > 0.04) {
-      const impact = Math.sin(2 * Math.PI * fBearing * t);
-      s += (bearingSeverity * 2.2) * impact * (1.0 + 0.5 * Math.sin(2 * Math.PI * f0 * t));
+      sx += (bearingSeverity * 1.5) * Math.sin(2 * Math.PI * fBearing * t) * (1.0 + 0.3 * Math.sin(2 * Math.PI * f0 * t));
     }
-
-        // IMBALANCE: elevated 1x and 2x synchronous frequencies (time-invariant)
-    if (imbalanceLevel > 0) {
-      const imbalanceFactor = imbalanceLevel / 100.0;
-      s += (imbalanceFactor * 3.5) * Math.sin(2 * Math.PI * f0 * t);      // 1x elevation
-      s += (imbalanceFactor * 1.8) * Math.sin(2 * Math.PI * (2 * f0) * t); // 2x elevation
-    }
-
-
     if (cavitationFactor > 0.0) {
-      s += (cavitationFactor * 2.5) * (Math.random() - 0.5);
+      sx += (cavitationFactor * 1.2) * (Math.random() - 0.5);
     }
+    sx += 0.10 * commonNoise + 0.05 * (Math.random() - 0.5);
 
-    s += 0.12 * (Math.random() - 0.5);
+    // --- Y-AXIS (Radial Vertical: Bearing Harmonics & Phase Variation) ---
+    let sy = Math.sin(2 * Math.PI * f0 * t + Math.PI / 2);
+    sy += 0.25 * Math.sin(2 * Math.PI * (2 * f0) * t + 1.2);
+    if (bearingSeverity > 0.04) {
+      const impactY = Math.sin(2 * Math.PI * fBearing * t + 0.8);
+      sy += (bearingSeverity * 3.4) * impactY * (1.0 + 0.6 * Math.sin(2 * Math.PI * f0 * t + Math.PI / 2));
+    }
+    if (imbalanceFactor > 0) {
+      sy += (imbalanceFactor * 2.1) * Math.sin(2 * Math.PI * f0 * t + Math.PI / 2);
+      sy += (imbalanceFactor * 1.1) * Math.sin(2 * Math.PI * (2 * f0) * t + 0.9);
+    }
+    if (cavitationFactor > 0.0) {
+      sy += (cavitationFactor * 1.5) * (Math.random() - 0.5);
+    }
+    sy += 0.10 * commonNoise + 0.05 * (Math.random() - 0.5);
 
-    rawSignal[n] = s;
-    sumSquares += s * s;
+    // --- Z-AXIS (Axial Vibration & Stronger Cavitation Response) ---
+    let sz = 0.45 * Math.sin(2 * Math.PI * f0 * t + 0.3);
+    sz += 0.20 * Math.sin(2 * Math.PI * (3 * f0) * t + 0.7);
+    if (cavitationFactor > 0.0) {
+      sz += (cavitationFactor * 4.2) * (Math.random() - 0.5);
+      sz += (cavitationFactor * 1.6) * Math.sin(2 * Math.PI * (4.8 * f0) * t + Math.random());
+    }
+    if (bearingSeverity > 0.04) {
+      sz += (bearingSeverity * 1.1) * Math.sin(2 * Math.PI * fBearing * t + 1.5);
+    }
+    if (imbalanceFactor > 0) {
+      sz += (imbalanceFactor * 0.9) * Math.sin(2 * Math.PI * f0 * t + 0.3);
+    }
+    sz += 0.12 * commonNoise + 0.08 * (Math.random() - 0.5);
+
+    rawX[n] = sx;
+    rawY[n] = sy;
+    rawZ[n] = sz;
+
+    sumSqX += sx * sx;
+    sumSqY += sy * sy;
+    sumSqZ += sz * sz;
   }
 
-  const currentRms = Math.sqrt(sumSquares / WAVEFORM_SAMPLES) || 1.0;
-  const scale = targetRms / currentRms;
+  const currentRmsX = Math.sqrt(sumSqX / WAVEFORM_SAMPLES) || 1.0;
+  const scaleX = targetRms / currentRmsX;
 
-  const finalSamples = new Array(WAVEFORM_SAMPLES);
+  const currentRmsY = Math.sqrt(sumSqY / WAVEFORM_SAMPLES) || 1.0;
+  const targetRmsY = targetRms * (0.85 + bearingSeverity * 0.5);
+  const scaleY = targetRmsY / currentRmsY;
+
+  const currentRmsZ = Math.sqrt(sumSqZ / WAVEFORM_SAMPLES) || 1.0;
+  const targetRmsZ = targetRms * (0.60 + cavitationFactor * 0.8);
+  const scaleZ = targetRmsZ / currentRmsZ;
+
+  const finalX = new Array(WAVEFORM_SAMPLES);
+  const finalY = new Array(WAVEFORM_SAMPLES);
+  const finalZ = new Array(WAVEFORM_SAMPLES);
+
   for (let n = 0; n < WAVEFORM_SAMPLES; n++) {
-    finalSamples[n] = Number((rawSignal[n] * scale).toFixed(3));
+    finalX[n] = Number((rawX[n] * scaleX).toFixed(3));
+    finalY[n] = Number((rawY[n] * scaleY).toFixed(3));
+    finalZ[n] = Number((rawZ[n] * scaleZ).toFixed(3));
   }
 
   return {
-    samples: finalSamples,
-    dominantFreq: Number(f0.toFixed(1))
+    x: finalX,
+    y: finalY,
+    z: finalZ,
+    samples: finalX,
+    dominantFreq: Number(f0.toFixed(1)),
+    waveformVersion: '2.0',
+    axesAvailable: ['x', 'y', 'z']
   };
 }
 
@@ -298,9 +361,9 @@ function updatePredictiveMaintenanceModel() {
   else ah.vibrationIsoZone = 'ZONE_D';
 
   if (isRunning) {
-    const wearMultiplier = (ah.vibrationIsoZone === 'ZONE_D') ? 0.0008 
-      : (ah.vibrationIsoZone === 'ZONE_C') ? 0.0003 
-      : 0.00005;
+    const wearMultiplier = (ah.vibrationIsoZone === 'ZONE_D') ? 0.0008
+      : (ah.vibrationIsoZone === 'ZONE_C') ? 0.0003
+        : 0.00005;
     ah.bearingWearPct = Math.min(100.0, ah.bearingWearPct + wearMultiplier);
   }
 
@@ -308,9 +371,9 @@ function updatePredictiveMaintenanceModel() {
   const cavitationPenaltyHours = (ah.cavitationIndex > 40.0) ? 650.0 : 0.0;
   ah.rulHours = Math.max(40, Math.round(8000.0 - ah.operatingHoursTotal - wearPenaltyHours - cavitationPenaltyHours));
 
-  const healthDeductions = (ah.bearingWearPct * 0.4) 
-    + ((ah.vibrationRms / 4.5) * 18.0) 
-    + ((ah.cavitationIndex / 100.0) * 15.0) 
+  const healthDeductions = (ah.bearingWearPct * 0.4)
+    + ((ah.vibrationRms / 4.5) * 18.0)
+    + ((ah.cavitationIndex / 100.0) * 15.0)
     + (state.motorTemp > 80.0 ? 12.0 : 0.0);
 
   ah.healthIndex = Math.max(12.0, Math.min(100.0, Number((100.0 - healthDeductions).toFixed(1))));
@@ -323,7 +386,14 @@ function updatePredictiveMaintenanceModel() {
     ah.cavitationIndex,
     ah.imbalanceLevel
   );
-  ah.vibrationWaveform = dspWave.samples;
+  ah.vibrationWaveform = dspWave.x;
+  ah.vibrationWaveforms = {
+    x: dspWave.x,
+    y: dspWave.y,
+    z: dspWave.z
+  };
+  ah.waveformVersion = dspWave.waveformVersion;
+  ah.axesAvailable = dspWave.axesAvailable;
   ah.dominantFrequencyHz = dspWave.dominantFreq;
 
   if (ah.vibrationIsoZone === 'ZONE_D' || ah.cavitationIndex > 65.0) {
@@ -518,6 +588,9 @@ function getState() {
     error: Number(state.error.toFixed(2)),
     liveWeather: state.liveWeather,
     vibrationWaveform: state.assetHealth.vibrationWaveform,
+    vibrationWaveforms: state.assetHealth.vibrationWaveforms,
+    waveformVersion: state.assetHealth.waveformVersion || '2.0',
+    axesAvailable: state.assetHealth.axesAvailable || ['x', 'y', 'z'],
     assetHealth: {
       ...state.assetHealth,
       healthIndex: Number(state.assetHealth.healthIndex.toFixed(1)),
@@ -527,6 +600,9 @@ function getState() {
       operatingHoursTotal: Number(state.assetHealth.operatingHoursTotal.toFixed(1)),
       rulHours: Math.round(state.assetHealth.rulHours),
       vibrationWaveform: state.assetHealth.vibrationWaveform,
+      vibrationWaveforms: state.assetHealth.vibrationWaveforms,
+      waveformVersion: state.assetHealth.waveformVersion || '2.0',
+      axesAvailable: state.assetHealth.axesAvailable || ['x', 'y', 'z'],
       dominantFrequencyHz: state.assetHealth.dominantFrequencyHz,
       samplingRateHz: SAMPLING_RATE_HZ,
       bufferSize: WAVEFORM_SAMPLES
@@ -649,5 +725,5 @@ module.exports = {
   getAuditHistory,
   setRainHold,
   injectFault,
-  setImbalanceLevel  // ← NEW
+  setImbalanceLevel
 };

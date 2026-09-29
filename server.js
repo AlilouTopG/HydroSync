@@ -31,6 +31,7 @@ const { Server } = require('socket.io');
 
 const simulator = require('./simulator');
 
+
 const telemetryCollector = require('./database/telemetryCollector');
 
 
@@ -38,10 +39,10 @@ const telemetryCollector = require('./database/telemetryCollector');
 const DEBUG = false;
 
 
-
 // استدعاء نواة التحكم وصمامات الأمان الخاصة بك
 
 const { evaluateSafety, calculateIrrigationDuty, resetSafetyState } = require('./core_control/mpc_controller');
+
 
 
 
@@ -135,6 +136,8 @@ let latestVibrationFeatures = null;
 
 let latestVibrationFFT = null;
 
+let latestMultiAxisData = null;
+
 let pythonBridgeOfflineLogged = false;
 
 
@@ -164,6 +167,8 @@ function cachePythonVibration(data) {
   if (data.features) latestVibrationFeatures = data.features;
 
   if (isUsableFft(data.fft)) latestVibrationFFT = data.fft;
+
+  if (data.multi_axis) latestMultiAxisData = data.multi_axis;
 
 }
 
@@ -287,7 +292,59 @@ app.get('/api/ai/vibration', async (req, res) => {
 
       features: latestVibrationFeatures,
 
-      msg: 'Python AI Engine is currently offline. Serving last cached FFT if available.'
+    });
+
+  }
+
+});
+
+
+
+app.get('/api/ai/vibration/multi-axis', async (req, res) => {
+
+  try {
+
+    const response = await fetch(`${AI_ENGINE_URL}/vibration/latest`, { signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS) });
+
+    if (!response.ok) throw new Error(`AI Engine status: ${response.status}`);
+
+    const data = await response.json();
+
+    cachePythonVibration(data);
+
+    res.json({
+
+      status: 'ONLINE',
+
+      engine: 'Python-FastAPI',
+
+      multi_axis: data.multi_axis || latestMultiAxisData,
+
+      waveform: data.waveform,
+
+      fft: data.fft,
+
+      features: latestVibrationFeatures
+
+    });
+
+  } catch (err) {
+
+    res.json({
+
+      status: 'FALLBACK',
+
+      engine: 'Node-ISO10816-Baseline',
+
+      multi_axis: latestMultiAxisData,
+
+      waveform: null,
+
+      fft: latestVibrationFFT,
+
+      features: latestVibrationFeatures,
+
+      msg: 'Python AI Engine is currently offline.'
 
     });
 
@@ -709,9 +766,8 @@ io.on('connection', (socket) => {
 
       totalThreatsBlocked++;
 
-      AUTH_BUDGET.fails++;
-
       lockData.count++;
+      AUTH_BUDGET.fails++;
 
       if (lockData.count >= 5) lockData.lockedUntil = now + 2 * 60 * 1000;
 
@@ -724,6 +780,8 @@ io.on('connection', (socket) => {
   });
 
 
+
+  // مسار إعادة الضبط الصناعي وفك القفل (Operator Trip Reset)
 
   socket.on('client:operator_reset', () => {
 
@@ -970,27 +1028,43 @@ let mpcDuty = { duty: 0, mode: 'CLOSED_LOOP_ACTIVE' };
 
 
 function postVibration(state) {
+  const waveforms = (state.assetHealth && state.assetHealth.vibrationWaveforms) || state.vibrationWaveforms;
+  const singleWaveform = (state.assetHealth && state.assetHealth.vibrationWaveform) || state.vibrationWaveform;
 
-  const waveform = (state.assetHealth && state.assetHealth.vibrationWaveform) || state.vibrationWaveform;
+  if (aiInFlight) return;
 
-  if (aiInFlight || !Array.isArray(waveform) || !waveform.length) return;
+  let payload = null;
+  if (
+    waveforms &&
+    typeof waveforms === 'object' &&
+    ['x', 'y', 'z'].every(axis => Array.isArray(waveforms[axis]) && waveforms[axis].length >= 32)
+  ) {
+    payload = {
+      vibrationWaveforms: {
+        x: waveforms.x,
+        y: waveforms.y,
+        z: waveforms.z
+      },
+      samplingRateHz: (state.assetHealth && state.assetHealth.samplingRateHz) || 1000,
+      bufferSize: (state.assetHealth && state.assetHealth.bufferSize) || waveforms.x.length
+    };
+  } else if (Array.isArray(singleWaveform) && singleWaveform.length >= 32) {
+    payload = {
+      vibrationWaveform: singleWaveform,
+      samplingRateHz: (state.assetHealth && state.assetHealth.samplingRateHz) || 1000,
+      bufferSize: (state.assetHealth && state.assetHealth.bufferSize) || singleWaveform.length
+    };
+  } else {
+    return;
+  }
 
   aiInFlight = true;
 
   fetch(AI_ENGINE_URL + '/vibration', {
-
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
-
-    body: JSON.stringify({
-
-      vibrationWaveform: waveform,
-
-      samplingRateHz: (state.assetHealth && state.assetHealth.samplingRateHz) || 1000,
-
-      bufferSize: (state.assetHealth && state.assetHealth.bufferSize) || waveform.length
-
-    })
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
+    body: JSON.stringify(payload)
   })
 
   .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -1031,12 +1105,17 @@ function persistTelemetry(state) {
 
   dbInFlight = true;
 
-  telemetryCollector.recordTelemetry(state, { features: latestVibrationFeatures, fft: latestVibrationFFT })
-
-  .catch(err => { if (DEBUG) console.error('[Historian] insert failed:', err.message); })
-
-  .finally(() => { dbInFlight = false; });
-
+  telemetryCollector.recordTelemetry(state, {
+    features: latestVibrationFeatures,
+    fft: latestVibrationFFT,
+    multi_axis: latestMultiAxisData
+  })
+    .catch(err => {
+      if (DEBUG) console.error('[Historian] insert failed:', err.message);
+    })
+    .finally(() => {
+      dbInFlight = false;
+    });
 }
 
 
@@ -1064,7 +1143,6 @@ function tick() {
   });
 
   if (safetyCheck.tripPump && !isSafetyTripped) {
-
     isSafetyTripped = true;
 
     activeSafetyReason = safetyCheck.alarms.join(' | ');
@@ -1293,5 +1371,4 @@ server.listen(PORT, async () => {
 
   console.log(`🔗 Python Vibration FFT Proxy Ready at /api/ai/vibration`);
 
-}); 
-
+});
