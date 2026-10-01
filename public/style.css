@@ -2252,6 +2252,30 @@ button.zone-card {
   max-height: calc(100vh - 90px); /* يمنع الحاوية من التمدد وتغطية الشريط العلوي */
 }
 
+/* --------------------------------------------------------------------------
+   23. MODALS (إصلاح مشكلة عدم الاختفاء وفخ الـ CSS Grid)
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important; /* ضمان تغطية الشاشة بالكامل فوق كل شيء */
+  background: rgba(3, 5, 10, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: none !important; /* إجبار المودال على الاختفاء بشكل افتراضي */
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+}
+
+.modal-overlay.open {
+  display: flex !important; /* إجبار المودال على الظهور فقط عند وضع الكلاس */
+}
+
+
 /* ===================================================
    🌟 لمسات التوأم الرقمي وتحسينات الإضاءة (Cyber-Twin Accents)
    =================================================== */
@@ -2362,7 +2386,6 @@ button.zone-card {
   color: #00E5FF !important;
   text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
 }
-
 /* ===================================================
    🌌 تموجات الألوان في القائمة الجانبية (Sidebar Aurora)
    =================================================== */
