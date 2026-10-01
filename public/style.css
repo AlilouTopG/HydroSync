@@ -1055,6 +1055,10 @@ body.is-stale .live-pill {
 .gauge-card,
 .compact-kpi-card {
   min-height: 158px;
+  /* تموج من السيان في الأعلى إلى الأزرق الغامق في الأسفل مع إطار ذهبي وتوهج أخضر */
+  background: linear-gradient(180deg, rgba(0, 180, 210, 0.6) 0%, rgba(11, 18, 32, 0.95) 75%) !important;
+  border: 1px solid rgba(218, 165, 32, 0.6) !important;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.15) !important;
 }
 
 .gauge-wrap {
@@ -1086,10 +1090,10 @@ body.is-stale .live-pill {
   stroke: var(--ok);
 }
 .gauge-fg.pwm {
-  stroke: var(--info);
+  stroke: var(--ok); /* تم التغيير للأخضر */
 }
 .gauge-fg.flow {
-  stroke: var(--brand);
+  stroke: var(--ok); /* تم التغيير للأخضر */
 }
 .gauge-fg.saved {
   stroke: var(--ok);
@@ -2060,7 +2064,6 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
   padding: var(--s-2) !important;
 }
 .leaflet-control-layers label {
-  color: var(--text-dim) !important;
   display: flex;
   align-items: center;
   gap: 6px;
