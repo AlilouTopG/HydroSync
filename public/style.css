@@ -1327,6 +1327,16 @@ body.is-stale .live-pill {
    -------------------------------------------------------------------------- */
 .twin-card {
   min-height: 420px;
+  background-image: 
+    linear-gradient(rgba(6, 9, 19, 0.85), rgba(6, 9, 19, 0.95)), 
+    url('https://images.unsplash.com/photo-1592982537447-7440770cbfc9?q=80&w=2000&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  position: relative;
+  overflow: hidden;
 }
 .twin-grid {
   display: grid;
