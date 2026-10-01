@@ -2934,7 +2934,7 @@ button.zone-card {
   font: inherit;
 }
 /* ===================================================
-   🌟 لمسات التوأم الرقمي (Cyber-Twin Accents)
+   🌟 لمسات التوأم الرقمي وتحسينات الإضاءة (Cyber-Twin Accents)
    =================================================== */
 
 /* 1. خطوط خضراء زمردية أنيقة تحت البطاقات */
@@ -2981,6 +2981,25 @@ button.zone-card {
   border-bottom: 1px solid rgba(16, 185, 129, 0.6);
   padding-bottom: 3px;
 }
+
+/* 4. تبييض وإضاءة النصوص والأيقونات والوحدات في البطاقات العلوية بناءً على طلبك */
+.gauge-card .card-title,
+.gauge-card .card-title i,
+.compact-kpi-card .card-head h3,
+.compact-kpi-card .card-head h3 i,
+.kpi-box .kpi-label,
+.kpi-box .kpi-label i,
+.card-unit,
+.card-sub,
+.kpi-val small,
+.compact-kpi-value span,
+.compact-kpi-meta,
+.compact-kpi-meta strong,
+.card-values span {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8) !important;
+}
+
 /* ===================================================
    🎯 تمييز المربع المحدد (Active Zone Highlight)
    =================================================== */
