@@ -85,6 +85,13 @@
   --z-header: 40;
   --z-modal: 100;
   --flow-speed: 1.4s;
+
+  /* RGB triplets of the existing surface tokens, for rgba()-based glass panels.
+     Keeps translucent cards anchored to the same palette instead of a second,
+     disconnected one. */
+  --surface-1-rgb: 11, 18, 32;
+  --surface-2-rgb: 15, 23, 40;
+  --canvas-rgb: 6, 9, 19;
 }
 
 /* --------------------------------------------------------------------------
@@ -107,9 +114,21 @@ body {
   font-size: var(--fs-md);
   line-height: var(--lh-body);
   color: var(--text);
-  background: var(--canvas);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+
+  /* Calm, fixed aquatic mesh. Large, soft, overlapping radial gradients in the
+     existing palette simulate deep water without animation or saturation --
+     it sits behind the glass panels, never behind live alarm text. */
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(ellipse 1100px 800px at 12% -10%, rgba(0, 229, 255, 0.07), transparent 60%),
+    radial-gradient(ellipse 900px 700px at 100% 15%, rgba(16, 185, 129, 0.05), transparent 60%),
+    radial-gradient(ellipse 1200px 900px at 20% 110%, rgba(56, 189, 248, 0.06), transparent 65%),
+    radial-gradient(ellipse 1000px 800px at 90% 100%, rgba(0, 229, 255, 0.04), transparent 60%),
+    linear-gradient(180deg, #050a16 0%, #071022 45%, #050a16 100%);
+  background-attachment: fixed;
+  background-size: cover;
 }
 
 h1,
@@ -636,7 +655,9 @@ body.is-stale .live-pill {
    -------------------------------------------------------------------------- */
 .glass-card,
 .card {
-  background: var(--surface-1);
+  background: rgba(var(--surface-1-rgb), 0.62);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   padding: var(--s-4);
@@ -650,7 +671,9 @@ body.is-stale .live-pill {
   box-shadow: var(--shadow);
 }
 .tier-secondary {
-  background: var(--surface-1);
+  background: rgba(var(--surface-1-rgb), 0.62);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
 }
 .tier-tertiary {
   background: transparent;
@@ -1205,7 +1228,9 @@ body.is-stale .live-pill {
   gap: var(--s-3);
 }
 .kpi-box {
-  background: var(--surface-1);
+  background: rgba(var(--surface-1-rgb), 0.62);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   padding: var(--s-3) var(--s-4);
@@ -2915,92 +2940,45 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
 button.zone-card {
   font: inherit;
 }
-/* ===================================================
-   🌟 لمسات التوأم الرقمي (Cyber-Twin Accents)
-   =================================================== */
-
-/* 1. خطوط خضراء زمردية أنيقة تحت البطاقات */
-.glass-card, .zone-card, .kpi-box, .farm-focus-card {
-  border-bottom: 2px solid rgba(16, 185, 129, 0.4) !important;
-  transition: border-bottom-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+/* ---------------------------------------------------------------------
+   Card accent: one quiet signal, not a glow. A 2px cyan top rule on
+   hover tells the operator "this is interactive" without a drop-shadow
+   bloom competing with the alarm palette.
+   --------------------------------------------------------------------- */
+.glass-card,
+.zone-card,
+.kpi-box,
+.farm-focus-card {
+  transition: border-color 0.18s ease;
+}
+.glass-card:hover,
+.zone-card:hover,
+.kpi-box:hover {
+  border-color: var(--line-accent);
 }
 
-/* توهج الخطوط إلى اللون السيان (الأزرق الفاتح) عند مرور الماوس */
-.glass-card:hover, .zone-card:hover, .kpi-box:hover {
-  border-bottom: 2px solid rgba(0, 229, 255, 0.8) !important;
-  box-shadow: 0 10px 25px rgba(0, 229, 255, 0.1);
-}
-
-/* 2. تأثير "نصف البصمة" أو الدوائر التقنية في زاوية البطاقات */
-.glass-card::after, .kpi-box::after {
-  content: "";
-  position: absolute;
-  bottom: -15px;
-  right: -15px;
-  width: 120px;
-  height: 120px;
-  /* رسم دوائر تشبه البصمة التقنية بخطوط رفيعة وشفافة جداً */
-  background-image: repeating-radial-gradient(
-    circle at 100% 100%,
-    transparent 0,
-    transparent 5px,
-    rgba(16, 185, 129, 0.06) 6px,
-    rgba(16, 185, 129, 0.06) 7px
-  );
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* رفع النصوص والأيقونات لتكون فوق رسمة البصمة */
-.glass-card > *, .kpi-box > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* 3. خط أخضر مضيء تحت الأيقونات العلوية للزينة */
-.card-title i {
-  border-bottom: 1px solid rgba(16, 185, 129, 0.6);
-  padding-bottom: 3px;
-}
-/* ===================================================
-   🎯 تمييز المربع المحدد (Active Zone Highlight)
-   =================================================== */
+/* Active zone: a flat accent border and a filled dot. No lift, no glow,
+   no inset shadow -- matches the same "state, not decoration" rule this
+   stylesheet already applies everywhere else. */
 .zone-card.active {
-  /* خلفية زرقاء سيان خفيفة جداً لتمييز المربع */
-  background: linear-gradient(180deg, rgba(0, 229, 255, 0.15), rgba(0, 0, 0, 0.3)) !important;
-  /* إطار كامل مضيء */
-  border: 1px solid rgba(0, 229, 255, 0.6) !important;
-  /* خط سفلي سميك وساطع */
-  border-bottom: 3px solid rgba(0, 229, 255, 1) !important;
-  /* توهج خارجي وداخلي يشبه الشاشات المجسمة */
-  box-shadow: 0 0 22px rgba(0, 229, 255, 0.4), inset 0 0 15px rgba(0, 229, 255, 0.15) !important;
-  /* رفع المربع قليلاً للأعلى */
-  transform: translateY(-4px) !important;
+  background: rgba(0, 229, 255, 0.07);
+  border-color: var(--brand);
+}
+.zone-card.active .zone-id {
+  color: var(--brand);
 }
 
-/* إضاءة اسم المنطقة (مثل A1, B2) باللون السيان ليزيد من وضوح التحديد */
-.zone-card.active .zone-id {
-  color: #00E5FF !important;
-  text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
-}
-/* ===================================================
-   🌌 تموجات الألوان في القائمة الجانبية (Sidebar Aurora)
-   =================================================== */
+/* Sidebar: a single, static, low-opacity wash top and bottom -- chrome
+   identity, kept out of the instrument surfaces entirely. Static, not
+   decorative-pulsing, per this file's own motion rule. */
 .sidebar {
-  /* 
-    تموج سيان (أزرق فاتح) من الأعلى، 
-    تموج أخضر زمردي من الأسفل، 
-    مدمجة بسلاسة مع لون الخلفية الأصلي 
-  */
-  background: 
-    radial-gradient(ellipse at top center, rgba(0, 229, 255, 0.12) 0%, transparent 280px),
-    radial-gradient(ellipse at bottom center, rgba(16, 185, 129, 0.12) 0%, transparent 280px),
-    var(--surface-1) !important;
-    
-  /* إضافة خط فاصل أنيق ومضيء قليلاً من جهة اليمين */
-  border-right: 1px solid rgba(0, 229, 255, 0.15) !important;
+  background:
+    radial-gradient(ellipse 500px 220px at 50% -40px, rgba(0, 229, 255, 0.09), transparent 70%),
+    radial-gradient(ellipse 500px 220px at 50% calc(100% + 40px), rgba(16, 185, 129, 0.08), transparent 70%),
+    var(--surface-1);
+  border-right: 1px solid var(--line);
 }
+
 /* ===================================================
    🤖 SCADA AI Co-Pilot Widget Styles
    =================================================== */
@@ -3023,7 +3001,7 @@ button.zone-card {
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(0, 229, 255, 0.15), rgba(16, 185, 129, 0.15));
   border: 1px solid rgba(0, 229, 255, 0.5);
-  color: var(--cyan);
+  color: var(--brand);
   font-size: 22px;
   cursor: pointer;
   box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
@@ -3070,14 +3048,14 @@ button.zone-card {
   font-family: var(--sans); font-size: 14px; font-weight: 600;
   display: flex; align-items: center; gap: 10px; color: var(--text);
 }
-.chat-title i { color: var(--cyan); font-size: 16px; }
+.chat-title i { color: var(--brand); font-size: 16px; }
 .chat-status {
-  font-family: var(--mono); font-size: 10px; color: var(--emerald);
+  font-family: var(--mono); font-size: 10px; color: var(--ok);
   display: flex; align-items: center; gap: 6px; letter-spacing: 1px;
 }
-.chat-status .pulse-dot { background: var(--emerald); box-shadow: 0 0 8px rgba(16,185,129,0.8); }
-.close-btn { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 18px; transition: color 0.2s; }
-.close-btn:hover { color: var(--danger); }
+.chat-status .pulse-dot { background: var(--ok); box-shadow: 0 0 8px rgba(16,185,129,0.8); }
+.close-btn { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 18px; transition: color 0.2s; }
+.close-btn:hover { color: var(--crit); }
 
 /* Chat Body */
 .chat-body {
@@ -3108,7 +3086,7 @@ button.zone-card {
   color: var(--text);
   border-bottom-right-radius: 2px;
 }
-.msg-time { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.msg-time { font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
 
 /* Footer / Input */
 .chat-footer {
@@ -3122,10 +3100,10 @@ button.zone-card {
   padding: 10px 14px; color: var(--text); font-family: var(--sans); font-size: 13px;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-#chatInput:focus { outline: none; border-color: var(--cyan); box-shadow: inset 0 0 10px rgba(0,229,255,0.1); }
+#chatInput:focus { outline: none; border-color: var(--brand); box-shadow: inset 0 0 10px rgba(0,229,255,0.1); }
 #sendChatBtn {
   background: rgba(0, 229, 255, 0.12); border: 1px solid rgba(0, 229, 255, 0.35);
-  color: var(--cyan); border-radius: 8px; padding: 0 16px; cursor: pointer;
+  color: var(--brand); border-radius: 8px; padding: 0 16px; cursor: pointer;
   transition: all 0.2s;
 }
 #sendChatBtn:hover { background: rgba(0, 229, 255, 0.25); box-shadow: 0 0 14px rgba(0,229,255,0.25); }
