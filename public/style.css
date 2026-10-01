@@ -2987,10 +2987,15 @@ button.zone-card {
 /* 4. تبييض وإضاءة النصوص والأيقونات والوحدات في البطاقات العلوية والتوأم الرقمي بناءً على طلبك */
 .gauge-card .card-title,
 .gauge-card .card-title i,
+.gauge-card .card-title svg,
 .compact-kpi-card .card-head h3,
 .compact-kpi-card .card-head h3 i,
+.compact-kpi-card .card-head h3 svg,
 .kpi-box .kpi-label,
 .kpi-box .kpi-label i,
+.kpi-box .kpi-label svg,
+.kpi-box i,
+.kpi-box svg,
 .card-unit,
 .card-sub,
 .kpi-val small,
@@ -2998,14 +3003,17 @@ button.zone-card {
 .compact-kpi-meta,
 .compact-kpi-meta strong,
 .card-values span,
-/* --- التعديلات الجديدة بناءً على الصورة الأخيرة --- */
 .card .card-title i,
+.card .card-title svg,
 .card-head h3 i,
+.card-head h3 svg,
 .twin-card .card-title i,
+.twin-card .card-title svg,
 .twin-label,
 .twin-label em,
 .twin-card .live-pill {
   color: #ffffff !important;
+  fill: #ffffff !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8) !important;
 }
 
