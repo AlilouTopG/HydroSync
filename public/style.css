@@ -1660,9 +1660,10 @@ body.is-stale .live-pill {
    -------------------------------------------------------------------------- */
 .chart-card {
   min-height: 310px;
-  /* التدرج اللوني المتموج من الأصفر/الذهبي إلى الأسود */
-  background: linear-gradient(180deg, rgba(166, 118, 20, 0.8) 0%, rgba(5, 5, 5, 0.95) 100%) !important;
-  border: 1px solid rgba(166, 118, 20, 0.4) !important;
+  /* تموج أزرق في النصف العلوي فقط ويتلاشى للأسود في النصف السفلي */
+  background: linear-gradient(180deg, rgba(28, 48, 150, 0.85) 0%, rgba(6, 9, 19, 0.95) 50%, rgba(6, 9, 19, 1) 100%) !important;
+  /* إطار أخضر زمردي يطابق الصورة التي أرسلتها */
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6) !important;
 }
 .chart-wrap {
