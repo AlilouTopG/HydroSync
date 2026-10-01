@@ -379,7 +379,7 @@ h3 {
   align-items: center;
   gap: var(--s-2);
   position: relative;
-  z-index: 100; /* ضمان بقاء الأزرار العلوية قابلة للنقر وتفادي تغطيتها */
+  z-index: 100;
 }
 
 .icon-btn {
@@ -485,8 +485,8 @@ h3 {
   background: transparent;
   transition: background 0.15s ease;
   position: relative;
-  z-index: 100; /* منع تغطية الزر بأي حاوية شفافة */
-  pointer-events: auto !important; /* إجبار الزر على الاستجابة للنقرات دائماً */
+  z-index: 100;
+  pointer-events: auto !important;
 }
 .auth-btn.lock {
   border: 1px solid rgba(245, 158, 11, 0.4);
@@ -525,9 +525,6 @@ h3 {
 
 /* --------------------------------------------------------------------------
    5. STALE-DATA STATE
-   When the socket drops, every reading on screen becomes untrustworthy.
-   Say so loudly and dim the numbers, rather than showing a dead value
-   as if it were live.
    -------------------------------------------------------------------------- */
 .stale-bar {
   display: none;
@@ -634,10 +631,6 @@ body.is-stale .live-pill {
 
 /* --------------------------------------------------------------------------
    7. CARD TIERS
-   Not every panel deserves the same weight. Three levels:
-   .tier-primary   safety-critical — strongest border, most padding
-   .tier-secondary analysis        — plain card
-   .tier-tertiary  reference       — flat, recedes into the page
    -------------------------------------------------------------------------- */
 .glass-card,
 .card {
@@ -648,7 +641,6 @@ body.is-stale .live-pill {
   position: relative;
 }
 
-/* التعديل لبطاقة مناطق الحقل لتكون خلفيتها بالتدرج السيان */
 #fieldSection {
   background: linear-gradient(180deg, rgba(0, 229, 255, 0.4) 0%, rgba(11, 18, 32, 0.9) 100%) !important;
   border: 1px solid rgba(0, 229, 255, 0.3) !important;
@@ -734,7 +726,6 @@ body.is-stale .live-pill {
   color: var(--text-faint);
 }
 
-/* "Live" pill — no pulse. The heartbeat in the sidebar is the liveness cue. */
 .live-pill {
   display: inline-flex;
   align-items: center;
@@ -755,7 +746,7 @@ body.is-stale .live-pill {
 }
 
 /* --------------------------------------------------------------------------
-   8. SAFETY BANNER  (primary tier — the one thing that may shout)
+   8. SAFETY BANNER
    -------------------------------------------------------------------------- */
 .safety-banner {
   display: block;
@@ -823,7 +814,6 @@ body.is-stale .live-pill {
   color: var(--crit);
 }
 
-/* The ONLY idle animation left in the system. */
 @keyframes criticalPulse {
   0%,
   100% {
@@ -837,7 +827,6 @@ body.is-stale .live-pill {
 /* --------------------------------------------------------------------------
    9. ALARMS
    -------------------------------------------------------------------------- */
-/* تعديل بطاقة التنبيهات وإضافة التدرج الأحمر من الأسفل إلى المنتصف */
 #alarmPanel {
   background: linear-gradient(0deg, rgba(239, 68, 68, 0.75) 0%, rgba(11, 18, 32, 0.95) 50%, rgba(11, 18, 32, 1) 100%) !important;
   border: 1px solid rgba(239, 68, 68, 0.5) !important;
@@ -1048,7 +1037,6 @@ body.is-stale .live-pill {
   font-weight: 500;
 }
 
-/* Value emphasis — used sparingly, never as pure decoration */
 .value-accent {
   color: var(--brand);
   font-weight: 600;
@@ -1074,7 +1062,6 @@ body.is-stale .live-pill {
 .gauge-card,
 .compact-kpi-card {
   min-height: 158px;
-  /* تموج من السيان في الأعلى إلى الأزرق الغامق في الأسفل مع إطار ذهبي وتوهج أخضر */
   background: linear-gradient(180deg, rgba(0, 180, 210, 0.6) 0%, rgba(11, 18, 32, 0.95) 75%) !important;
   border: 1px solid rgba(218, 165, 32, 0.6) !important;
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.15) !important;
@@ -1103,16 +1090,14 @@ body.is-stale .live-pill {
   transition: stroke-dashoffset 0.5s ease;
 }
 
-/* Gauge strokes are neutral until the reading itself is notable.
-   No drop-shadows: glow on a normal reading is noise. */
 .gauge-fg.vwc {
   stroke: var(--ok);
 }
 .gauge-fg.pwm {
-  stroke: var(--ok); /* تم التغيير للأخضر */
+  stroke: var(--ok); 
 }
 .gauge-fg.flow {
-  stroke: var(--ok); /* تم التغيير للأخضر */
+  stroke: var(--ok); 
 }
 .gauge-fg.saved {
   stroke: var(--ok);
@@ -1213,14 +1198,13 @@ body.is-stale .live-pill {
   font-size: var(--fs-xs);
 }
 
-/* Loading skeleton — better than a bare "--" */
 .is-loading .gauge-center strong,
 .is-loading .compact-kpi-value strong {
   color: var(--text-faint);
 }
 
 /* --------------------------------------------------------------------------
-   13. FLEET / FOCUS KPI BAR (used by views 2-6)
+   13. FLEET / FOCUS KPI BAR 
    -------------------------------------------------------------------------- */
 .fleet-kpi-bar {
   display: grid;
@@ -1323,7 +1307,6 @@ body.is-stale .live-pill {
   font-weight: 600;
 }
 
-/* Only out-of-range zones get colour. "Optimal" is the boring default. */
 .zone-card.dry {
   border-color: rgba(239, 68, 68, 0.45);
 }
@@ -1433,7 +1416,6 @@ body.is-stale .live-pill {
   opacity: 0;
   transform: translateY(-50%);
 }
-/* Motion here is meaningful: it only runs when water is actually moving. */
 .pipe.flowing .pulse {
   animation: flowPulse var(--flow-speed, 1.4s) linear infinite;
 }
@@ -1618,7 +1600,7 @@ body.is-stale .live-pill {
 }
 
 /* --------------------------------------------------------------------------
-   17. MODBUS TABLE  (tertiary — reference data, must recede)
+   17. MODBUS TABLE
    -------------------------------------------------------------------------- */
 .modbus-table-wrap {
   max-height: 380px;
@@ -1653,7 +1635,6 @@ body.is-stale .live-pill {
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* Column semantics as classes, not inline styles */
 .mb-addr {
   color: var(--text);
   font-weight: 600;
@@ -1683,9 +1664,7 @@ body.is-stale .live-pill {
    -------------------------------------------------------------------------- */
 .chart-card {
   min-height: 310px;
-  /* تموج أزرق في النصف العلوي فقط ويتلاشى للأسود في النصف السفلي */
   background: linear-gradient(180deg, rgba(28, 48, 150, 0.85) 0%, rgba(6, 9, 19, 0.95) 50%, rgba(6, 9, 19, 1) 100%) !important;
-  /* إطار أخضر زمردي يطابق الصورة التي أرسلتها */
   border: 1px solid rgba(16, 185, 129, 0.5) !important;
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6) !important;
 }
@@ -1813,7 +1792,6 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   cursor: not-allowed;
 }
 
-/* Read-only state for unauthorised operators */
 body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
   opacity: 0.5;
 }
@@ -2049,6 +2027,774 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
   background: var(--brand);
 }
 
+.leaflet-popup-content-wrapper {
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--r-sm) !important;
+  font-family: var(--sans);
+}
+.leaflet-popup-tip {
+  background: var(--surface-2) !important;
+}
+.leaflet-bar {
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--r-sm) !important;
+  overflow: hidden;
+}
+.leaflet-bar a {
+  background: var(--surface-2) !important;
+  color: var(--text-dim) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+.leaflet-bar a:hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+}
+.leaflet-control-layers {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--line-strong) !important;
+  color: var(--text) !important;
+  border-radius: var(--r-sm) !important;
+  font-family: var(--sans) !important;
+  font-size: var(--fs-sm) !important;
+  padding: var(--s-2) !important;
+}
+.leaflet-control-layers label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.leaflet-control-layers input[type="radio"] {
+  accent-color: var(--brand);
+}
+
+.map-popup strong {
+  display: block;
+  margin-bottom: var(--s-1);
+  color: var(--brand);
+  font-size: var(--fs-md);
+}
+.map-popup {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+.map-popup .popup-status.active {
+  color: var(--brand);
+  font-weight: 600;
+}
+.map-popup .popup-status.nominal {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   22. VIEW-SPECIFIC STATE BADGES
+   -------------------------------------------------------------------------- */
+#aiDecisionKpi.hold-active {
+  color: var(--warn);
+}
+#aiDecisionKpi.nominal {
+  color: var(--text);
+}
+
+#aiHoldStateBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+#aiHoldStateBadge.active {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: var(--warn);
+}
+#aiHoldStateBadge.inactive {
+  border-color: rgba(16, 185, 129, 0.35);
+  color: var(--ok);
+}
+
+.live-pill.zone-a {
+  color: var(--ok);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+.live-pill.zone-a .status-dot {
+  background: var(--ok);
+}
+.live-pill.zone-b {
+  color: var(--info);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+.live-pill.zone-b .status-dot {
+  background: var(--info);
+}
+.live-pill.zone-c {
+  color: var(--warn);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+.live-pill.zone-c .status-dot {
+  background: var(--warn);
+}
+.live-pill.zone-d {
+  color: var(--crit);
+  border-color: rgba(239, 68, 68, 0.6);
+  animation: criticalPulse 1.4s ease-in-out infinite;
+}
+.live-pill.zone-d .status-dot {
+  background: var(--crit);
+}
+
+/* --------------------------------------------------------------------------
+   23. MODALS (إصلاح وتجميل نافذة القفل)
+   -------------------------------------------------------------------------- */
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important;
+  background: rgba(3, 5, 10, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: none !important;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+}
+
+.modal-overlay.open {
+  display: flex !important;
+}
+
+.modal-card {
+  width: min(520px, 100%);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  box-shadow: var(--shadow-mod);
+  animation: modalIn 0.18s ease;
+}
+.modal-card.narrow {
+  max-width: 380px;
+}
+.modal-card.wide {
+  max-width: 600px;
+}
+@keyframes modalIn {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px; /* إصلاح المسافة بين الأيقونة والعنوان */
+  margin-bottom: var(--s-4);
+  font-weight: 600;
+  font-size: var(--fs-lg);
+  color: #fff;
+}
+.modal-head i {
+  color: var(--brand); /* تلوين الأيقونة للسيان لتبرز */
+  margin-right: 0;
+  font-size: 22px;
+}
+.modal-close {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+}
+.modal-intro {
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  margin-bottom: 24px; /* مسافة أوسع أسفل الوصف */
+  line-height: 1.6;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* إصلاح الفراغ بين الـ Label وحقل الإدخال */
+  margin-bottom: 24px;
+}
+.field label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.field input,
+.field select {
+  background: rgba(0, 0, 0, 0.5) !important; /* خلفية داكنة جداً للإنبوت */
+  border: 1px solid var(--line-accent) !important; /* إطار سيان */
+  color: #ffffff !important;
+  border-radius: var(--r-sm);
+  padding: 12px 16px !important;
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  width: 100%;
+}
+
+/* تنسيق خاص جداً لحقل الـ PIN لمنع بياض المتصفح وتكبير النقاط */
+.field input.pin {
+  text-align: center;
+  font-size: 24px !important;
+  letter-spacing: 16px !important;
+  background: #03050a !important; /* أسود نقي */
+}
+
+/* فخ المتصفح: منع لون الخلفية الأبيض عند الإكمال التلقائي */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active{
+  -webkit-box-shadow: 0 0 0 30px #03050a inset !important;
+  -webkit-text-fill-color: white !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.form-error {
+  color: var(--crit);
+  font-size: var(--fs-xs);
+  margin-bottom: var(--s-2);
+}
+.form-error[hidden] {
+  display: none;
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.terms-body {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s-4);
+  background: var(--surface-sunk);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-dim);
+  display: grid;
+  gap: var(--s-3);
+}
+.terms-body h4 {
+  color: var(--text);
+  font-size: var(--fs-md);
+  margin-bottom: var(--s-1);
+}
+.terms-body .note {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  display: block;
+  margin-top: var(--s-1);
+}
+
+.consent {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  margin-top: var(--s-4);
+  font-size: var(--fs-md);
+  color: var(--text);
+  cursor: pointer;
+}
+.consent input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--ok);
+  cursor: pointer;
+  flex: none;
+}
+
+/* --------------------------------------------------------------------------
+   24. LOGS  (tertiary)
+   -------------------------------------------------------------------------- */
+.logs-card {
+  font-family: var(--mono);
+}
+.log-list {
+  list-style: none;
+  display: grid;
+  gap: 3px;
+  max-height: 180px;
+  overflow: auto;
+  padding-right: var(--s-1);
+}
+.log-list li {
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 6px var(--s-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  display: flex;
+  gap: var(--s-2);
+}
+.log-list li .t {
+  color: var(--text-faint);
+  flex: none;
+}
+.log-list li .src {
+  font-weight: 600;
+  flex: none;
+}
+.log-list li.lvl-ok .src {
+  color: var(--ok);
+}
+.log-list li.lvl-info .src {
+  color: var(--brand);
+}
+.log-list li.lvl-warn .src {
+  color: var(--warn);
+}
+.log-list li.lvl-crit .src {
+  color: var(--crit);
+}
+
+.log-list::-webkit-scrollbar,
+.modbus-table-wrap::-webkit-scrollbar,
+.terms-body::-webkit-scrollbar {
+  width: 6px;
+}
+.log-list::-webkit-scrollbar-thumb,
+.modbus-table-wrap::-webkit-scrollbar-thumb,
+.terms-body::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+}
+
+/* --------------------------------------------------------------------------
+   25. RESPONSIVE
+   -------------------------------------------------------------------------- */
+@media (max-width: 1350px) {
+  #viewDashboard.active {
+    grid-template-columns: minmax(0, 1fr) 286px;
+  }
+  .zones-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .focus-grid,
+  .fleet-kpi-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1050px) {
+  #viewDashboard.active {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "kpis" "safety" "alarms" "twin" "weather"
+      "ai" "moisture" "pumpflow" "zones" "controls" "logs";
+  }
+  .twin-grid {
+    grid-template-columns: 1fr;
+  }
+  .pipe {
+    margin-top: var(--s-2);
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+  }
+  body.nav-open .sidebar {
+    transform: none;
+  }
+  body.nav-open::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.55);
+  }
+  .layout-main {
+    margin-left: 0;
+  }
+  .icon-btn.menu-btn {
+    display: inline-flex;
+  }
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+  .btn-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .dashboard {
+    padding: var(--s-3) var(--s-3) 32px;
+  }
+  .top-header {
+    padding: var(--s-2) var(--s-3);
+    gap: var(--s-2);
+  }
+  .header-title p {
+    display: none;
+  }
+  .header-status {
+    display: none;
+  }
+  .telemetry-source-group {
+    display: none;
+  }
+  .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .zones-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fleet-kpi-bar,
+  .focus-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .fleet-map-container {
+    height: 380px;
+  }
+  .safety-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+  .btn-row {
+    grid-template-columns: 1fr;
+  }
+  .modal-card {
+    padding: var(--s-4);
+  }
+}
+
+/* ========================================================================== 
+   26. PROFESSIONAL EXTENSIONS
+   --------------------------------------------------------------------------
+   Optional components consolidated from the second stylesheet:
+   - hardware/source badges
+   - digital-twin mode controls
+   - AI/MPC state badges
+   - fleet map / Leaflet theme
+   - richer but restrained card treatment
+   These rules intentionally reuse the main token system above.
+   ========================================================================== */
+
+/* Hardware, security and uptime chips */
+.firewall-chip,
+.uptime-chip,
+.btn-usb-link,
+.usb-status-chip,
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.firewall-chip,
+.uptime-chip {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-accent);
+  border-radius: 999px;
+  color: var(--brand);
+  background: rgba(0, 229, 255, 0.07);
+}
+
+.uptime-chip {
+  color: var(--brand);
+}
+.firewall-chip.is-warning {
+  color: var(--warn);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+.firewall-chip.is-ok {
+  color: var(--ok);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.btn-usb-link {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid rgba(16, 185, 129, 0.55);
+  border-radius: 999px;
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.1);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.btn-usb-link:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: var(--ok);
+}
+.btn-usb-link:active {
+  transform: translateY(1px);
+}
+
+.usb-status-chip {
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 999px;
+  color: var(--ok);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+/* Backwards-compatible dot alias for markup using .pulse-dot. */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.pulse-dot.sm {
+  width: 6px;
+  height: 6px;
+}
+.connection-badge.online .pulse-dot,
+.connection-badge.online #pingDot,
+.connection-badge.online .status-dot {
+  background: var(--ok) !important;
+  box-shadow:
+    0 0 0 3px rgba(16, 185, 129, 0.14),
+    0 0 10px rgba(16, 185, 129, 0.55);
+}
+.connection-badge.offline .pulse-dot,
+.connection-badge.offline #pingDot,
+.connection-badge.offline .status-dot {
+  background: var(--crit) !important;
+  box-shadow:
+    0 0 0 3px rgba(239, 68, 68, 0.14),
+    0 0 10px rgba(239, 68, 68, 0.45);
+}
+.live-pill .pulse-dot {
+  background: var(--ok);
+}
+
+/* Digital twin toolbar */
+.twin-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.twin-mode-selector {
+  display: inline-flex;
+  gap: var(--s-1);
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-sunk);
+}
+.twin-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--text-dim);
+  background: transparent;
+  font: 600 var(--fs-xs) var(--sans);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.twin-toggle-btn:hover {
+  color: var(--text);
+}
+.twin-toggle-btn.active {
+  color: var(--brand);
+  border-color: var(--line-accent);
+  background: rgba(0, 229, 255, 0.1);
+}
+
+/* Professional card highlight: visible, not noisy. */
+.card.field-grid-section,
+.glass-card {
+  overflow: hidden;
+}
+.card.field-grid-section::before,
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-accent),
+    transparent
+  );
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* AI/MPC status */
+#aiDecisionKpi {
+  transition:
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+}
+#aiDecisionKpi.hold-active {
+  color: var(--warn);
+}
+#aiDecisionKpi.nominal {
+  color: var(--ok);
+}
+
+#aiHoldStateBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+#aiHoldStateBadge.active {
+  color: var(--warn);
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.08);
+}
+#aiHoldStateBadge.inactive {
+  color: var(--ok);
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+#aiBannerRationale {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line-accent);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  background: rgba(0, 229, 255, 0.05);
+  line-height: var(--lh-body);
+}
+#aiBannerRationale i {
+  color: var(--brand);
+  font-size: var(--fs-lg);
+}
+
+/* ISO 10816 badges: colour is reserved for the state. */
+.live-pill.zone-a {
+  color: var(--ok);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+.live-pill.zone-a .status-dot,
+.live-pill.zone-a .pulse-dot {
+  background: var(--ok);
+}
+.live-pill.zone-b {
+  color: var(--info);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+.live-pill.zone-b .status-dot,
+.live-pill.zone-b .pulse-dot {
+  background: var(--info);
+}
+.live-pill.zone-c {
+  color: var(--warn);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+.live-pill.zone-c .status-dot,
+.live-pill.zone-c .pulse-dot {
+  background: var(--warn);
+}
+.live-pill.zone-d {
+  color: var(--crit);
+  border-color: rgba(239, 68, 68, 0.6);
+  animation: criticalPulse 1.4s ease-in-out infinite;
+}
+.live-pill.zone-d .status-dot,
+.live-pill.zone-d .pulse-dot {
+  background: var(--crit);
+}
+
+/* Export action */
+#exportCsvBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line-accent);
+  border-radius: var(--r-sm);
+  color: var(--brand);
+  background: rgba(0, 229, 255, 0.07);
+  font: var(--fs-xs) var(--mono);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+#exportCsvBtn:hover {
+  background: rgba(0, 229, 255, 0.14);
+  border-color: var(--brand);
+}
+#exportCsvBtn:active {
+  transform: translateY(1px);
+}
+
+/* Map / Leaflet dark theme */
+.fleet-map-card {
+  padding: var(--s-3);
+}
+.fleet-map-container {
+  width: 100%;
+  height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+}
+.map-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--text-faint);
+  font: var(--fs-xs) var(--mono);
+}
+.legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legend-dot.nominal {
+  background: var(--ok);
+}
+.legend-dot.active {
+  background: var(--brand);
+}
+
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   color: var(--text) !important;
@@ -2072,8 +2818,8 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
   border-bottom: 1px solid var(--line) !important;
 }
 .leaflet-bar a:hover {
-  background: var(--surface-3) !important;
   color: var(--text) !important;
+  background: var(--surface-3) !important;
 }
 .leaflet-control-layers {
   padding: var(--s-2) !important;
@@ -2251,30 +2997,6 @@ button.zone-card {
   pointer-events: none; /* يسمح بمرور النقرات عبر الحاوية الشفافة */
   max-height: calc(100vh - 90px); /* يمنع الحاوية من التمدد وتغطية الشريط العلوي */
 }
-
-/* --------------------------------------------------------------------------
-   23. MODALS (إصلاح مشكلة عدم الاختفاء وفخ الـ CSS Grid)
-   -------------------------------------------------------------------------- */
-.modal-overlay {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 999999 !important; /* ضمان تغطية الشاشة بالكامل فوق كل شيء */
-  background: rgba(3, 5, 10, 0.85) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  display: none !important; /* إجبار المودال على الاختفاء بشكل افتراضي */
-  align-items: center;
-  justify-content: center;
-  padding: var(--s-5);
-}
-
-.modal-overlay.open {
-  display: flex !important; /* إجبار المودال على الظهور فقط عند وضع الكلاس */
-}
-
 
 /* ===================================================
    🌟 لمسات التوأم الرقمي وتحسينات الإضاءة (Cyber-Twin Accents)
