@@ -2368,19 +2368,18 @@ button.zone-card {
 /* ===================================================
    🌌 تموجات الألوان في القائمة الجانبية (Sidebar Aurora)
    =================================================== */
-.sidebar {
   /* 
     تموج سيان (أزرق فاتح) من الأعلى، 
     تموج أخضر زمردي من الأسفل، 
     مدمجة بسلاسة مع لون الخلفية الأصلي 
   */
-  background: 
+.sidebar {
+  background:
     radial-gradient(ellipse at top center, rgba(0, 229, 255, 0.12) 0%, transparent 280px),
     linear-gradient(180deg, rgba(6, 9, 19, 0.55) 0%, rgba(6, 9, 19, 0.25) 60%, rgba(6, 9, 19, 0.45) 100%),
     url("images/background-img.png") center bottom / cover no-repeat,
     var(--surface-1) !important;
-    
-  /* إضافة خط فاصل أنيق ومضيء قليلاً من جهة اليمين */
+
   border-right: 1px solid rgba(0, 229, 255, 0.15) !important;
 }
 
