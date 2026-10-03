@@ -379,7 +379,7 @@ h3 {
   align-items: center;
   gap: var(--s-2);
   position: relative;
-  z-index: 100;
+  z-index: 100; /* ضمان بقاء الأزرار العلوية قابلة للنقر وتفادي تغطيتها */
 }
 
 .icon-btn {
@@ -485,8 +485,8 @@ h3 {
   background: transparent;
   transition: background 0.15s ease;
   position: relative;
-  z-index: 100;
-  pointer-events: auto !important;
+  z-index: 100; /* منع تغطية الزر بأي حاوية شفافة */
+  pointer-events: auto !important; /* إجبار الزر على الاستجابة للنقرات دائماً */
 }
 .auth-btn.lock {
   border: 1px solid rgba(245, 158, 11, 0.4);
@@ -525,6 +525,9 @@ h3 {
 
 /* --------------------------------------------------------------------------
    5. STALE-DATA STATE
+   When the socket drops, every reading on screen becomes untrustworthy.
+   Say so loudly and dim the numbers, rather than showing a dead value
+   as if it were live.
    -------------------------------------------------------------------------- */
 .stale-bar {
   display: none;
@@ -631,6 +634,10 @@ body.is-stale .live-pill {
 
 /* --------------------------------------------------------------------------
    7. CARD TIERS
+   Not every panel deserves the same weight. Three levels:
+   .tier-primary   safety-critical — strongest border, most padding
+   .tier-secondary analysis        — plain card
+   .tier-tertiary  reference       — flat, recedes into the page
    -------------------------------------------------------------------------- */
 .glass-card,
 .card {
@@ -641,6 +648,7 @@ body.is-stale .live-pill {
   position: relative;
 }
 
+/* التعديل لبطاقة مناطق الحقل لتكون خلفيتها بالتدرج السيان */
 #fieldSection {
   background: linear-gradient(180deg, rgba(0, 229, 255, 0.4) 0%, rgba(11, 18, 32, 0.9) 100%) !important;
   border: 1px solid rgba(0, 229, 255, 0.3) !important;
@@ -726,6 +734,7 @@ body.is-stale .live-pill {
   color: var(--text-faint);
 }
 
+/* "Live" pill — no pulse. The heartbeat in the sidebar is the liveness cue. */
 .live-pill {
   display: inline-flex;
   align-items: center;
@@ -746,7 +755,7 @@ body.is-stale .live-pill {
 }
 
 /* --------------------------------------------------------------------------
-   8. SAFETY BANNER
+   8. SAFETY BANNER  (primary tier — the one thing that may shout)
    -------------------------------------------------------------------------- */
 .safety-banner {
   display: block;
@@ -814,6 +823,7 @@ body.is-stale .live-pill {
   color: var(--crit);
 }
 
+/* The ONLY idle animation left in the system. */
 @keyframes criticalPulse {
   0%,
   100% {
@@ -827,6 +837,7 @@ body.is-stale .live-pill {
 /* --------------------------------------------------------------------------
    9. ALARMS
    -------------------------------------------------------------------------- */
+/* تعديل بطاقة التنبيهات وإضافة التدرج الأحمر من الأسفل إلى المنتصف */
 #alarmPanel {
   background: linear-gradient(0deg, rgba(239, 68, 68, 0.75) 0%, rgba(11, 18, 32, 0.95) 50%, rgba(11, 18, 32, 1) 100%) !important;
   border: 1px solid rgba(239, 68, 68, 0.5) !important;
@@ -1037,6 +1048,7 @@ body.is-stale .live-pill {
   font-weight: 500;
 }
 
+/* Value emphasis — used sparingly, never as pure decoration */
 .value-accent {
   color: var(--brand);
   font-weight: 600;
@@ -1062,6 +1074,7 @@ body.is-stale .live-pill {
 .gauge-card,
 .compact-kpi-card {
   min-height: 158px;
+  /* تموج من السيان في الأعلى إلى الأزرق الغامق في الأسفل مع إطار ذهبي وتوهج أخضر */
   background: linear-gradient(180deg, rgba(0, 180, 210, 0.6) 0%, rgba(11, 18, 32, 0.95) 75%) !important;
   border: 1px solid rgba(218, 165, 32, 0.6) !important;
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.15) !important;
@@ -1090,14 +1103,16 @@ body.is-stale .live-pill {
   transition: stroke-dashoffset 0.5s ease;
 }
 
+/* Gauge strokes are neutral until the reading itself is notable.
+   No drop-shadows: glow on a normal reading is noise. */
 .gauge-fg.vwc {
   stroke: var(--ok);
 }
 .gauge-fg.pwm {
-  stroke: var(--ok); 
+  stroke: var(--ok); /* تم التغيير للأخضر */
 }
 .gauge-fg.flow {
-  stroke: var(--ok); 
+  stroke: var(--ok); /* تم التغيير للأخضر */
 }
 .gauge-fg.saved {
   stroke: var(--ok);
@@ -1198,13 +1213,14 @@ body.is-stale .live-pill {
   font-size: var(--fs-xs);
 }
 
+/* Loading skeleton — better than a bare "--" */
 .is-loading .gauge-center strong,
 .is-loading .compact-kpi-value strong {
   color: var(--text-faint);
 }
 
 /* --------------------------------------------------------------------------
-   13. FLEET / FOCUS KPI BAR 
+   13. FLEET / FOCUS KPI BAR (used by views 2-6)
    -------------------------------------------------------------------------- */
 .fleet-kpi-bar {
   display: grid;
@@ -1307,6 +1323,7 @@ body.is-stale .live-pill {
   font-weight: 600;
 }
 
+/* Only out-of-range zones get colour. "Optimal" is the boring default. */
 .zone-card.dry {
   border-color: rgba(239, 68, 68, 0.45);
 }
@@ -1416,6 +1433,7 @@ body.is-stale .live-pill {
   opacity: 0;
   transform: translateY(-50%);
 }
+/* Motion here is meaningful: it only runs when water is actually moving. */
 .pipe.flowing .pulse {
   animation: flowPulse var(--flow-speed, 1.4s) linear infinite;
 }
@@ -1600,7 +1618,7 @@ body.is-stale .live-pill {
 }
 
 /* --------------------------------------------------------------------------
-   17. MODBUS TABLE
+   17. MODBUS TABLE  (tertiary — reference data, must recede)
    -------------------------------------------------------------------------- */
 .modbus-table-wrap {
   max-height: 380px;
@@ -1635,6 +1653,7 @@ body.is-stale .live-pill {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* Column semantics as classes, not inline styles */
 .mb-addr {
   color: var(--text);
   font-weight: 600;
@@ -1662,13 +1681,14 @@ body.is-stale .live-pill {
 /* --------------------------------------------------------------------------
    18. CHARTS
    -------------------------------------------------------------------------- */
+/* تعديل البطاقات السفلية (الرسوم البيانية) لتطابق التدرج السيان في البطاقات العلوية */
 .chart-card {
   min-height: 310px;
-  /* تموج من السيان في الأعلى إلى الأزرق الغامق في الأسفل مثل البطاقات العلوية */
   background: linear-gradient(180deg, rgba(0, 180, 210, 0.6) 0%, rgba(11, 18, 32, 0.95) 75%) !important;
   border: 1px solid rgba(218, 165, 32, 0.6) !important;
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.15) !important;
 }
+
 .chart-wrap {
   height: 250px;
 }
@@ -1793,6 +1813,7 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   cursor: not-allowed;
 }
 
+/* Read-only state for unauthorised operators */
 body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
   opacity: 0.5;
 }
@@ -2365,21 +2386,33 @@ button.zone-card {
   color: #00E5FF !important;
   text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
 }
+
+/* ===================================================
+   🌲 تعديل خلفية سجل النظام (System Logs) 
+   =================================================== */
+/* تطبيق التدرج الأخضر المتموج لبطاقة System Logs */
+.logs-card, #logs {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.8) 0%, rgba(11, 18, 32, 0.95) 70%, rgba(11, 18, 32, 1) 100%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15), inset 0 10px 20px rgba(16, 185, 129, 0.1) !important;
+}
+
 /* ===================================================
    🌌 تموجات الألوان في القائمة الجانبية (Sidebar Aurora)
    =================================================== */
+.sidebar {
   /* 
     تموج سيان (أزرق فاتح) من الأعلى، 
     تموج أخضر زمردي من الأسفل، 
     مدمجة بسلاسة مع لون الخلفية الأصلي 
   */
-.sidebar {
-  background:
+  background: 
     radial-gradient(ellipse at top center, rgba(0, 229, 255, 0.12) 0%, transparent 280px),
     linear-gradient(180deg, rgba(6, 9, 19, 0.55) 0%, rgba(6, 9, 19, 0.25) 60%, rgba(6, 9, 19, 0.45) 100%),
     url("images/background-img.png") center bottom / cover no-repeat,
     var(--surface-1) !important;
-
+    
+  /* إضافة خط فاصل أنيق ومضيء قليلاً من جهة اليمين */
   border-right: 1px solid rgba(0, 229, 255, 0.15) !important;
 }
 
