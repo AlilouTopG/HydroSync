@@ -831,6 +831,15 @@ body.is-stale .live-pill {
   background: linear-gradient(0deg, rgba(239, 68, 68, 0.75) 0%, rgba(11, 18, 32, 0.95) 50%, rgba(11, 18, 32, 1) 100%) !important;
   border: 1px solid rgba(239, 68, 68, 0.5) !important;
   box-shadow: 0 10px 30px rgba(239, 68, 68, 0.15), inset 0 -10px 20px rgba(239, 68, 68, 0.1) !important;
+  height: 100%; /* تمديد لوحة التنبيهات لملء الفراغ العمودي */
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* تعديل قائمة التنبيهات داخل اللوحة لتتمدد وتأخذ المساحة المتبقية */
+#alarmPanel .alarm-list {
+  flex-grow: 1;
 }
 
 .alarm-count {
@@ -1919,7 +1928,7 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
 .btn-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--s-2); /* تم تعديل المسافة بين الأزرار لتكون أفضل */
+  gap: var(--s-2);
   margin-top: var(--s-3);
 }
 
@@ -1936,7 +1945,7 @@ body:not(.operator-authorized) .pid-card .pid-row input[type="range"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px; /* إضافة مسافة بين أيقونة الزر والنص */
+  gap: var(--s-2);
   transition:
     background 0.15s ease,
     border-color 0.15s ease;
@@ -2231,7 +2240,7 @@ button.zone-card {
 }
 
 /* --------------------------------------------------------------------------
-   23. MODALS (إصلاح مشكلة عدم الاختفاء وتنسيق الحقول)
+   23. MODALS (إصلاح مشكلة عدم الاختفاء وفخ الـ CSS Grid وتنسيق الـ Observer)
    -------------------------------------------------------------------------- */
 .modal-overlay {
   position: fixed !important;
@@ -2253,36 +2262,89 @@ button.zone-card {
   display: flex !important; /* إجبار المودال على الظهور فقط عند وضع الكلاس */
 }
 
-/* تنسيق رأس نافذة الـ Modal */
+.modal-card {
+  width: min(520px, 100%);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  box-shadow: var(--shadow-mod);
+  animation: modalIn 0.18s ease;
+}
+.modal-card.narrow {
+  max-width: 380px;
+}
+.modal-card.wide {
+  max-width: 600px;
+}
+@keyframes modalIn {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px; /* إضافة مسافة بين الأيقونة وعنوان النافذة */
+  gap: 12px; /* مسافة مريحة بين أيقونة القفل والعنوان */
   margin-bottom: var(--s-4);
   font-weight: 600;
   font-size: var(--fs-lg);
   color: #fff;
 }
+.modal-head i {
+  color: var(--brand); /* تلوين الأيقونة للسيان */
+  font-size: 22px;
+}
+.modal-close {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+}
+.modal-intro {
+  color: var(--text-dim);
+  font-size: var(--fs-md);
+  margin-bottom: 24px; /* مسافة أوسع أسفل الوصف */
+  line-height: 1.6;
+}
 
-/* تنسيق حقول الإدخال ومنع التلوين الأبيض التلقائي من المتصفح */
 .field {
   display: flex;
   flex-direction: column;
-  gap: 10px; /* مسافة مريحة بين النص الوصفي وحقل الإدخال */
+  gap: 10px; /* مسافة بين النص "Operator PIN" وحقل الإدخال */
   margin-bottom: 24px;
+}
+.field label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.field input,
+.field select {
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid var(--line-accent) !important;
+  color: #ffffff !important;
+  border-radius: var(--r-sm);
+  padding: 12px 16px !important;
+  font-family: var(--mono);
+  font-size: var(--fs-md);
+  width: 100%;
 }
 
 .field input.pin {
   text-align: center;
   font-size: 24px !important;
   letter-spacing: 16px !important;
-  background: #03050a !important; /* خلفية داكنة جداً لحقل الـ PIN */
-  border: 1px solid var(--line-accent) !important; /* إطار سيان */
-  color: #ffffff !important;
+  background: #03050a !important; /* أسود نقي */
 }
 
-/* منع المتصفح من تغيير لون الخلفية للأبيض عند الإكمال التلقائي */
+/* فخ المتصفح: منع لون الخلفية الأبيض عند الإكمال التلقائي */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
@@ -2290,6 +2352,22 @@ input:-webkit-autofill:active{
   -webkit-box-shadow: 0 0 0 30px #03050a inset !important;
   -webkit-text-fill-color: white !important;
   transition: background-color 5000s ease-in-out 0s;
+}
+
+.form-error {
+  color: var(--crit);
+  font-size: var(--fs-xs);
+  margin-bottom: var(--s-2);
+}
+.form-error[hidden] {
+  display: none;
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--s-3); /* تكبير المسافة بين الأزرار (Cancel و Unlock) */
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 /* ===================================================
