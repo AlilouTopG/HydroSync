@@ -592,6 +592,7 @@ body.is-stale .live-pill {
     "zones     zones"
     "controls  controls"
     "logs      logs";
+  grid-template-rows: auto auto 1fr auto auto auto auto auto; 
   align-items: stretch;
   gap: var(--s-3);
 }
@@ -851,6 +852,7 @@ body.is-stale .live-pill {
 /* تعديل قائمة التنبيهات داخل اللوحة لتتمدد وتأخذ المساحة المتبقية */
 #alarmPanel .alarm-list {
   flex-grow: 1;
+  align-content: start;
 }
 
 .alarm-count {
