@@ -2649,3 +2649,23 @@ input:-webkit-autofill:active{
   transition: all 0.2s;
 }
 #sendChatBtn:hover { background: rgba(0, 229, 255, 0.25); box-shadow: 0 0 14px rgba(0,229,255,0.25); }
+/* ===== KPI cards: tactile active state ===== */
+.card-grid > .gauge-card,
+.card-grid > .compact-kpi-card {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.card-grid > .gauge-card:active,
+.card-grid > .compact-kpi-card:active,
+.card-grid > .gauge-card.active,
+.card-grid > .compact-kpi-card.active {
+  transform: scale(1.02) !important;
+  z-index: 2;
+  border: 1px solid #00ffcc !important;
+  border-bottom: 2px solid #00ffcc !important; 
+  box-shadow:
+    0 0 0 1px #00ffcc,                         
+    0 0 20px rgba(0, 255, 204, 0.45),          
+    inset 0 0 14px rgba(0, 255, 204, 0.18) !important; 
+}
