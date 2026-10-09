@@ -11,6 +11,7 @@
 // --- Physical Constants & Tuning ---
 const DT = 1.0; // 1-second simulation step
 const AMBIENT_TEMP = 24.0; // °C baseline
+const AUTO_COLLECTION_AMBIENT_TEMP = 25.5;
 const TANK_RECHARGE_RATE = 0.02; // تدفق ترشيح طبيعي خفيف (0.02 L/s = 1.2 L/min)
 const PUMP_MAX_FLOW = 25.0; // L/min at 100% PWM
 const WATER_PRICE_PER_LITER = 0.045; // $ per liter
@@ -18,6 +19,9 @@ const DZD_PER_USD = 134.5; // DZD exchange rate
 const KWH_PER_PUMPED_LITER = 0.00045; // Pumping energy at 3.5 bar
 const KG_CO2_PER_KWH = 0.52; // Grid carbon emission intensity
 const RAIN_HOLD_MARGIN_PCT = 20.0;
+const THERMAL_FAULT_HEAT_SCALE = 0.0682;
+const NORMAL_MOTOR_THERMAL_TRIP_C = 85.0;
+const AUTO_COLLECTION_MOTOR_THERMAL_TRIP_C = 130.0;
 
 // DSP Sampling Parameters for AI FFT Diagnostics
 const WAVEFORM_SAMPLES = 256;
@@ -128,6 +132,8 @@ let state = {
 
 let activeDisturbance = null;
 let disturbanceDuration = 0;
+let autoCollectionMode = false;
+let autoCollectionAmbientTemp = AUTO_COLLECTION_AMBIENT_TEMP;
 
 /* ==========================================================================
  *  DSP TIME-SERIES VIBRATION SYNTHESIZER (ISO 10816 + FFT HARMONICS)
@@ -285,7 +291,10 @@ function updateMotorThermalModel() {
   state.motorTemp += (heatGen + state.faultBias.heatC - heatDissipation) * DT;
   state.motorTemp = Math.max(state.ambientTemp, state.motorTemp);
 
-  if (state.motorTemp >= 85.0 && !state.interlocks.thermalTrip) {
+  const thermalTripThreshold = autoCollectionMode
+    ? AUTO_COLLECTION_MOTOR_THERMAL_TRIP_C
+    : NORMAL_MOTOR_THERMAL_TRIP_C;
+  if (state.motorTemp >= thermalTripThreshold && !state.interlocks.thermalTrip) {
     state.interlocks.thermalTrip = true;
   } else if (state.motorTemp <= 60.0 && state.interlocks.thermalTrip) {
     state.interlocks.thermalTrip = false;
@@ -500,16 +509,20 @@ function pidLoop() {
   let disturbanceEffect = 0.0;
   if (activeDisturbance === 'drought') {
     disturbanceEffect = -1.6;
-    state.ambientTemp = 38.5;
+    state.ambientTemp = 49.5;
     state.et0 = 8.2;
-  } else if (activeDisturbance === 'rain') {
-    disturbanceEffect = 2.4;
+  } else if (activeDisturbance === 'rain' || activeDisturbance === 'flood') {
+    disturbanceEffect = activeDisturbance === 'rain' ? 2.4 : 0.0;
     state.ambientTemp = 17.0;
     state.et0 = 1.0;
     state.tankVolumeL = Math.min(state.tankCapacityL, state.tankVolumeL + 2.5);
   } else {
-    state.ambientTemp = state.liveWeather ? state.liveWeather.temp : AMBIENT_TEMP;
-    state.et0 = state.liveWeather ? state.liveWeather.et0 : 4.2;
+    state.ambientTemp = autoCollectionMode
+      ? autoCollectionAmbientTemp
+      : state.liveWeather ? state.liveWeather.temp : AMBIENT_TEMP;
+    state.et0 = autoCollectionMode
+      ? 4.2
+      : state.liveWeather ? state.liveWeather.et0 : 4.2;
   }
 
   if (disturbanceDuration > 0) {
@@ -708,6 +721,74 @@ function setImbalanceLevel(level) {
   state.assetHealth.imbalanceLevel = Math.max(0, Math.min(100, Number(level)));
 }
 
+function setBearingWearLevel(level) {
+  state.assetHealth.bearingWearPct = Math.max(0, Math.min(100, Number(level)));
+}
+
+function setTankVolumePercent(level) {
+  const tankVolumePct = Math.max(0, Math.min(100, Number(level)));
+  state.tankVolumeL = (tankVolumePct / 100.0) * state.tankCapacityL;
+  updateReservoirCavitation();
+}
+
+function setThermalFaultLevel(level) {
+  if (!autoCollectionMode) {
+    throw new Error('Thermal fault levels can only be set during auto-collection');
+  }
+  state.faultBias.heatC = Math.max(0, Number(level) * THERMAL_FAULT_HEAT_SCALE);
+}
+
+function prepareAutoCollectionBlock({ ambientTemp = AUTO_COLLECTION_AMBIENT_TEMP } = {}) {
+  autoCollectionMode = true;
+  if (!Number.isFinite(Number(ambientTemp))) {
+    throw new Error('Auto-collection ambient temperature must be finite');
+  }
+  autoCollectionAmbientTemp = Number(ambientTemp);
+  activeDisturbance = null;
+  disturbanceDuration = 0;
+
+  state.vwc = 10.0;
+  state.filteredVwc = 10.0;
+  state.integralAcc = 0.0;
+  state.lastError = 0.0;
+  state.error = 0.0;
+
+  state.tankVolumeL = state.tankCapacityL;
+  state.tankVolumePct = 100.0;
+  state.tankInletValve = false;
+  state.motorTemp = autoCollectionAmbientTemp;
+  state.ambientTemp = autoCollectionAmbientTemp;
+  state.et0 = 4.2;
+
+  state.effectivePwm = 0.0;
+  state.pumpDuty = 0.0;
+  state.flowRate = 0.0;
+  state.interlocks = {
+    dryRun: false,
+    thermalTrip: false,
+    pipeBurst: false,
+    floodRisk: false,
+    sensorFault: false
+  };
+  state.systemHealth = 'NOMINAL';
+  state.activeFaults = [];
+  state.burstPipeCounter = 0;
+  state.faultBias.vibMms = 0.0;
+  state.faultBias.heatC = 0.0;
+  state.assetHealth.bearingWearPct = 0.5;
+  state.assetHealth.cavitationIndex = 2.1;
+  state.assetHealth.imbalanceLevel = 0.0;
+
+  const activePlot = state.zones.find(zone => zone.id === state.activeZoneId);
+  if (activePlot) activePlot.moisture = state.vwc;
+}
+
+function finishAutoCollection() {
+  autoCollectionMode = false;
+  if (state.motorTemp >= NORMAL_MOTOR_THERMAL_TRIP_C) {
+    state.interlocks.thermalTrip = true;
+  }
+}
 
 
 module.exports = {
@@ -725,5 +806,10 @@ module.exports = {
   getAuditHistory,
   setRainHold,
   injectFault,
-  setImbalanceLevel
+  setImbalanceLevel,
+  setBearingWearLevel,
+  setTankVolumePercent,
+  setThermalFaultLevel,
+  prepareAutoCollectionBlock,
+  finishAutoCollection
 };

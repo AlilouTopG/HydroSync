@@ -1,0 +1,69 @@
+{
+  "model": "RandomForestClassifier",
+  "model_params": {
+    "n_estimators": 200,
+    "min_samples_leaf": 2,
+    "class_weight": "balanced (from training)"
+  },
+  "features": [
+    "vibration_rms",
+    "dominant_frequency_hz",
+    "one_x_amplitude",
+    "two_x_amplitude",
+    "two_x_to_one_x_ratio",
+    "spectral_energy",
+    "motor_temp_c",
+    "pwm_actual",
+    "pwm_target"
+  ],
+  "label_classes": [
+    "fault",
+    "healthy",
+    "operating_condition"
+  ],
+  "healthy_class_index": 1,
+  "tuned_threshold_healthy": 0.6,
+  "val_macro_f1_argmax": 0.8174,
+  "val_macro_f1_tuned": 0.8283,
+  "test_macro_f1_argmax": 0.8125,
+  "test_macro_f1_tuned": 0.824,
+  "test_per_class_f1": {
+    "fault": 0.9143,
+    "healthy": 0.7192,
+    "operating_condition": 0.8384
+  },
+  "split_experiments": {
+    "train": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      11,
+      13,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      26
+    ],
+    "val": [
+      9,
+      10,
+      12,
+      17
+    ],
+    "test": [
+      1,
+      2,
+      14,
+      25
+    ]
+  }
+}

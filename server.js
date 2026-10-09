@@ -33,6 +33,8 @@ const simulator = require('./simulator');
 
 
 const telemetryCollector = require('./database/telemetryCollector');
+const { parseAutoCollectOptions, runAutoCollection } = require('./database/autoCollector');
+const autoCollectOptions = parseAutoCollectOptions(process.argv.slice(2));
 
 
 
@@ -1187,7 +1189,11 @@ function broadcastTelemetry() {
 
 }
 
-const telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
+let telemetryInterval = null;
+
+function startTelemetryInterval() {
+  if (!telemetryInterval) telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
+}
 
 
 
@@ -1205,7 +1211,7 @@ async function gracefulShutdown() {
 
   let shutdownError = null;
 
-  clearInterval(telemetryInterval);
+  if (telemetryInterval) clearInterval(telemetryInterval);
 
   try {
 
@@ -1349,13 +1355,37 @@ server.listen(PORT, async () => {
 
   try {
 
-    await telemetryCollector.startExperiment();
+    if (!autoCollectOptions) {
+      await telemetryCollector.startExperiment();
+    }
 
     console.log(`🗄️ TimescaleDB telemetry collection [ONLINE]`);
+
+    if (autoCollectOptions) {
+      console.log(
+        `[RUNNER] Auto-collection enabled: ${autoCollectOptions.repeats} repeat(s), ` +
+        `${autoCollectOptions.samplesPerBlock} samples per block`
+      );
+      runAutoCollection({
+        simulator,
+        telemetryCollector,
+        ...autoCollectOptions,
+        onSample: broadcastTelemetry
+      })
+        .catch(err => {
+          console.error(`[RUNNER] Collection failed: ${err.message}`);
+        })
+        .finally(() => {
+          if (!isShuttingDown) startTelemetryInterval();
+        });
+    } else {
+      startTelemetryInterval();
+    }
 
   } catch (err) {
 
     console.error(`[DB] Failed to start telemetry experiment: ${err.message}`);
+    startTelemetryInterval();
 
   }
 

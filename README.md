@@ -260,6 +260,15 @@ npm run dev      # Nodemon auto-reload
 npm start        # Production start
 ```
 
+### Automated telemetry collection
+```bash
+node server.js --auto-collect --repeats 1 --samples-per-block 50
+```
+The runner collects five PWM targets (40, 50, 60, 70, and 80) across baseline,
+medium-imbalance, and high-bearing-fault blocks. Auto-collected rows are marked
+with `collection_source = 'auto-collect'`; after the run, normal simulator
+telemetry resumes.
+
 ### Adding a New Agro-Hub
 1. Add entry to `FLEET_FARMS` in `public/app.js`
 2. Add coordinates to `LOCATION_COORDINATES` in `server.js`

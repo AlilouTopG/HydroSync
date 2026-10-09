@@ -1,6 +1,13 @@
 const pool = require('./db');
 
 let experimentId = null;
+let collectionSampleId = 0;
+
+function finiteFeature(value) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
 
 async function startExperiment({
   name = `live_run_${new Date().toISOString()}`,
@@ -31,13 +38,14 @@ async function startExperiment({
   );
 
   experimentId = result.rows[0].id;
+  collectionSampleId = 0;
 
   console.log(`[DB] Experiment started: ${experimentId}`);
 
   return experimentId;
 }
 
-async function recordTelemetry(state, aiData = {}) {
+async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulator' } = {}) {
   if (!experimentId) {
     throw new Error('Telemetry collector has no active experiment');
   }
@@ -46,6 +54,30 @@ async function recordTelemetry(state, aiData = {}) {
   const aiFeatures = aiData.features || {};
   const multiAxis = aiData.multi_axis || {};
   const multiAxisCombined = multiAxis.combined_features || {};
+  const datasetCondition = state.datasetCondition &&
+    typeof state.datasetCondition === 'object' &&
+    !Array.isArray(state.datasetCondition)
+    ? state.datasetCondition
+    : {};
+  const pwmTarget = Number(datasetCondition.pwm_target ?? state.effectivePwm ?? state.pumpDuty);
+  const suppliedSampleId = datasetCondition.sample_id;
+  if (Number.isSafeInteger(suppliedSampleId) && suppliedSampleId > collectionSampleId) {
+    collectionSampleId = suppliedSampleId;
+  }
+  const collection = {
+    ...datasetCondition,
+    fault_type: datasetCondition.fault_type ?? null,
+    operating_condition: datasetCondition.operating_condition ?? null,
+    severity_injected: datasetCondition.severity_injected ?? null,
+    condition_block_id: datasetCondition.condition_block_id ?? null,
+    pwm_target: Number.isFinite(pwmTarget) ? pwmTarget : null,
+    is_baseline: typeof datasetCondition.is_baseline === 'boolean'
+      ? datasetCondition.is_baseline
+      : !datasetCondition.fault_type &&
+        !datasetCondition.operating_condition &&
+        datasetCondition.severity_injected == null,
+    sample_id: suppliedSampleId ?? ++collectionSampleId
+  };
 
   const enrichedFeatures = {
     ...aiFeatures,
@@ -107,7 +139,8 @@ async function recordTelemetry(state, aiData = {}) {
         fft_magnitudes,
 
         features,
-        model_metadata
+        model_metadata,
+        collection_source
       )
       VALUES (
         NOW(),
@@ -128,7 +161,8 @@ async function recordTelemetry(state, aiData = {}) {
         $29, $30,
 
         $31,
-        $32
+        $32,
+        $33
       )
       RETURNING time, time::text AS time_str, id
       `,
@@ -155,11 +189,11 @@ async function recordTelemetry(state, aiData = {}) {
         Number(aiFeatures.vibration_rms ?? asset.vibrationRms) || null,
         Number(aiFeatures.dominant_frequency_hz ?? asset.dominantFrequencyHz) || null,
 
-        Number(aiFeatures.one_x_amplitude) || null,
-        Number(aiFeatures.two_x_amplitude) || null,
-        Number(aiFeatures.two_x_to_one_x_ratio) || null,
+        finiteFeature(aiFeatures.one_x_amplitude),
+        finiteFeature(aiFeatures.two_x_amplitude),
+        finiteFeature(aiFeatures.two_x_to_one_x_ratio),
         Number(aiFeatures.one_x_to_rms_ratio) || null,
-        Number(aiFeatures.spectral_energy) || null,
+        finiteFeature(aiFeatures.spectral_energy),
         Number(aiFeatures.crest_factor) || null,
         Number(aiFeatures.kurtosis) || null,
 
@@ -186,10 +220,11 @@ async function recordTelemetry(state, aiData = {}) {
 
         {
           engine: aiData.engine || 'python-fastapi',
-          collection: state.datasetCondition || null,
+          collection,
           safety: aiData.safety || null,
           collected_at: new Date().toISOString()
-        }
+        },
+        collectionSource
       ]
     );
 

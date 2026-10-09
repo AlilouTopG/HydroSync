@@ -38,3 +38,18 @@ coverage/
 # Misc
 *.pem
 .cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+ai_engine/.venv/
+
+# ML artifacts (large binaries — see ml/README.md)
+ai_engine/ml_models/
+ml/models/
+*.pkl
+
+# Dataset exports (large)
+multiaxis_hydrosync_dataset.csv
+*.csv
