@@ -5619,4 +5619,32 @@
   document.addEventListener("DOMContentLoaded", function() {
     setTimeout(initAICopilot, 500);
   });
+    /* ---------- KPI Cards: active / pressed selection ---------- */
+  function initKpiCardSelection() {
+    var kpiCards = document.querySelectorAll(
+      ".card-grid > .gauge-card, .card-grid > .compact-kpi-card"
+    );
+
+    Array.prototype.forEach.call(kpiCards, function (card) {
+      card.addEventListener("click", function () {
+        var wasActive = card.classList.contains("active");
+
+        Array.prototype.forEach.call(kpiCards, function (c) {
+          c.classList.remove("active");
+        });
+
+        if (!wasActive) {
+          card.classList.add("active");
+        }
+
+        if (typeof playClick === "function") playClick();
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initKpiCardSelection);
+  } else {
+    initKpiCardSelection();
+  }
 })();
