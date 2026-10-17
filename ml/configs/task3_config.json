@@ -1,0 +1,32 @@
+{
+  "model": "RandomForestClassifier",
+  "model_params": {
+    "n_estimators": 200,
+    "min_samples_leaf": 2,
+    "class_weight": "balanced (all = 1.0)"
+  },
+  "features": [
+    "vibration_rms",
+    "dominant_frequency_hz",
+    "one_x_amplitude",
+    "two_x_amplitude",
+    "two_x_to_one_x_ratio",
+    "spectral_energy",
+    "motor_temp_c",
+    "pwm_actual",
+    "pwm_target"
+  ],
+  "label_classes": [
+    "drought",
+    "dry_run",
+    "flood_risk"
+  ],
+  "train_scope": "operating_condition rows only (dry_run, drought, flood_risk)",
+  "val_macro_f1": 0.9984,
+  "test_macro_f1": 0.9983,
+  "test_per_class_f1": {
+    "drought": 0.9974,
+    "dry_run": 1.0,
+    "flood_risk": 0.9974
+  }
+}

@@ -15,6 +15,11 @@ from scipy.fft import rfft, rfftfreq
 from scipy.signal import find_peaks
 import os
 import math
+from ml_predictor import MLPredictor
+
+# ML predictor — loads trained models at startup
+
+ml_predictor = MLPredictor()
 
 
 DEBUG = False
@@ -29,7 +34,9 @@ app = FastAPI(title="HydroSync AI Analytics Core")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    return JSONResponse(status_code=422, content={"detail": f"Invalid vibration payload: {exc}"})
+    return JSONResponse(
+        status_code=422, content={"detail": f"Invalid vibration payload: {exc}"}
+    )
 
 
 class TelemetryPayload(BaseModel):
@@ -59,7 +66,9 @@ class VibrationPayload(BaseModel):
 
     @field_validator("vibrationWaveforms")
     @classmethod
-    def check_waveforms_dict(cls, v: dict[str, list[float]] | None) -> dict[str, list[float]] | None:
+    def check_waveforms_dict(
+        cls, v: dict[str, list[float]] | None
+    ) -> dict[str, list[float]] | None:
         if v is None:
             return v
         required = {"x", "y", "z"}
@@ -96,16 +105,15 @@ def compute_axis_analysis(x_raw: list[float] | np.ndarray, fs: float):
 
     frequencies = rfftfreq(n, d=1 / fs)
 
-    # Dominant frequency
-    dominant_index = int(np.argmax(spectrum))
-    dominant_frequency = float(frequencies[dominant_index])
-    dominant_amplitude = float(spectrum[dominant_index])
-
     # 1x rotational component in 30-70 Hz band
     run = (frequencies >= 30) & (frequencies <= 70)
     one_x_idx = int(np.argmax(np.where(run, spectrum, 0))) if np.any(run) else 0
     one_x_frequency = float(frequencies[one_x_idx])
     one_x_amplitude = float(spectrum[one_x_idx])
+
+    # Dominant frequency tracks the strongest low-frequency rotational peak.
+    dominant_frequency = one_x_frequency
+    dominant_amplitude = one_x_amplitude
 
     # Bearing-region harmonics tracking at 3.56x shaft speed
     bearing_frequency_target = 3.56 * one_x_frequency
@@ -113,7 +121,9 @@ def compute_axis_analysis(x_raw: list[float] | np.ndarray, fs: float):
     # Bearing band RMS
     bearing_band_low = max(0.95 * bearing_frequency_target - 5, 0)
     bearing_band_high = min(1.05 * bearing_frequency_target + 5, fs / 2)
-    bearing_band_mask = (frequencies >= bearing_band_low) & (frequencies <= bearing_band_high)
+    bearing_band_mask = (frequencies >= bearing_band_low) & (
+        frequencies <= bearing_band_high
+    )
     if np.any(bearing_band_mask):
         bearing_band_rms = float(np.sqrt(np.mean(spectrum[bearing_band_mask] ** 2)))
     else:
@@ -131,22 +141,35 @@ def compute_axis_analysis(x_raw: list[float] | np.ndarray, fs: float):
     bearing_amplitude = float(spectrum[bearing_index])
 
     # Amplitude ratios
-    two_x_to_one_x_ratio = two_x_amplitude / one_x_amplitude if one_x_amplitude > 0 else 0.0
+    two_x_to_one_x_ratio = (
+        two_x_amplitude / one_x_amplitude if one_x_amplitude > 0 else 0.0
+    )
     one_x_to_rms_ratio = one_x_amplitude / vibration_rms if vibration_rms > 0 else 0.0
-    bearing_to_one_x_ratio = bearing_amplitude / one_x_amplitude if one_x_amplitude > 0 else 0.0
-    bearing_band_to_rms_ratio = bearing_band_rms / vibration_rms if vibration_rms > 0 else 0.0
+    bearing_to_one_x_ratio = (
+        bearing_amplitude / one_x_amplitude if one_x_amplitude > 0 else 0.0
+    )
+    bearing_band_to_rms_ratio = (
+        bearing_band_rms / vibration_rms if vibration_rms > 0 else 0.0
+    )
 
     # Spectral stats
     mean_spectrum = float(np.mean(spectrum))
-    one_x_to_mean_spectrum_ratio = one_x_amplitude / mean_spectrum if mean_spectrum > 0 else 0.0
-    two_x_to_mean_spectrum_ratio = two_x_amplitude / mean_spectrum if mean_spectrum > 0 else 0.0
+    one_x_to_mean_spectrum_ratio = (
+        one_x_amplitude / mean_spectrum if mean_spectrum > 0 else 0.0
+    )
+    two_x_to_mean_spectrum_ratio = (
+        two_x_amplitude / mean_spectrum if mean_spectrum > 0 else 0.0
+    )
     spectral_energy = float(np.sum(spectrum**2))
     total_spectrum = float(np.sum(spectrum))
 
     if total_spectrum > 0:
         spectral_centroid = float(np.sum(frequencies * spectrum) / total_spectrum)
         spectral_bandwidth = float(
-            np.sqrt(np.sum(((frequencies - spectral_centroid) ** 2) * spectrum) / total_spectrum)
+            np.sqrt(
+                np.sum(((frequencies - spectral_centroid) ** 2) * spectrum)
+                / total_spectrum
+            )
         )
     else:
         spectral_centroid = 0.0
@@ -154,7 +177,11 @@ def compute_axis_analysis(x_raw: list[float] | np.ndarray, fs: float):
 
     # Real Peak Separation using find_peaks
     peak_idx, _ = find_peaks(spectrum, distance=3)
-    top_peak_indices = peak_idx[np.argsort(spectrum[peak_idx])[::-1][:5]] if len(peak_idx) else np.array([], dtype=int)
+    top_peak_indices = (
+        peak_idx[np.argsort(spectrum[peak_idx])[::-1][:5]]
+        if len(peak_idx)
+        else np.array([], dtype=int)
+    )
     peaks = [
         {
             "frequency_hz": round(float(frequencies[p]), 2),
@@ -233,7 +260,10 @@ def analyze_telemetry(data: TelemetryPayload):
 @app.post("/vibration")
 def receive_vibration(data: VibrationPayload):
     if not data.vibrationWaveform and not data.vibrationWaveforms:
-        raise HTTPException(status_code=422, detail="Either vibrationWaveform or vibrationWaveforms must be provided")
+        raise HTTPException(
+            status_code=422,
+            detail="Either vibrationWaveform or vibrationWaveforms must be provided",
+        )
 
     global latest_vibration, latest_fft, latest_multi_axis
     fs = data.samplingRateHz
@@ -248,7 +278,12 @@ def receive_vibration(data: VibrationPayload):
         rms_y = feat_y["vibration_rms"]
         rms_z = feat_z["vibration_rms"]
         vector_rms = round(float(np.sqrt(rms_x**2 + rms_y**2 + rms_z**2)), 4)
-        total_energy = round(feat_x["spectral_energy"] + feat_y["spectral_energy"] + feat_z["spectral_energy"], 4)
+        total_energy = round(
+            feat_x["spectral_energy"]
+            + feat_y["spectral_energy"]
+            + feat_z["spectral_energy"],
+            4,
+        )
         rms_ratio_y_x = round(rms_y / rms_x, 4) if rms_x > 0 else 0.0
         rms_ratio_z_x = round(rms_z / rms_x, 4) if rms_x > 0 else 0.0
 
@@ -300,7 +335,11 @@ def receive_vibration(data: VibrationPayload):
             "version": "1.0",
             "axes_available": ["x"],
             "axes": {
-                "x": {"features": feat_single, "fft": fft_single, "peaks": peaks_single},
+                "x": {
+                    "features": feat_single,
+                    "fft": fft_single,
+                    "peaks": peaks_single,
+                },
             },
             "combined_features": {
                 "vector_rms": feat_single["vibration_rms"],
@@ -337,7 +376,28 @@ def get_latest_vibration():
     }
 
 
+class MLFeatures(BaseModel):
+    vibration_rms: float
+    dominant_frequency_hz: float
+    one_x_amplitude: float
+    two_x_amplitude: float
+    two_x_to_one_x_ratio: float
+    spectral_energy: float
+    motor_temp_c: float
+    pwm_actual: float
+    pwm_target: float
+
+
+@app.post("/predict")
+def predict_state(data: MLFeatures):
+    try:
+        return ml_predictor.predict(data.model_dump())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+
+
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

@@ -1,6 +1,48 @@
 const pool = require('./db');
 
 let experimentId = null;
+let collectionSampleId = 0;
+
+function finiteFeature(value) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function buildCollectionMetadata(datasetCondition, demoState, pwmTarget, suppliedSampleId) {
+  const isDemo = Boolean(demoState);
+  const faultType = isDemo ? demoState.faultType : datasetCondition.fault_type;
+  const operatingCondition = isDemo
+    ? demoState.operatingCondition
+    : datasetCondition.operating_condition;
+  const severityInjected = isDemo
+    ? demoState.severityInjected
+    : datasetCondition.severity_injected;
+  const isBaseline = isDemo && typeof demoState.isBaseline === 'boolean'
+    ? demoState.isBaseline
+    : (typeof datasetCondition.is_baseline === 'boolean'
+      ? datasetCondition.is_baseline
+      : !faultType && !operatingCondition && severityInjected == null);
+
+  return {
+    ...datasetCondition,
+    ...(isDemo ? {
+      demo_state: demoState.state,
+      demo_pwm: demoState.pwm,
+      demo_phase: demoState.phase,
+      demo_mode: true,
+      demo_run_id: demoState.runId ?? null,
+      demo_run_mode: demoState.mode ?? null
+    } : {}),
+    fault_type: faultType ?? null,
+    operating_condition: operatingCondition ?? null,
+    severity_injected: severityInjected ?? null,
+    condition_block_id: datasetCondition.condition_block_id ?? null,
+    pwm_target: Number.isFinite(pwmTarget) ? pwmTarget : null,
+    is_baseline: isBaseline,
+    sample_id: suppliedSampleId ?? ++collectionSampleId
+  };
+}
 
 async function startExperiment({
   name = `live_run_${new Date().toISOString()}`,
@@ -31,13 +73,19 @@ async function startExperiment({
   );
 
   experimentId = result.rows[0].id;
+  collectionSampleId = 0;
 
   console.log(`[DB] Experiment started: ${experimentId}`);
 
   return experimentId;
 }
 
-async function recordTelemetry(state, aiData = {}) {
+async function recordTelemetry(state, aiData = {}, {
+  collectionSource = 'simulator',
+  mlPrediction = null,
+  demoState = null
+} = {}) {
+  const mlPred = mlPrediction;
   if (!experimentId) {
     throw new Error('Telemetry collector has no active experiment');
   }
@@ -46,6 +94,22 @@ async function recordTelemetry(state, aiData = {}) {
   const aiFeatures = aiData.features || {};
   const multiAxis = aiData.multi_axis || {};
   const multiAxisCombined = multiAxis.combined_features || {};
+  const datasetCondition = state.datasetCondition &&
+    typeof state.datasetCondition === 'object' &&
+    !Array.isArray(state.datasetCondition)
+    ? state.datasetCondition
+    : {};
+  const pwmTarget = Number(datasetCondition.pwm_target ?? state.effectivePwm ?? state.pumpDuty);
+  const suppliedSampleId = datasetCondition.sample_id;
+  if (Number.isSafeInteger(suppliedSampleId) && suppliedSampleId > collectionSampleId) {
+    collectionSampleId = suppliedSampleId;
+  }
+  const collection = buildCollectionMetadata(
+    datasetCondition,
+    demoState,
+    pwmTarget,
+    suppliedSampleId
+  );
 
   const enrichedFeatures = {
     ...aiFeatures,
@@ -107,7 +171,15 @@ async function recordTelemetry(state, aiData = {}) {
         fft_magnitudes,
 
         features,
-        model_metadata
+        model_metadata,
+        collection_source,
+
+        ml_state,
+        ml_state_confidence,
+        ml_fault_type,
+        ml_fault_confidence,
+        ml_operating_condition,
+        ml_oc_confidence
       )
       VALUES (
         NOW(),
@@ -119,7 +191,7 @@ async function recordTelemetry(state, aiData = {}) {
 
         $10, $11, $12,
 
-        $13, $14, $15, $16, $17, $18, $19, $20, $21,
+                $13, $14, $15, $16, $17, $18, $19, $20, $21,
 
         $22, $23, $24, $25,
 
@@ -128,7 +200,10 @@ async function recordTelemetry(state, aiData = {}) {
         $29, $30,
 
         $31,
-        $32
+        $32,
+        $33,
+
+        $34, $35, $36, $37, $38, $39
       )
       RETURNING time, time::text AS time_str, id
       `,
@@ -155,11 +230,11 @@ async function recordTelemetry(state, aiData = {}) {
         Number(aiFeatures.vibration_rms ?? asset.vibrationRms) || null,
         Number(aiFeatures.dominant_frequency_hz ?? asset.dominantFrequencyHz) || null,
 
-        Number(aiFeatures.one_x_amplitude) || null,
-        Number(aiFeatures.two_x_amplitude) || null,
-        Number(aiFeatures.two_x_to_one_x_ratio) || null,
+        finiteFeature(aiFeatures.one_x_amplitude),
+        finiteFeature(aiFeatures.two_x_amplitude),
+        finiteFeature(aiFeatures.two_x_to_one_x_ratio),
         Number(aiFeatures.one_x_to_rms_ratio) || null,
-        Number(aiFeatures.spectral_energy) || null,
+        finiteFeature(aiFeatures.spectral_energy),
         Number(aiFeatures.crest_factor) || null,
         Number(aiFeatures.kurtosis) || null,
 
@@ -186,10 +261,18 @@ async function recordTelemetry(state, aiData = {}) {
 
         {
           engine: aiData.engine || 'python-fastapi',
-          collection: state.datasetCondition || null,
+          collection,
           safety: aiData.safety || null,
           collected_at: new Date().toISOString()
-        }
+        },
+        collectionSource,
+
+        mlPred?.state || null,
+        mlPred?.state_confidence != null ? Number(mlPred.state_confidence) : null,
+        mlPred?.fault_type || null,
+        mlPred?.fault_confidence != null ? Number(mlPred.fault_confidence) : null,
+        mlPred?.operating_condition || null,
+        mlPred?.oc_confidence != null ? Number(mlPred.oc_confidence) : null
       ]
     );
 
@@ -317,5 +400,6 @@ module.exports = {
   startExperiment,
   recordTelemetry,
   endExperiment,
-  getExperimentId
+  getExperimentId,
+  buildCollectionMetadata
 };

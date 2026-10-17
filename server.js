@@ -15,6 +15,8 @@
 
 const express = require('express');
 
+const demoMode = require('./database/demoMode');
+
 const app = express();
 
 app.use(express.json());
@@ -30,9 +32,12 @@ const crypto = require('crypto');
 const { Server } = require('socket.io');
 
 const simulator = require('./simulator');
+const { analyzeWaveform } = require('./database/vibrationAnalysis');
 
 
 const telemetryCollector = require('./database/telemetryCollector');
+const { parseAutoCollectOptions, runAutoCollection } = require('./database/autoCollector');
+const autoCollectOptions = parseAutoCollectOptions(process.argv.slice(2));
 
 
 
@@ -173,6 +178,72 @@ function cachePythonVibration(data) {
 }
 
 
+// ─── ML Prediction Bridge ─────────────────────────────────────────────────
+// Calls the AI engine's /predict endpoint with the current 9 features.
+// Runs asynchronously after the telemetry insert — never blocks the pump loop.
+// Only fires when the pump is at steady state within the training PWM range
+// (40–80), matching the ISO 10816 convention of measuring at steady state.
+let lastPrediction = null;
+let pwmHistory = [];
+let activeDemoState = null;
+
+async function callPrediction(state, demoState, vibrationFeatures) {
+  lastPrediction = null;
+  if (demoState && demoState.phase !== 'measurement') return null;
+
+  const pwm_actual = Number(state.pumpDuty);
+
+  // track last 5 PWM samples
+  pwmHistory.push(pwm_actual);
+  if (pwmHistory.length > 5) pwmHistory.shift();
+
+  // guard 1: PWM must be within the training range
+  if (!Number.isFinite(pwm_actual) || pwm_actual < 40 || pwm_actual > 80) return null;
+
+  // guard 2: PWM must be stable across the last 5 samples
+  if (pwmHistory.length < 5) return null;
+  const pwmStable = (Math.max(...pwmHistory) - Math.min(...pwmHistory)) < 2;
+  if (!pwmStable) return null;
+
+  const feats = vibrationFeatures || latestVibrationFeatures || {};
+  const vibration_rms = Number(feats.vibration_rms ?? state.assetHealth?.vibrationRms);
+  const dominant_frequency_hz = Number(feats.dominant_frequency_hz ?? state.assetHealth?.dominantFrequencyHz);
+  const one_x_amplitude = Number(feats.one_x_amplitude);
+  const two_x_amplitude = Number(feats.two_x_amplitude);
+  const two_x_to_one_x_ratio = Number(feats.two_x_to_one_x_ratio);
+  const spectral_energy = Number(feats.spectral_energy);
+  const motor_temp_c = Number(state.motorTemp);
+  const pwm_target = Number(state.rawCommandDuty);
+
+  const values = [vibration_rms, dominant_frequency_hz, one_x_amplitude,
+                  two_x_amplitude, two_x_to_one_x_ratio, spectral_energy,
+                  motor_temp_c, pwm_actual, pwm_target];
+  if (values.some(v => !Number.isFinite(v))) return null;
+
+  try {
+    const res = await fetch(`${AI_ENGINE_URL}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vibration_rms,
+        dominant_frequency_hz,
+        one_x_amplitude,
+        two_x_amplitude,
+        two_x_to_one_x_ratio,
+        spectral_energy,
+        motor_temp_c,
+        pwm_actual,
+        pwm_target
+      }),
+      signal: AbortSignal.timeout(1500)
+    });
+    if (!res.ok) throw new Error(`AI engine status: ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.warn('[ML] predict failed:', e.message);
+    return null;
+  }
+}
 
 app.get('/api/ai/diagnostics', async (req, res) => {
 
@@ -722,6 +793,8 @@ io.on('connection', (socket) => {
 
     predictiveAI: latestAIPrediction,
 
+    mlPrediction: lastPrediction,
+
     safety: initialSafety,
 
     fft: initialAi.online ? latestVibrationFFT : null,
@@ -1099,25 +1172,37 @@ function postVibration(state) {
 
 
 
-function persistTelemetry(state) {
-
+async function persistTelemetry(state) {
   if (dbInFlight) return;
-
   dbInFlight = true;
 
-  telemetryCollector.recordTelemetry(state, {
-    features: latestVibrationFeatures,
-    fft: latestVibrationFFT,
-    multi_axis: latestMultiAxisData
-  })
-    .catch(err => {
-      if (DEBUG) console.error('[Historian] insert failed:', err.message);
-    })
-    .finally(() => {
-      dbInFlight = false;
-    });
-}
+  try {
+    const demoState = demoMode.isRunning() && activeDemoState
+      ? { ...activeDemoState }
+      : null;
+    const vibrationFeatures = demoState
+      ? analyzeWaveform(
+        state.vibrationWaveform,
+        Number(state.samplingRateHz || state.assetHealth?.samplingRateHz)
+      )
+      : latestVibrationFeatures;
+    const aiData = {
+      features: vibrationFeatures,
+      fft: latestVibrationFFT,
+      multi_axis: latestMultiAxisData
+    };
 
+    lastPrediction = await callPrediction(state, demoState, vibrationFeatures);
+    await telemetryCollector.recordTelemetry(state, aiData, {
+      mlPrediction: lastPrediction,
+      demoState
+    });
+  } catch (err) {
+    console.error(`[Historian] insert failed: ${err.message}`);
+  } finally {
+    dbInFlight = false;
+  }
+}
 
 
 function tick() {
@@ -1128,29 +1213,25 @@ function tick() {
 
   postVibration(state);
 
-  safetyCheck = evaluateSafety({
+  if (demoMode.isRunning()) {
+    safetyCheck = { tripPump: false, systemStatus: 'NORMAL', alarms: [] };
+  } else {
+    safetyCheck = evaluateSafety({
+      pumpState: Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
+      pumpDuty: Number(state.pumpDuty) || 0,
+      flowRate: Number(state.flowRate) || 0,
+      motorTemp: Number(state.motorTemp) || 25,
+      vibrationRms: typeof state.assetHealth?.vibrationRms === 'number'
+        ? state.assetHealth.vibrationRms
+        : (Number(state.vibrationRms) || 0)
+    });
 
-    pumpState: Boolean(state.pumpDuty > 0 || state.rawCommandDuty > 0),
-
-    pumpDuty: Number(state.pumpDuty) || 0,
-
-    flowRate: Number(state.flowRate) || 0,
-
-    motorTemp: Number(state.motorTemp) || 25,
-
-    vibrationRms: typeof state.assetHealth?.vibrationRms === 'number' ? state.assetHealth.vibrationRms : (Number(state.vibrationRms) || 0)
-
-  });
-
-  if (safetyCheck.tripPump && !isSafetyTripped) {
-    isSafetyTripped = true;
-
-    activeSafetyReason = safetyCheck.alarms.join(' | ');
-
-    simulator.setManualMode(true, 0);
-
-    console.warn(`[SCADA SAFETY INTERLOCK TRIPPED]: ${activeSafetyReason}`);
-
+    if (safetyCheck.tripPump && !isSafetyTripped) {
+      isSafetyTripped = true;
+      activeSafetyReason = safetyCheck.alarms.join(' | ');
+      simulator.setManualMode(true, 0);
+      console.warn(`[SCADA SAFETY INTERLOCK TRIPPED]: ${activeSafetyReason}`);
+    }
   }
 
   mpcDuty = calculateIrrigationDuty(Number(state.vwc) || 20, Number(state.setpoint || state.target) || 55, Number(latestAIPrediction.maxRainProb12h) || 0);
@@ -1179,15 +1260,21 @@ function broadcastTelemetry() {
 
     aiEngine: ai,
 
-    safety: { systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus, alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms, tripped: isSafetyTripped },
+        safety: { systemStatus: isSafetyTripped ? 'CRITICAL' : safetyCheck.systemStatus, alarms: isSafetyTripped ? [activeSafetyReason] : safetyCheck.alarms, tripped: isSafetyTripped },
 
-    autonomousMPC: mpcDuty
+    autonomousMPC: mpcDuty,
+
+    mlPrediction: lastPrediction
 
   });
 
 }
 
-const telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
+let telemetryInterval = null;
+
+function startTelemetryInterval() {
+  if (!telemetryInterval) telemetryInterval = setInterval(tick, TELEMETRY_INTERVAL);
+}
 
 
 
@@ -1205,7 +1292,7 @@ async function gracefulShutdown() {
 
   let shutdownError = null;
 
-  clearInterval(telemetryInterval);
+  if (telemetryInterval) clearInterval(telemetryInterval);
 
   try {
 
@@ -1345,17 +1432,96 @@ Operator Query: "${message}"`;
   }
 });
 
+// ─── Demo Mode Endpoints ─────────────────────────────────────────────────
+app.post('/api/demo/start', (req, res) => {
+  try {
+    const maxCycles = (req.body && Number(req.body.maxCycles)) || 1;
+    const result = demoMode.start(simulator, {
+      maxCycles,
+      onStateChange: (demoState) => {
+        activeDemoState = demoState;
+      }
+    });
+    if (!result.started) return res.status(409).json(result);
+    isSafetyTripped = false;
+    activeSafetyReason = '';
+    resetSafetyState();
+    lastPrediction = null;
+    pwmHistory = [];
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/demo/quick/start', (_req, res) => {
+  try {
+    const result = demoMode.startQuick(simulator, {
+      onStateChange: (demoState) => {
+        activeDemoState = demoState;
+      }
+    });
+    if (!result.started) return res.status(409).json(result);
+    isSafetyTripped = false;
+    activeSafetyReason = '';
+    resetSafetyState();
+    lastPrediction = null;
+    pwmHistory = [];
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/demo/stop', (req, res) => {
+  try {
+    const result = demoMode.stop();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/api/demo/status', (req, res) => {
+  res.json(demoMode.getStatus());
+});
+
+
 server.listen(PORT, async () => {
 
   try {
 
-    await telemetryCollector.startExperiment();
+    if (!autoCollectOptions) {
+      await telemetryCollector.startExperiment();
+    }
 
     console.log(`🗄️ TimescaleDB telemetry collection [ONLINE]`);
+
+    if (autoCollectOptions) {
+      console.log(
+        `[RUNNER] Auto-collection enabled: ${autoCollectOptions.repeats} repeat(s), ` +
+        `${autoCollectOptions.samplesPerBlock} samples per block`
+      );
+      runAutoCollection({
+        simulator,
+        telemetryCollector,
+        ...autoCollectOptions,
+        onSample: broadcastTelemetry
+      })
+        .catch(err => {
+          console.error(`[RUNNER] Collection failed: ${err.message}`);
+        })
+        .finally(() => {
+          if (!isShuttingDown) startTelemetryInterval();
+        });
+    } else {
+      startTelemetryInterval();
+    }
 
   } catch (err) {
 
     console.error(`[DB] Failed to start telemetry experiment: ${err.message}`);
+    startTelemetryInterval();
 
   }
 
