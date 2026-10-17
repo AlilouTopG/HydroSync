@@ -402,10 +402,7 @@ artifacts before starting the Python service:
 .\scripts\download_models.ps1
 ```
 
-The script expects the archive at the HydroSync GitHub release URL for
-`ml-artifacts-v1`. The archive is prepared separately and must be published at
-that URL for fresh-clone downloads to work. To use another approved host, pass
-its archive URL with `-ArchiveUrl`; the SHA-256 remains pinned and verified.
+The script downloads the published `hydrosync-ml-artifacts-v1.zip` asset from the HydroSync GitHub release tagged `ml-artifacts-v1`. It verifies the pinned SHA-256 and exact six-file contents before installing the artifacts. To use another approved host, pass its archive URL with `-ArchiveUrl`; the SHA-256 remains pinned and verified.
 
 ### 3. Start the database container
 
