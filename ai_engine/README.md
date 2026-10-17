@@ -69,7 +69,7 @@ The response includes `state` and `state_confidence` for Task 1,
 
 ## ◇ Current evaluation snapshot
 
-Quick simulator run `dc48648b-53e8-4ed4-9362-36cf771d5929`:
+Full-sweep simulator run `dc48648b-53e8-4ed4-9362-36cf771d5929`:
 
 | Head | Scored rows | Accuracy | Balanced accuracy | Macro-F1 |
 |---|---:|---:|---:|---:|
