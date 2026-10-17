@@ -56,12 +56,7 @@ root, install them with the SHA-256-verifying PowerShell script:
 .\scripts\download_models.ps1
 ```
 
-The script targets the HydroSync GitHub release URL for `ml-artifacts-v1`.
-That release asset must be published separately; until then a fresh clone
-cannot download the archive from the default URL. An approved alternate host
-can be used with `-ArchiveUrl`; the expected archive checksum is pinned in the
-script. The archive excludes datasets, generated reports, caches, and the
-legacy Task 1 Random Forest model.
+The script downloads the published HydroSync GitHub release asset tagged `ml-artifacts-v1`. It verifies the pinned archive SHA-256 and exact six-file contents before installation. An approved alternate host can be used with `-ArchiveUrl`; the expected archive checksum is pinned in the script. The archive excludes datasets, generated reports, caches, and legacy Task 1 artifacts.
 
 The response includes `state` and `state_confidence` for Task 1,
 `fault_type` and `fault_confidence` for Task 2, and `operating_condition` and
