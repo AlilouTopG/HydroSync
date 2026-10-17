@@ -130,6 +130,7 @@ let state = {
   burstPipeCounter: 0
 };
 
+let demoMode = false;
 let activeDisturbance = null;
 let disturbanceDuration = 0;
 let autoCollectionMode = false;
@@ -291,7 +292,7 @@ function updateMotorThermalModel() {
   state.motorTemp += (heatGen + state.faultBias.heatC - heatDissipation) * DT;
   state.motorTemp = Math.max(state.ambientTemp, state.motorTemp);
 
-  const thermalTripThreshold = autoCollectionMode
+  const thermalTripThreshold = autoCollectionMode || demoMode
     ? AUTO_COLLECTION_MOTOR_THERMAL_TRIP_C
     : NORMAL_MOTOR_THERMAL_TRIP_C;
   if (state.motorTemp >= thermalTripThreshold && !state.interlocks.thermalTrip) {
@@ -470,33 +471,39 @@ function pidLoop() {
 
   // Interlock overrides
   state.activeFaults = [];
-  if (state.interlocks.dryRun) {
-    rawPwmCommand = 0.0;
-    state.activeFaults.push('LOCK: RESERVOIR CAVITATION PREVENTED (LEVEL < 5%)');
-  }
-  if (state.interlocks.pipeBurst) {
-    rawPwmCommand = 0.0;
-    state.activeFaults.push('LOCK: MAJOR HYDRAULIC PIPE RUPTURE DETECTED');
-  }
-  if (state.interlocks.floodRisk) {
-    rawPwmCommand = 0.0;
-    state.activeFaults.push('LOCK: ANTI-FLOODING / ROOT ASPHYXIATION OVERRIDE');
-  }
-  if (state.interlocks.thermalTrip) {
-    rawPwmCommand = Math.min(rawPwmCommand, 30.0);
-    state.activeFaults.push('THROTTLE: MOTOR COIL THERMAL DERATING ACTIVE (TEMP > 85°C)');
-  }
+  if (!autoCollectionMode && !demoMode) {
+    if (state.interlocks.dryRun) {
+      rawPwmCommand = 0.0;
+      state.activeFaults.push('LOCK: RESERVOIR CAVITATION PREVENTED (LEVEL < 5%)');
+    }
+    if (state.interlocks.pipeBurst) {
+      rawPwmCommand = 0.0;
+      state.activeFaults.push('LOCK: MAJOR HYDRAULIC PIPE RUPTURE DETECTED');
+    }
+    if (state.interlocks.floodRisk) {
+      rawPwmCommand = 0.0;
+      state.activeFaults.push('LOCK: ANTI-FLOODING / ROOT ASPHYXIATION OVERRIDE');
+    }
+    if (state.interlocks.thermalTrip) {
+      rawPwmCommand = Math.min(rawPwmCommand, 30.0);
+      state.activeFaults.push('THROTTLE: MOTOR COIL THERMAL DERATING ACTIVE (TEMP > 85°C)');
+    }
 
-  if (state.interlocks.dryRun || state.interlocks.pipeBurst || state.interlocks.floodRisk) {
-    state.systemHealth = 'EMERGENCY_LOCK';
-  } else if (state.interlocks.thermalTrip) {
-    state.systemHealth = 'DEGRADED';
+    if (state.interlocks.dryRun || state.interlocks.pipeBurst || state.interlocks.floodRisk) {
+      state.systemHealth = 'EMERGENCY_LOCK';
+    } else if (state.interlocks.thermalTrip) {
+      state.systemHealth = 'DEGRADED';
+    } else {
+      state.systemHealth = 'NOMINAL';
+    }
   } else {
     state.systemHealth = 'NOMINAL';
   }
 
   state.pumpDuty = rawPwmCommand;
-  const safePwm = applySlewRate(rawPwmCommand);
+  const safePwm = demoMode
+    ? (state.effectivePwm = rawPwmCommand)
+    : applySlewRate(rawPwmCommand);
   state.flowRate = (safePwm / 100.0) * PUMP_MAX_FLOW;
 
   updatePredictiveMaintenanceModel();
@@ -642,9 +649,9 @@ function setSettings(settings) {
   if (settings.soilType !== undefined) state.soilType = String(settings.soilType);
 }
 
-function injectDisturbance(type) {
+function injectDisturbance(type, durationTicks = 25) {
   activeDisturbance = type;
-  disturbanceDuration = 25;
+  disturbanceDuration = Math.max(1, Math.floor(Number(durationTicks) || 25));
 }
 
 function setActiveZone(zoneId) {
@@ -732,10 +739,31 @@ function setTankVolumePercent(level) {
 }
 
 function setThermalFaultLevel(level) {
-  if (!autoCollectionMode) {
-    throw new Error('Thermal fault levels can only be set during auto-collection');
+  if (!autoCollectionMode && !demoMode) {
+    throw new Error('Thermal fault levels can only be set during auto-collection or demo');
   }
   state.faultBias.heatC = Math.max(0, Number(level) * THERMAL_FAULT_HEAT_SCALE);
+}
+
+function setDemoMode(enabled) {
+  demoMode = Boolean(enabled);
+  if (demoMode) {
+    state.interlocks = {
+      dryRun: false,
+      thermalTrip: false,
+      pipeBurst: false,
+      floodRisk: false,
+      sensorFault: false
+    };
+    state.systemHealth = 'NOMINAL';
+    state.activeFaults = [];
+    state.burstPipeCounter = 0;
+    state.effectivePwm = state.manualPwm;
+    state.pumpDuty = state.manualPwm;
+    state.flowRate = (state.manualPwm / 100.0) * PUMP_MAX_FLOW;
+  } else if (state.motorTemp >= NORMAL_MOTOR_THERMAL_TRIP_C) {
+    state.interlocks.thermalTrip = true;
+  }
 }
 
 function prepareAutoCollectionBlock({ ambientTemp = AUTO_COLLECTION_AMBIENT_TEMP } = {}) {
@@ -800,6 +828,7 @@ module.exports = {
   injectDisturbance,
   setActiveZone,
   setManualMode,
+  setDemoMode,
   setLiveWeather,
   refillTank,
   servicePumpAsset,

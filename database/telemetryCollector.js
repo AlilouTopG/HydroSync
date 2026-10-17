@@ -9,6 +9,41 @@ function finiteFeature(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function buildCollectionMetadata(datasetCondition, demoState, pwmTarget, suppliedSampleId) {
+  const isDemo = Boolean(demoState);
+  const faultType = isDemo ? demoState.faultType : datasetCondition.fault_type;
+  const operatingCondition = isDemo
+    ? demoState.operatingCondition
+    : datasetCondition.operating_condition;
+  const severityInjected = isDemo
+    ? demoState.severityInjected
+    : datasetCondition.severity_injected;
+  const isBaseline = isDemo && typeof demoState.isBaseline === 'boolean'
+    ? demoState.isBaseline
+    : (typeof datasetCondition.is_baseline === 'boolean'
+      ? datasetCondition.is_baseline
+      : !faultType && !operatingCondition && severityInjected == null);
+
+  return {
+    ...datasetCondition,
+    ...(isDemo ? {
+      demo_state: demoState.state,
+      demo_pwm: demoState.pwm,
+      demo_phase: demoState.phase,
+      demo_mode: true,
+      demo_run_id: demoState.runId ?? null,
+      demo_run_mode: demoState.mode ?? null
+    } : {}),
+    fault_type: faultType ?? null,
+    operating_condition: operatingCondition ?? null,
+    severity_injected: severityInjected ?? null,
+    condition_block_id: datasetCondition.condition_block_id ?? null,
+    pwm_target: Number.isFinite(pwmTarget) ? pwmTarget : null,
+    is_baseline: isBaseline,
+    sample_id: suppliedSampleId ?? ++collectionSampleId
+  };
+}
+
 async function startExperiment({
   name = `live_run_${new Date().toISOString()}`,
   description = 'HydroSync simulator telemetry collection run',
@@ -45,7 +80,12 @@ async function startExperiment({
   return experimentId;
 }
 
-async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulator' } = {}) {
+async function recordTelemetry(state, aiData = {}, {
+  collectionSource = 'simulator',
+  mlPrediction = null,
+  demoState = null
+} = {}) {
+  const mlPred = mlPrediction;
   if (!experimentId) {
     throw new Error('Telemetry collector has no active experiment');
   }
@@ -64,20 +104,12 @@ async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulat
   if (Number.isSafeInteger(suppliedSampleId) && suppliedSampleId > collectionSampleId) {
     collectionSampleId = suppliedSampleId;
   }
-  const collection = {
-    ...datasetCondition,
-    fault_type: datasetCondition.fault_type ?? null,
-    operating_condition: datasetCondition.operating_condition ?? null,
-    severity_injected: datasetCondition.severity_injected ?? null,
-    condition_block_id: datasetCondition.condition_block_id ?? null,
-    pwm_target: Number.isFinite(pwmTarget) ? pwmTarget : null,
-    is_baseline: typeof datasetCondition.is_baseline === 'boolean'
-      ? datasetCondition.is_baseline
-      : !datasetCondition.fault_type &&
-        !datasetCondition.operating_condition &&
-        datasetCondition.severity_injected == null,
-    sample_id: suppliedSampleId ?? ++collectionSampleId
-  };
+  const collection = buildCollectionMetadata(
+    datasetCondition,
+    demoState,
+    pwmTarget,
+    suppliedSampleId
+  );
 
   const enrichedFeatures = {
     ...aiFeatures,
@@ -140,7 +172,14 @@ async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulat
 
         features,
         model_metadata,
-        collection_source
+        collection_source,
+
+        ml_state,
+        ml_state_confidence,
+        ml_fault_type,
+        ml_fault_confidence,
+        ml_operating_condition,
+        ml_oc_confidence
       )
       VALUES (
         NOW(),
@@ -152,7 +191,7 @@ async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulat
 
         $10, $11, $12,
 
-        $13, $14, $15, $16, $17, $18, $19, $20, $21,
+                $13, $14, $15, $16, $17, $18, $19, $20, $21,
 
         $22, $23, $24, $25,
 
@@ -162,7 +201,9 @@ async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulat
 
         $31,
         $32,
-        $33
+        $33,
+
+        $34, $35, $36, $37, $38, $39
       )
       RETURNING time, time::text AS time_str, id
       `,
@@ -224,7 +265,14 @@ async function recordTelemetry(state, aiData = {}, { collectionSource = 'simulat
           safety: aiData.safety || null,
           collected_at: new Date().toISOString()
         },
-        collectionSource
+        collectionSource,
+
+        mlPred?.state || null,
+        mlPred?.state_confidence != null ? Number(mlPred.state_confidence) : null,
+        mlPred?.fault_type || null,
+        mlPred?.fault_confidence != null ? Number(mlPred.fault_confidence) : null,
+        mlPred?.operating_condition || null,
+        mlPred?.oc_confidence != null ? Number(mlPred.oc_confidence) : null
       ]
     );
 
@@ -352,5 +400,6 @@ module.exports = {
   startExperiment,
   recordTelemetry,
   endExperiment,
-  getExperimentId
+  getExperimentId,
+  buildCollectionMetadata
 };
