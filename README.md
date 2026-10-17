@@ -348,7 +348,7 @@ and evaluation limitations.
 
 ## ◇ Evaluation snapshot
 
-Quick simulator run `dc48648b-53e8-4ed4-9362-36cf771d5929` scored 1,337 valid
+Full-sweep simulator run `dc48648b-53e8-4ed4-9362-36cf771d5929` scored 1,337 valid
 measurement rows with the active predictor:
 
 | Head | Rows | Accuracy | Balanced accuracy | Macro-F1 |
