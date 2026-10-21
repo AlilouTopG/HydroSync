@@ -674,6 +674,7 @@
   /* ---------- Telemetry Dispatcher ---------- */
   function onTelemetry(d) {
     if (!d || typeof d !== "object") return;
+  
 
     var vwc = +d.vwc || 0;
     var sp = +d.setpoint || 0;
@@ -810,6 +811,7 @@
     updateAlarmPanel(d);
     updateDashboardKpis(d);
     updateAiSummary(d);
+    updateMlPrediction(d);  
     updatePumpFlowChart(pwm, flow);
 
     var heartbeat = $("heartbeatPulse");
@@ -1447,6 +1449,78 @@
         ? "ACTIVE"
         : "INACTIVE"
     );
+  }
+    /* ---------- ML Prediction  ---------- */
+  function mlPct(v) {
+    var n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n <= 1) n *= 100; 
+    return Math.max(0, Math.min(100, n));
+  }
+
+  function mlLabel(v) {
+    if (!v) return "--";
+    return String(v)
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  function setMlText(id, text) {
+    var el = $(id);
+    if (el) el.textContent = text;
+  }
+
+  function setMlRow(rowId, valId, confId, meterId, value, conf, show) {
+    var row = $(rowId);
+    if (!row) return;
+    row.hidden = !show;
+    if (!show) return;
+
+    var pct = mlPct(conf);
+    setMlText(valId, mlLabel(value));
+    setMlText(confId, pct === null ? "--" : pct.toFixed(0) + "%");
+
+    var meter = $(meterId);
+    if (meter) meter.style.width = (pct === null ? 0 : pct) + "%";
+  }
+
+  function updateMlPrediction(d) {
+    var box = $("mlPrediction");
+    if (!box) return;
+
+    var p = d && (d.prediction || d.mlPrediction);
+    if (!p || typeof p !== "object") {
+    box.setAttribute("data-state", "unknown");
+    setMlText("mlStateBadge", "OFFLINE");
+    setMlText("mlStateValue", "Waiting for ML engine");
+    setMlText("mlStateConf", "--");
+    var m = $("mlStateMeter");
+    if (m) m.style.width = "0%";
+    $("mlFaultRow").hidden = true;
+    $("mlConditionRow").hidden = true;
+    return;
+          }
+
+    var key = String(p.state || "").toLowerCase().replace(/[\s-]+/g, "_");
+    var kind =
+      key.indexOf("fault") >= 0 ? "fault" :
+      key.indexOf("operat") >= 0 ? "condition" :
+      key.indexOf("health") >= 0 ? "healthy" : "unknown";
+
+    box.setAttribute("data-state", kind);
+    setMlText("mlStateBadge", mlLabel(p.state));
+
+    // Task 1: always shown (Healthy shows ONLY this row)
+    setMlRow("mlStateRow", "mlStateValue", "mlStateConf", "mlStateMeter",
+             p.state, p.state_confidence, true);
+
+    // Task 2: only when state = Fault
+    setMlRow("mlFaultRow", "mlFaultValue", "mlFaultConf", "mlFaultMeter",
+             p.fault_type, p.fault_confidence, kind === "fault");
+
+    // Task 3: only when state = Operating Condition
+    setMlRow("mlConditionRow", "mlConditionValue", "mlConditionConf", "mlConditionMeter",
+             p.operating_condition, p.oc_confidence, kind === "condition");
   }
 
   /* ---------- AI Diagnostics Gateway ---------- */
