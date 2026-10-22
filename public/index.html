@@ -106,6 +106,33 @@
             <div><span>MPC Duty</span><strong id="dashboardMpcDuty">--%</strong></div>
             <div><span>Rain Hold</span><strong id="dashboardRainHold">--</strong></div>
           </div>
+                    <div class="ml-prediction" id="mlPrediction" data-state="unknown">
+            <div class="ml-head">
+              <span class="ml-title"><i class="fa-solid fa-microchip"></i> ML Prediction</span>
+              <span class="ml-badge" id="mlStateBadge">--</span>
+            </div>
+
+            <div class="ml-row" id="mlStateRow">
+              <span class="ml-label">Equipment state</span>
+              <strong class="ml-value" id="mlStateValue">--</strong>
+              <span class="ml-conf" id="mlStateConf">--</span>
+              <div class="ml-meter"><span id="mlStateMeter"></span></div>
+            </div>
+
+            <div class="ml-row" id="mlFaultRow" hidden>
+              <span class="ml-label">Fault subtype</span>
+              <strong class="ml-value" id="mlFaultValue">--</strong>
+              <span class="ml-conf" id="mlFaultConf">--</span>
+              <div class="ml-meter"><span id="mlFaultMeter"></span></div>
+            </div>
+
+            <div class="ml-row" id="mlConditionRow" hidden>
+              <span class="ml-label">Operating condition</span>
+              <strong class="ml-value" id="mlConditionValue">--</strong>
+              <span class="ml-conf" id="mlConditionConf">--</span>
+              <div class="ml-meter"><span id="mlConditionMeter"></span></div>
+            </div>
+          </div>
         </section>
 
         <section class="climate-banner" id="climateBanner" aria-label="Real-time satellite weather">
