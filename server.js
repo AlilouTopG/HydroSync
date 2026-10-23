@@ -33,11 +33,18 @@ const { Server } = require('socket.io');
 
 const simulator = require('./simulator');
 const { analyzeWaveform } = require('./database/vibrationAnalysis');
+const { createMlPredictionStore } = require('./ai_agent/mlPredictionStore');
 
 
 const telemetryCollector = require('./database/telemetryCollector');
 const { parseAutoCollectOptions, runAutoCollection } = require('./database/autoCollector');
 const autoCollectOptions = parseAutoCollectOptions(process.argv.slice(2));
+const {
+  addCaptureMetadata,
+  createDiagnosticsResponse,
+  createDiagnosticsSnapshot,
+  createVibrationSnapshotStore
+} = require('./ai_agent/vibrationSnapshot');
 
 
 
@@ -137,44 +144,14 @@ const AI_FRESHNESS_MS = 4000;
 
 
 
-let latestVibrationFeatures = null;
-
-let latestVibrationFFT = null;
-
-let latestMultiAxisData = null;
+const vibrationSnapshotStore = createVibrationSnapshotStore();
 
 let pythonBridgeOfflineLogged = false;
 
 
 
-function isUsableFft(fft) {
-
-  return Boolean(
-
-    fft &&
-
-    Array.isArray(fft.magnitudes) &&
-
-    fft.magnitudes.length > 0 &&
-
-    Array.isArray(fft.frequencies_hz)
-
-  );
-
-}
-
-
-
 function cachePythonVibration(data) {
-
-  if (!data || typeof data !== 'object') return;
-
-  if (data.features) latestVibrationFeatures = data.features;
-
-  if (isUsableFft(data.fft)) latestVibrationFFT = data.fft;
-
-  if (data.multi_axis) latestMultiAxisData = data.multi_axis;
-
+  return vibrationSnapshotStore.update(data);
 }
 
 
@@ -183,12 +160,11 @@ function cachePythonVibration(data) {
 // Runs asynchronously after the telemetry insert — never blocks the pump loop.
 // Only fires when the pump is at steady state within the training PWM range
 // (40–80), matching the ISO 10816 convention of measuring at steady state.
-let lastPrediction = null;
+const mlPredictionStore = createMlPredictionStore();
 let pwmHistory = [];
 let activeDemoState = null;
 
 async function callPrediction(state, demoState, vibrationFeatures) {
-  lastPrediction = null;
   if (demoState && demoState.phase !== 'measurement') return null;
 
   const pwm_actual = Number(state.pumpDuty);
@@ -205,7 +181,7 @@ async function callPrediction(state, demoState, vibrationFeatures) {
   const pwmStable = (Math.max(...pwmHistory) - Math.min(...pwmHistory)) < 2;
   if (!pwmStable) return null;
 
-  const feats = vibrationFeatures || latestVibrationFeatures || {};
+  const feats = vibrationFeatures || vibrationSnapshotStore.get().features || {};
   const vibration_rms = Number(feats.vibration_rms ?? state.assetHealth?.vibrationRms);
   const dominant_frequency_hz = Number(feats.dominant_frequency_hz ?? state.assetHealth?.dominantFrequencyHz);
   const one_x_amplitude = Number(feats.one_x_amplitude);
@@ -261,61 +237,27 @@ app.get('/api/ai/diagnostics', async (req, res) => {
 
     const diagnostics = await diagRes.json();
 
-    let vibration = null;
-
     if (vibRes && vibRes.ok) {
-
-      vibration = await vibRes.json();
-
-      cachePythonVibration(vibration);
+      cachePythonVibration(await vibRes.json());
 
     }
 
-    const fftPayload = isUsableFft(vibration && vibration.fft) ? vibration.fft : latestVibrationFFT;
-
-    const diagnosticsOut = {
-
-      ...(diagnostics && typeof diagnostics === 'object' ? diagnostics : {}),
-
-      fft: fftPayload,
-
-      features: latestVibrationFeatures
-
-    };
-
-    res.json({
-
+    const vibration = vibrationSnapshotStore.get();
+    res.json(createDiagnosticsResponse(vibration, {
       status: 'ONLINE',
-
       engine: 'Python-FastAPI',
-
-      diagnostics: diagnosticsOut,
-
-      vibration,
-
-      fft: fftPayload,
-
-      features: latestVibrationFeatures
-
-    });
+      diagnosticsMessage: diagnostics && diagnostics.message,
+      includeVibration: true
+    }));
 
   } catch (err) {
 
-    res.json({
-
+    const vibration = vibrationSnapshotStore.get();
+    res.json(createDiagnosticsResponse(vibration, {
       status: 'FALLBACK',
-
       engine: 'Node-ISO10816-Baseline',
-
-      diagnostics: { fft: latestVibrationFFT, features: latestVibrationFeatures },
-
-      fft: latestVibrationFFT,
-
-      features: latestVibrationFeatures,
-
-      msg: 'Python AI Engine in ai_engine/ is currently offline. Operating on local safety interlocks.'
-
-    });
+      message: 'Python AI Engine in ai_engine/ is currently offline. Operating on local safety interlocks.'
+    }));
 
   }
 
@@ -333,7 +275,7 @@ app.get('/api/ai/vibration', async (req, res) => {
 
     const data = await response.json();
 
-    cachePythonVibration(data);
+    const vibration = cachePythonVibration(data);
 
     res.json({
 
@@ -341,11 +283,11 @@ app.get('/api/ai/vibration', async (req, res) => {
 
       engine: 'Python-FastAPI',
 
-      waveform: data.waveform,
+      waveform: vibration.waveform,
 
-      fft: data.fft,
+      fft: vibration.fft,
 
-      features: latestVibrationFeatures
+      features: vibration.features
 
     });
 
@@ -359,9 +301,8 @@ app.get('/api/ai/vibration', async (req, res) => {
 
       waveform: null,
 
-      fft: latestVibrationFFT,
-
-      features: latestVibrationFeatures,
+      fft: vibrationSnapshotStore.get().fft,
+      features: vibrationSnapshotStore.get().features,
 
     });
 
@@ -381,7 +322,7 @@ app.get('/api/ai/vibration/multi-axis', async (req, res) => {
 
     const data = await response.json();
 
-    cachePythonVibration(data);
+    const vibration = cachePythonVibration(data);
 
     res.json({
 
@@ -389,13 +330,13 @@ app.get('/api/ai/vibration/multi-axis', async (req, res) => {
 
       engine: 'Python-FastAPI',
 
-      multi_axis: data.multi_axis || latestMultiAxisData,
+      multi_axis: vibration.multi_axis,
 
-      waveform: data.waveform,
+      waveform: vibration.waveform,
 
-      fft: data.fft,
+      fft: vibration.fft,
 
-      features: latestVibrationFeatures
+      features: vibration.features
 
     });
 
@@ -407,13 +348,12 @@ app.get('/api/ai/vibration/multi-axis', async (req, res) => {
 
       engine: 'Node-ISO10816-Baseline',
 
-      multi_axis: latestMultiAxisData,
+      multi_axis: vibrationSnapshotStore.get().multi_axis,
 
       waveform: null,
 
-      fft: latestVibrationFFT,
-
-      features: latestVibrationFeatures,
+      fft: vibrationSnapshotStore.get().fft,
+      features: vibrationSnapshotStore.get().features,
 
       msg: 'Python AI Engine is currently offline.'
 
@@ -793,11 +733,12 @@ io.on('connection', (socket) => {
 
     predictiveAI: latestAIPrediction,
 
-    mlPrediction: lastPrediction,
+    mlPrediction: mlPredictionStore.get(),
+    mlPredictionStatus: mlPredictionStore.getStatus(),
 
     safety: initialSafety,
 
-    fft: initialAi.online ? latestVibrationFFT : null,
+    fft: initialAi.online ? vibrationSnapshotStore.get().fft : null,
 
     aiEngine: initialAi
 
@@ -1131,6 +1072,7 @@ function postVibration(state) {
     return;
   }
 
+  payload = addCaptureMetadata(payload);
   aiInFlight = true;
 
   fetch(AI_ENGINE_URL + '/vibration', {
@@ -1185,16 +1127,19 @@ async function persistTelemetry(state) {
         state.vibrationWaveform,
         Number(state.samplingRateHz || state.assetHealth?.samplingRateHz)
       )
-      : latestVibrationFeatures;
+      : vibrationSnapshotStore.get().features;
     const aiData = {
       features: vibrationFeatures,
-      fft: latestVibrationFFT,
-      multi_axis: latestMultiAxisData
+      fft: vibrationSnapshotStore.get().fft,
+      multi_axis: vibrationSnapshotStore.get().multi_axis
     };
 
-    lastPrediction = await callPrediction(state, demoState, vibrationFeatures);
+    await mlPredictionStore.update(
+      callPrediction(state, demoState, vibrationFeatures)
+    );
     await telemetryCollector.recordTelemetry(state, aiData, {
-      mlPrediction: lastPrediction,
+      mlPrediction: mlPredictionStore.get(),
+      mlPredictionStatus: mlPredictionStore.getStatus(),
       demoState
     });
   } catch (err) {
@@ -1256,7 +1201,7 @@ function broadcastTelemetry() {
 
     threatsBlocked: totalThreatsBlocked, predictiveAI: latestAIPrediction,
 
-    fft: ai.online ? latestVibrationFFT : null,
+    fft: ai.online ? vibrationSnapshotStore.get().fft : null,
 
     aiEngine: ai,
 
@@ -1264,7 +1209,7 @@ function broadcastTelemetry() {
 
     autonomousMPC: mpcDuty,
 
-    mlPrediction: lastPrediction
+    mlPrediction: mlPredictionStore.get()
 
   });
 
@@ -1355,7 +1300,86 @@ function getGenAI() {
 }
 
 const CHAT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview';
-const CHAT_TIMEOUT_MS = 8000;
+const configuredChatTimeoutMs = Number.parseInt(process.env.CHAT_TIMEOUT_MS, 10);
+const CHAT_TIMEOUT_MS = Number.isSafeInteger(configuredChatTimeoutMs) && configuredChatTimeoutMs > 0
+  ? configuredChatTimeoutMs
+  : 75000;
+
+// ─── HydroSync Read-Only AI Agent ────────────────────────────────────────
+const { createHydroSyncTools } = require('./ai_agent/tools');
+const { createHydroSyncAgent } = require('./ai_agent/agent');
+const { createConversationStore } = require('./ai_agent/conversationStore');
+const chatConversationStore = createConversationStore();
+
+let hydroSyncAgentInstance = null;
+
+function getHydroSyncAgent() {
+  if (hydroSyncAgentInstance) {
+    return hydroSyncAgentInstance;
+  }
+
+  const toolset = createHydroSyncTools({
+    getSnapshot: async () => {
+      // Read the latest server-side values on every tool invocation.
+      const now = Date.now();
+      const state = simulator.getState();
+      const ai = aiEngineStatus(now);
+      const vibrationSnapshot = vibrationSnapshotStore.get();
+      const currentSafety = safetyCheck || {};
+
+      const alarms = isSafetyTripped
+        ? (activeSafetyReason ? [activeSafetyReason] : [])
+        : (Array.isArray(currentSafety.alarms)
+            ? currentSafety.alarms
+            : []);
+
+      return {
+        observedAt: new Date(now).toISOString(),
+
+        telemetry: {
+          pumpDuty: state.pumpDuty ?? null,
+          rawCommandDuty: state.rawCommandDuty ?? null,
+          flowRate: state.flowRate ?? null,
+          motorTemp: state.motorTemp ?? null,
+          vwc: state.vwc ?? null,
+          setpoint: state.setpoint ?? state.target ?? null,
+          vibrationRms:
+            state.assetHealth?.vibrationRms ??
+            state.vibrationRms ??
+            null,
+
+          safety: {
+            systemStatus: isSafetyTripped
+              ? 'CRITICAL'
+              : (currentSafety.systemStatus || 'UNKNOWN'),
+            alarms,
+            tripped: Boolean(isSafetyTripped)
+          },
+
+          aiEngine: ai,
+          predictiveAI: latestAIPrediction ?? null,
+          autonomousMPC: mpcDuty ?? null
+        },
+
+        vibrationSnapshot,
+
+        diagnostics: createDiagnosticsSnapshot(vibrationSnapshot, {
+          status: ai.online ? 'ONLINE' : 'FALLBACK',
+          engine: ai.online
+            ? 'Python-FastAPI'
+            : 'Node-ISO10816-Baseline'
+        }),
+
+        mlPrediction: mlPredictionStore.get(),
+        mlPredictionStatus: mlPredictionStore.getStatus()
+      };
+    }
+  });
+
+  hydroSyncAgentInstance = createHydroSyncAgent({ toolset });
+
+  return hydroSyncAgentInstance;
+}
 
 // Lightweight per-IP token bucket so this route can't be used as a free,
 // unlimited proxy to your Gemini quota by an unauthenticated visitor.
@@ -1382,43 +1406,79 @@ app.post('/api/chat', async (req, res) => {
   if (typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ reply: 'No query provided.', error: 'INVALID_REQUEST' });
   }
-  // Defensive defaults — a missing/partial systemState must never crash this route
-  const systemState = (req.body && typeof req.body.systemState === 'object' && req.body.systemState) || {};
-  const safety = typeof systemState.safety === 'string' ? systemState.safety : 'UNKNOWN';
-  const activeZone = typeof systemState.activeZone === 'string' ? systemState.activeZone : 'UNKNOWN';
-
-  const prompt = `You are the AI Co-Pilot for "HydroSync SCADA".
-Act as a Senior Automation Engineer. Be concise, technical, and professional. Do not use markdown.
-System State: Safety=${safety} | Zone=${activeZone}
-Operator Query: "${message}"`;
-
+  let sessionId = typeof req.body.sessionId === 'string' ? req.body.sessionId : '';
+  if (req.body.newConversation === true || !chatConversationStore.getHistory(sessionId)) {
+    sessionId = chatConversationStore.create();
+  }
+  const conversationHistory = chatConversationStore.getHistory(sessionId) || [];
+  // Runtime context comes from the server, never from user-controlled request data.
+  const currentServerState = simulator.getState();
+  const currentSafety = safetyCheck || {};
+  const safety = isSafetyTripped
+    ? 'CRITICAL'
+    : (currentSafety.systemStatus || currentServerState.systemHealth || 'UNKNOWN');
+  const activeZone = currentServerState.activeZoneId || 'UNKNOWN';
   try {
-    const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: CHAT_MODEL });
+    const agent = getHydroSyncAgent();
 
-    const result = await Promise.race([
-      model.generateContent(prompt),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini request timed out')), CHAT_TIMEOUT_MS))
-    ]);
+let timeoutId;
+const controller = new AbortController();
 
-    let finalReply = "";
-    try {
-      if (!result || !result.response) {
-         throw new Error("No response object returned from Gemini.");
-      }
-      finalReply = result.response.text();
-      if (!finalReply) throw new Error("Empty text returned.");
-    } catch (parseError) {
-      console.warn("[AI Chat] Safely caught empty response or safety block:", parseError.message);
-      finalReply = "Query requires more context. Please provide a specific engineering command (e.g., 'Status of Zone A1').";
-    }
+const timeoutPromise = new Promise((_, reject) => {
+  timeoutId = setTimeout(
+    () => {
+      controller.abort();
+      reject(new Error('Gemini request timed out'));
+    },
+    CHAT_TIMEOUT_MS
+  );
+});
 
-    res.json({ reply: finalReply });
+let finalReply;
+
+try {
+  finalReply = await Promise.race([
+    agent.answer({
+      message: message.trim(),
+      safety,
+      activeZone,
+      history: conversationHistory,
+      signal: controller.signal
+    }),
+    timeoutPromise
+  ]);
+} finally {
+  clearTimeout(timeoutId);
+}
+
+chatConversationStore.append(sessionId, message.trim(), finalReply);
+return res.json({ reply: finalReply, sessionId });
   } catch (error) {
     // Full detail server-side; a distinct, honest reply per failure mode to the client —
     // the previous version reused one sentence for every branch, which is why the UI
     // looked identical regardless of what actually failed.
-    console.error('[AI Chat] Error:', error.status || '', error.message);
+    console.error('[AI Chat] Error details:', {
+  name: error.name,
+  message: error.message,
+  status: error.status || null,
+  cause: error.cause ? {
+    name: error.cause.name,
+    code: error.cause.code,
+    message: error.cause.message,
+    nestedCause: error.cause.cause ? {
+      name: error.cause.cause.name,
+      code: error.cause.cause.code,
+      message: error.cause.cause.message
+    } : null,
+    nestedErrors: Array.isArray(error.cause.errors)
+      ? error.cause.errors.map(e => ({
+          name: e.name,
+          code: e.code,
+          message: e.message
+        }))
+      : []
+  } : null
+});
     const status = error.message === 'GEMINI_API_KEY is not set' ? 503
       : error.message === 'Gemini request timed out' ? 504
       : (error.status === 404 ? 502 : 500);
@@ -1446,7 +1506,7 @@ app.post('/api/demo/start', (req, res) => {
     isSafetyTripped = false;
     activeSafetyReason = '';
     resetSafetyState();
-    lastPrediction = null;
+    mlPredictionStore.clear();
     pwmHistory = [];
     res.json({ ok: true, ...result });
   } catch (e) {
@@ -1465,7 +1525,7 @@ app.post('/api/demo/quick/start', (_req, res) => {
     isSafetyTripped = false;
     activeSafetyReason = '';
     resetSafetyState();
-    lastPrediction = null;
+    mlPredictionStore.clear();
     pwmHistory = [];
     res.json({ ok: true, ...result });
   } catch (e) {

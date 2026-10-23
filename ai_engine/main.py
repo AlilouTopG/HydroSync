@@ -24,9 +24,17 @@ ml_predictor = MLPredictor()
 
 DEBUG = False
 
-latest_vibration = []
-latest_fft = {"frequencies_hz": [], "magnitudes": []}
-latest_multi_axis = None
+latest_vibration_snapshot = {
+    "sampleId": None,
+    "observedAt": None,
+    "waveform": [],
+    "features": None,
+    "fft": {"frequencies_hz": [], "magnitudes": []},
+    "peaks": [],
+    "multi_axis": None,
+    "samples": 0,
+    "sampling_rate_hz": None,
+}
 
 
 app = FastAPI(title="HydroSync AI Analytics Core")
@@ -50,6 +58,8 @@ class VibrationPayload(BaseModel):
     vibrationWaveforms: dict[str, list[float]] | None = None
     samplingRateHz: float = Field(gt=0, le=100_000)
     bufferSize: int | None = None
+    sampleId: str | None = None
+    observedAt: str | None = None
 
     @field_validator("vibrationWaveform")
     @classmethod
@@ -265,7 +275,7 @@ def receive_vibration(data: VibrationPayload):
             detail="Either vibrationWaveform or vibrationWaveforms must be provided",
         )
 
-    global latest_vibration, latest_fft, latest_multi_axis
+    global latest_vibration_snapshot
     fs = data.samplingRateHz
 
     if data.vibrationWaveforms:
@@ -312,12 +322,11 @@ def receive_vibration(data: VibrationPayload):
             "combined_features": combined_features,
         }
 
-        latest_vibration = list(axes_data["x"])
-        latest_fft = fft_x
-        latest_multi_axis = multi_axis_out
-
-        return {
+        snapshot = {
             "received": True,
+            "sampleId": data.sampleId,
+            "observedAt": data.observedAt,
+            "waveform": list(axes_data["x"]),
             "samples": len(axes_data["x"]),
             "sampling_rate_hz": fs,
             "features": feat_x,
@@ -325,6 +334,8 @@ def receive_vibration(data: VibrationPayload):
             "peaks": peaks_x,
             "multi_axis": multi_axis_out,
         }
+        latest_vibration_snapshot = snapshot
+        return snapshot
 
     else:
         # Single waveform legacy path
@@ -352,12 +363,11 @@ def receive_vibration(data: VibrationPayload):
             },
         }
 
-        latest_vibration = list(w_single)
-        latest_fft = fft_single
-        latest_multi_axis = multi_axis_out
-
-        return {
+        snapshot = {
             "received": True,
+            "sampleId": data.sampleId,
+            "observedAt": data.observedAt,
+            "waveform": list(w_single),
             "samples": len(w_single),
             "sampling_rate_hz": fs,
             "features": feat_single,
@@ -365,15 +375,13 @@ def receive_vibration(data: VibrationPayload):
             "peaks": peaks_single,
             "multi_axis": multi_axis_out,
         }
+        latest_vibration_snapshot = snapshot
+        return snapshot
 
 
 @app.get("/vibration/latest")
 def get_latest_vibration():
-    return {
-        "waveform": latest_vibration,
-        "fft": latest_fft,
-        "multi_axis": latest_multi_axis,
-    }
+    return latest_vibration_snapshot
 
 
 class MLFeatures(BaseModel):
