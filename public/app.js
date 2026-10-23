@@ -5591,6 +5591,7 @@
     var sendChatBtn = document.getElementById('sendChatBtn');
     var chatInput = document.getElementById('chatInput');
     var chatBody = document.getElementById('chatBody');
+    var chatSessionId = null;
 
     if (!aiFabTrigger || !aiChatPanel) return;
 
@@ -5606,6 +5607,16 @@
       if(typeof playClick === 'function') playClick();
       aiChatPanel.classList.add('hidden');
     });
+
+    var newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', function() {
+        chatSessionId = null;
+        chatBody.replaceChildren();
+        appendMessage('ai', 'New conversation started. How can I help with current telemetry or diagnostics?');
+        chatInput.focus();
+      });
+    }
 
     function appendMessage(sender, text, msgId) {
       var msgDiv = document.createElement('div');
@@ -5649,6 +5660,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: text,
+            sessionId: chatSessionId,
             systemState: {
               safety: isSafetyNominal ? "NOMINAL" : "TRIPPED / FAULT",
               activeZone: zoneName
@@ -5657,6 +5669,9 @@
         });
         
         const data = await response.json();
+        if (response.ok && typeof data.sessionId === 'string') {
+          chatSessionId = data.sessionId;
+        }
 
         var typingEl = document.getElementById(typingId);
         if (typingEl) typingEl.remove();

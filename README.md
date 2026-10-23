@@ -200,11 +200,11 @@ The Node.js routes use `http://localhost:3000`; the Python AI routes use
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/ai/diagnostics` | AI engine diagnostics and latest vibration features; falls back to local status if the engine is offline |
+| `GET` | `/api/ai/diagnostics` | AI engine diagnostics and latest vibration features, including the source waveform's `sampleId` and capture-time `observedAt`; falls back to local status if the engine is offline |
 | `GET` | `/api/ai/vibration` | Latest waveform, FFT, and features |
 | `GET` | `/api/ai/vibration/multi-axis` | Latest multi-axis vibration data, FFT, and features |
 | `GET` | `/api/export-audit.csv` | Download the current in-memory SCADA audit history as CSV |
-| `POST` | `/api/chat` | Send a message to the AI co-pilot; requires `GEMINI_API_KEY` |
+| `POST` | `/api/chat` | Send a message to the AI co-pilot; requires `GEMINI_API_KEY`. Accepts an optional `sessionId` returned by the previous reply; set `newConversation: true` to start a separate conversation. |
 | `POST` | `/api/demo/start` | Start the full Demo Mode sweep |
 | `POST` | `/api/demo/quick/start` | Start the preliminary quick Demo Mode sweep |
 | `POST` | `/api/demo/stop` | Stop the active Demo Mode sweep |
@@ -324,6 +324,25 @@ Use `docker compose down -v` only when you intentionally want to delete that
 persistent database volume.
 
 ## ◇ Current AI integration
+
+### AI Co-Pilot conversation context and prediction freshness
+
+The dashboard Co-Pilot keeps up to 12 recent user/reply turns per conversation
+in Node.js memory. Conversations use separate opaque session IDs, expire after
+30 minutes of inactivity, and are bounded to 1,000 live sessions. Starting a
+new conversation clears the browser's session ID and begins a new history.
+Memory is process-local and is lost when the server restarts; it is used only to
+resolve references in follow-up questions. Current telemetry, diagnostics, and
+ML questions continue to use the live read-only tools, and history never changes
+safety state or grants equipment permissions.
+
+The prediction store records Node receipt time separately from any model
+timestamp. Predictions are labeled fresh for up to 5 seconds (five cycles of
+the existing one-second polling loop), then stale while remaining available for
+traceability. The dashboard and agent read the same store; the agent validates
+required class/confidence fields and freshness metadata before using a result.
+Missing or invalid results are reported as unavailable, without inferring an ML
+prediction from telemetry.
 
 The Python service exposes `/predict`. It returns:
 
@@ -483,10 +502,11 @@ it uses the project's package script. The dashboard is at
 `http://localhost:3000`.
 
 The application reads optional local settings from `.env`, including `PORT`,
-`AI_ENGINE_URL`, and database connection variables. With the Compose service
-running and no overrides, the local database uses host `localhost`, port
-`5433`, database `hydrosync`, and the development credentials in `compose.yml`.
-These defaults are for local development only.
+`AI_ENGINE_URL`, `CHAT_TIMEOUT_MS` (the chat request deadline in milliseconds;
+defaults to `75000`), and database connection variables. With the Compose
+service running and no overrides, the local database uses host `localhost`,
+port `5433`, database `hydrosync`, and the development credentials in
+`compose.yml`. These defaults are for local development only.
 
 ## ◇ Demo evaluation
 
