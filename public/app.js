@@ -5637,6 +5637,16 @@
       chatBody.appendChild(msgDiv);
       chatBody.scrollTop = chatBody.scrollHeight;
     }
+     function cleanReply(t) {
+      return String(t)
+        .replace(/\$([^$\n]*\\[^$\n]*)\$/g, '$1')
+        .replace(/\\text\{([^}]*)\}/g, '$1')
+        .replace(/^#{1,6}\s*/gm, '')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/^\s*[*-]\s+/gm, '')
+        .replace(/`/g, '')
+        .trim();
+    }
 
     async function sendMessage() {
       var text = chatInput.value.trim();
@@ -5685,7 +5695,7 @@
           : 'No response received from Copilot.';
         if (data && data.error) replyText += ' [' + data.error + ']';
 
-        appendMessage('ai', replyText);
+        appendMessage('ai', cleanReply(replyText));
         if (response.ok && typeof playClick === 'function') playClick();
 
       } catch (err) {
