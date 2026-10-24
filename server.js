@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 ﻿/**
 
  * server.js - HydroSync SCADA Server (Hardened Production Release)
@@ -34,6 +34,8 @@ const { Server } = require('socket.io');
 const simulator = require('./simulator');
 const { analyzeWaveform } = require('./database/vibrationAnalysis');
 const { createMlPredictionStore } = require('./ai_agent/mlPredictionStore');
+const { createTestLabStore, SCENARIOS } = require('./ai_agent/testLabStore');
+const { createTestLabWorkflow } = require('./ai_agent/testLabWorkflow');
 
 
 const telemetryCollector = require('./database/telemetryCollector');
@@ -1310,6 +1312,181 @@ const { createHydroSyncTools } = require('./ai_agent/tools');
 const { createHydroSyncAgent } = require('./ai_agent/agent');
 const { createConversationStore } = require('./ai_agent/conversationStore');
 const chatConversationStore = createConversationStore();
+
+// Test Lab workflow state is deliberately separate from ordinary chatbot history.
+const testLabStore = createTestLabStore();
+const TEST_LAB_TIMEOUT_MS = 90_000;
+const testLabPreconditions = (snapshot) => {
+  const reasons = [];
+  if (demoMode.isRunning()) reasons.push('The existing Demo Mode is active and bypasses interlocks.');
+  if (isSafetyTripped) reasons.push(activeSafetyReason || 'The SCADA safety system is tripped.');
+  const telemetry = snapshot?.telemetry;
+  if (!telemetry) reasons.push('Current simulator telemetry is unavailable.');
+  else {
+    if (telemetry.safety?.tripped) reasons.push('Current safety telemetry reports a trip.');
+    if (telemetry.motorTemp >= 80) reasons.push('Motor temperature is above the Test Lab normal-operation limit.');
+    if (telemetry.pumpDuty < 0 || telemetry.pumpDuty > 100) reasons.push('Pump duty is outside simulator bounds.');
+  }
+  const sim = simulator.getState();
+  if (Object.values(sim.interlocks || {}).some(Boolean)) reasons.push('A simulator interlock is active.');
+  return { allowed: reasons.length === 0, reasons };
+};
+
+function getTestLabSnapshot() {
+  const now = Date.now();
+  const state = simulator.getState();
+  const vibrationSnapshot = vibrationSnapshotStore.get();
+  const currentSafety = safetyCheck || {};
+  const snapshot = {
+    observedAt: new Date(now).toISOString(),
+    telemetry: {
+      pumpDuty: Number(state.pumpDuty), flowRate: Number(state.flowRate),
+      motorTemp: Number(state.motorTemp), tankVolumePct: Number(state.tankVolumePct),
+      safety: { systemStatus: isSafetyTripped ? 'CRITICAL' : (currentSafety.systemStatus || 'UNKNOWN'), alarms: isSafetyTripped ? [activeSafetyReason].filter(Boolean) : (currentSafety.alarms || []), tripped: Boolean(isSafetyTripped) },
+      interlocks: { ...(state.interlocks || {}) }
+    },
+    diagnostics: createDiagnosticsSnapshot(vibrationSnapshot, { status: 'FALLBACK', engine: 'Node-ISO10816-Baseline' }),
+    prediction: mlPredictionStore.getStatus()
+  };
+  return snapshot;
+}
+
+const testLabWorkflow = createTestLabWorkflow({
+  store: testLabStore,
+  getSnapshot: async () => getTestLabSnapshot(),
+  preconditions: testLabPreconditions,
+  logger: console,
+  executeScenario: async ({ scenarioId, parameters }) => {
+    if (scenarioId !== 'normal_operation') throw Object.assign(new Error('Only the normal-operation observation scenario is supported.'), { code: 'UNSUPPORTED_SCENARIO' });
+    const observations = [];
+    const startedAt = Date.now();
+    const durationMs = parameters.durationSeconds * 1000;
+    while (Date.now() - startedAt < durationMs) {
+      const current = getTestLabSnapshot();
+      const ready = testLabPreconditions(current);
+      const sample = { observedAt: current.observedAt, ...current.telemetry };
+      observations.push(sample);
+      if (!ready.allowed) {
+        const err = Object.assign(new Error(`Observation stopped by safety condition: ${ready.reasons.join('; ')}`), { code: 'ABORTED' });
+        err.observations = observations;
+        throw err;
+      }
+      if (Date.now() - startedAt >= durationMs) break;
+      await new Promise(resolve => setTimeout(resolve, Math.min(1000, durationMs - (Date.now() - startedAt))));
+    }
+    return { status: 'completed', startedAt: new Date(startedAt).toISOString(), completedAt: new Date().toISOString(), observations };
+  }
+});
+
+function testLabSession(req) {
+  const sessionId = req.body?.sessionId || req.query?.sessionId;
+  return typeof sessionId === 'string' && chatConversationStore.getHistory(sessionId) ? sessionId : null;
+}
+
+function testLabError(res, error) {
+  const status = error.code === 'APPROVAL_REQUIRED' || error.code === 'APPROVAL_INVALID' || error.code === 'APPROVAL_EXPIRED' ? 403
+    : error.code === 'RUN_NOT_EDITABLE' || error.code === 'NOT_AWAITING_APPROVAL' || error.code === 'RUN_CANNOT_CANCEL' || error.code === 'ILLEGAL_TRANSITION' ? 409
+      : error.code === 'UNSUPPORTED_SCENARIO' || error.code === 'INVALID_PLAN' || error.code === 'INVALID_PARAMETERS' || error.code === 'PLAN_MISMATCH' || error.code === 'PLANNER_DELEGATION_REQUIRED' || error.code === 'COORDINATOR_REJECTED' || error.code === 'PRECONDITION_FAILED' ? 400
+        : error.code === 'PLANNING_TIMEOUT' ? 504
+          : error.message === 'GEMINI_API_KEY is not set' ? 503
+            : error.status === 404 ? 502
+              : /quota|rate.?limit/i.test(error.message) || error.status === 429 ? 429 : 500;
+  const errorCode = status === 503 ? 'AI_NOT_CONFIGURED' : status === 502 ? 'AI_MODEL_UNAVAILABLE' : status === 429 ? 'AI_QUOTA_UNAVAILABLE' : status === 504 ? 'AI_TIMEOUT' : (error.code || 'TEST_LAB_ERROR');
+  const message = status === 503 ? 'Test Lab requires GEMINI_API_KEY to be configured on the server.'
+    : status === 502 ? `Configured Test Lab model ${error.agentMetadata?.model || ''} is unavailable. Check its model ID and API access.`
+      : status === 429 ? 'Gemini quota or rate limit is unavailable. Wait for quota recovery and try again.'
+        : status === 504 ? 'Test Lab planning timed out. Try again with a shorter request.'
+          : status >= 500 && !error.code ? 'Test Lab agent request failed. Check server configuration and model availability.' : error.message;
+  return res.status(status).json({ error: errorCode, message, status: 'error', model: error.agentMetadata?.model || null });
+}
+
+app.get('/api/test-lab/agents', (_req, res) => res.json({ agents: testLabWorkflow.getAgentMetadata(), scenarios: Object.values(SCENARIOS) }));
+
+app.post('/api/sessions', (_req, res) => {
+  const sessionId = chatConversationStore.create();
+  return res.status(201).json({ sessionId });
+});
+
+app.post('/api/test-lab/runs', async (req, res) => {
+  console.log('[AI Test Lab] Request handler entered.');
+  const startedAt = Date.now();
+  const sessionId = testLabSession(req);
+  const objective = req.body?.objective;
+  if (!sessionId) return res.status(401).json({ error: 'INVALID_SESSION', message: 'Start or continue a HydroSync chat session before requesting a Test Lab plan.' });
+  if (typeof objective !== 'string' || !objective.trim() || objective.trim().length > 300) return res.status(400).json({ error: 'INVALID_REQUEST', message: 'Provide a test objective between 1 and 300 characters.' });
+  console.log('[AI Test Lab] Creating test run', { elapsedMs: Date.now() - startedAt });
+  const run = testLabStore.create({ sessionId, requestedObjective: objective.trim() });
+  try {
+    console.log('[AI Test Lab] Reading initial snapshot', { elapsedMs: Date.now() - startedAt });
+    const initial = getTestLabSnapshot();
+    console.log('[AI Test Lab] Snapshot ready', { elapsedMs: Date.now() - startedAt });
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(Object.assign(new Error('Test Lab planning timed out. Try again with a shorter request.'), { code: 'PLANNING_TIMEOUT', timeoutSource: 'server-planning', timeoutMs: TEST_LAB_TIMEOUT_MS, elapsedMs: Date.now() - startedAt })), TEST_LAB_TIMEOUT_MS);
+    });
+    let proposal;
+    try {
+      proposal = await Promise.race([testLabWorkflow.coordinatePlan(run, initial), timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    testLabStore.setPlan(run.testRunId, sessionId, proposal);
+    return res.status(201).json({ run: testLabStore.safe(run) });
+  } catch (error) {
+    run.errors.push({ message: error.message, code: error.code || 'PLANNING_ERROR', at: new Date().toISOString() });
+    if (['DRAFT', 'AWAITING_APPROVAL'].includes(run.status)) testLabStore.transition(run, 'FAILED');
+    console.error('[AI Test Lab] Final route failure', { name: error?.name, status: error?.status, code: error?.code, timeoutSource: error?.timeoutSource, timeoutMs: error?.timeoutMs, elapsedMs: Date.now() - startedAt, message: error?.message });
+    return testLabError(res, error);
+  }
+});
+
+app.get('/api/test-lab/runs', (req, res) => {
+  const sessionId = testLabSession(req);
+  if (!sessionId) return res.status(401).json({ error: 'INVALID_SESSION', message: 'A valid HydroSync session is required.' });
+  return res.json({ runs: testLabStore.all().filter(run => run.sessionId === sessionId) });
+});
+
+app.get('/api/test-lab/runs/:id', (req, res) => {
+  const sessionId = testLabSession(req);
+  if (!sessionId) return res.status(401).json({ error: 'INVALID_SESSION', message: 'A valid HydroSync session is required.' });
+  const run = testLabStore.owned(req.params.id, sessionId);
+  return run ? res.json({ run: testLabStore.safe(run) }) : res.status(404).json({ error: 'RUN_NOT_FOUND', message: 'Test run not found for this session.' });
+});
+
+app.post('/api/test-lab/runs/:id/approve', (req, res) => {
+  const sessionId = testLabSession(req);
+  if (!sessionId) return res.status(401).json({ error: 'INVALID_SESSION', message: 'A valid HydroSync session is required.' });
+  try {
+    const run = testLabStore.approve(req.params.id, sessionId);
+    return res.json({ run: testLabStore.safe(run) });
+  } catch (error) { return testLabError(res, error); }
+});
+
+app.post('/api/test-lab/runs/:id/cancel', (req, res) => {
+  const sessionId = testLabSession(req);
+  if (!sessionId) return res.status(401).json({ error: 'INVALID_SESSION', message: 'A valid HydroSync session is required.' });
+  try { return res.json({ run: testLabStore.safe(testLabStore.cancel(req.params.id, sessionId)) }); }
+  catch (error) { return testLabError(res, error); }
+});
+
+app.post('/api/test-lab/runs/:id/execute', async (req, res) => {
+  const sessionId = testLabSession(req);
+  if (!sessionId) return res.status(401).json({ error: 'INVALID_SESSION', message: 'A valid HydroSync session is required.' });
+  const run = testLabStore.owned(req.params.id, sessionId);
+  if (!run) return res.status(404).json({ error: 'RUN_NOT_FOUND', message: 'Test run not found for this session.' });
+  try {
+    const outcome = await testLabWorkflow.execute(run, sessionId, testLabStore);
+    return res.json({ run: testLabStore.safe(outcome) });
+  } catch (error) {
+    if (Array.isArray(error.observations)) run.observations.push(...error.observations);
+    if (['RUNNING', 'EVALUATING'].includes(run.status)) {
+      run.errors.push({ message: error.message, code: error.code || 'EXECUTION_ERROR', at: new Date().toISOString() });
+      run.executionCompletedAt = new Date().toISOString();
+      testLabStore.transition(run, error.code === 'ABORTED' ? 'ABORTED' : 'FAILED');
+    }
+    return testLabError(res, error);
+  }
+});
 
 let hydroSyncAgentInstance = null;
 
