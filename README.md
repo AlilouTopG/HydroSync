@@ -205,6 +205,13 @@ The Node.js routes use `http://localhost:3000`; the Python AI routes use
 | `GET` | `/api/ai/vibration/multi-axis` | Latest multi-axis vibration data, FFT, and features |
 | `GET` | `/api/export-audit.csv` | Download the current in-memory SCADA audit history as CSV |
 | `POST` | `/api/chat` | Send a message to the AI co-pilot; requires `GEMINI_API_KEY`. Accepts an optional `sessionId` returned by the previous reply; set `newConversation: true` to start a separate conversation. |
+| `GET` | `/api/test-lab/agents` | Read the five Test Lab agent roles, configured models, and supported scenario definitions. |
+| `POST` | `/api/test-lab/runs` | Propose a plan using `{ sessionId, objective }`; `sessionId` must be an existing Co-Pilot session. |
+| `GET` | `/api/test-lab/runs?sessionId=...` | List runs owned by the supplied Co-Pilot session. |
+| `GET` | `/api/test-lab/runs/:id?sessionId=...` | Read a run owned by the supplied session. |
+| `POST` | `/api/test-lab/runs/:id/approve` | Record human approval bound to the exact proposed plan hash. |
+| `POST` | `/api/test-lab/runs/:id/cancel` | Cancel a draft, awaiting-approval, or approved run. |
+| `POST` | `/api/test-lab/runs/:id/execute` | Run once using an unexpired, session-owned approval and current safety gates. |
 | `POST` | `/api/demo/start` | Start the full Demo Mode sweep |
 | `POST` | `/api/demo/quick/start` | Start the preliminary quick Demo Mode sweep |
 | `POST` | `/api/demo/stop` | Stop the active Demo Mode sweep |
@@ -216,6 +223,55 @@ The Node.js routes use `http://localhost:3000`; the Python AI routes use
 | `POST` | `/vibration` (port `8000`) | Analyze submitted waveform data and update latest vibration results |
 | `GET` | `/vibration/latest` (port `8000`) | Return the latest waveform analysis |
 | `POST` | `/predict` (port `8000`) | Run Task 1, Task 2, and Task 3 classification |
+
+### AI Test Lab prototype
+
+The Test Lab adds five separately invoked Gemini roles: Test Coordinator,
+Test Planner, Diagnostic Analyst, Test Executor, and Evaluator/Reporter. Each
+has a distinct instruction set, structured schema, tool allowlist, and model
+setting. Configure models with `AI_TEST_LAB_COORDINATOR_MODEL`,
+`AI_TEST_LAB_PLANNER_MODEL`, `AI_TEST_LAB_DIAGNOSTIC_MODEL`,
+`AI_TEST_LAB_EXECUTOR_MODEL`, and `AI_TEST_LAB_EVALUATOR_MODEL`; defaults are
+`gemini-3.8-flash` for the Coordinator and `gemini-3.5-flash-lite` for the
+other roles. They reuse `GEMINI_API_KEY`; the existing chatbot continues to
+use `GEMINI_MODEL`. The Google Gemini API catalog lists both IDs as stable
+models with function-calling and structured-output support. SDK compatibility
+was checked against the installed `@google/genai` 2.30.0 declarations.
+
+The current supported scenario is a bounded (5–30 second) read-only normal
+operation observation. The existing Demo Mode fault injector is not exposed:
+it disables normal interlocks and resets trip state. Fault testing requires a
+
+## 🔎 Memory & Test Lab Execution Model
+
+**HydroSync Co‑Pilot** – the chat assistant on the left panel – maintains a **conversational session memory**. It stores up to the last ~12 user/assistant turns, allowing follow‑up questions about telemetry, diagnostics, or any earlier discussion within the same session. This memory is process‑local and expires after 30 minutes of inactivity or when the browser session is refreshed.
+
+**AI Test Lab** – the multi‑agent pipeline on the right – operates as a **finite‑state machine for a single test run**. Each run has its own immutable ID, plan hash, and lifecycle (`DRAFT → AWAITING_APPROVAL → APPROVED → RUNNING → EVALUATING → COMPLETED`). The agents share context **only within that run**; there is no persistent state across separate runs beyond the stored run record.
+
+- **Within a run** the five agents (Coordinator, Diagnostic Analyst, Planner, Executor, Evaluator) pass contextual data sequentially, providing a complete end‑to‑end test report.
+- **Across runs** the system is stateless – a new objective creates a fresh run, requiring fresh Human‑in‑the‑Loop approval before any simulator actions occur.
+
+**How operators interact:**
+- Use the **Co‑Pilot** to ask follow‑up questions about the latest test output (e.g., “Why did temperature stay constant?”) – it can reference the recent run data.
+- To modify or repeat a test, submit a **new objective** via the Test Lab UI; the pipeline will generate a new plan, present an approval gate, and execute a separate, auditable run.
+
+This separation ensures safety‑critical actions are always explicitly authorized, while the conversational assistant remains responsive and context‑aware.
+
+---
+separate interlock-preserving simulator scenario before it can be enabled.
+Run state and session ownership are in memory and expire after ten minutes;
+an operator approval expires after two minutes and is single-use. Do not use
+the prototype as a physical pump control path.
+
+To demonstrate the normal observation locally, start services using the
+commands above, open `http://localhost:3000`, and send any Co-Pilot message to
+create a session. Open **AI Test Lab**, request a normal-operation plan, review
+the complete proposal, then choose **Approve & Run**. The dashboard displays
+the run ID, recorded simulator telemetry, diagnostic findings and deterministic
+evaluation. Choosing **Cancel** prevents execution. Posting directly to the
+execute endpoint without a valid approval returns an authorization error.
+
+Run the Test Lab unit checks with `node --test ai_agent/testLabStore.test.js`.
 
 ## 🧪 Testing Safety Interlocks
 

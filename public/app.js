@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
    ISA 5.1 P&ID Screen, Modbus TCP Mapping, AI MPC & ESG Accounting
@@ -2739,6 +2739,9 @@
     var pidView =
       $("viewPid");
 
+    var testLabView =
+      $("viewTestLab");
+
     var navLinks =
       document.querySelectorAll(
         ".sidebar-nav .nav-item[data-view]"
@@ -2790,6 +2793,10 @@
       pidView.hidden =
         viewName !==
         "pidView";
+    }
+
+    if (testLabView) {
+      testLabView.hidden = viewName !== "testLab";
     }
 
     if (
@@ -4220,6 +4227,9 @@
     var navAnalytics =
       $("navAnalytics");
 
+    var navTestLab =
+      $("navTestLab");
+
     if (navDashboard) {
       navDashboard.addEventListener(
         "click",
@@ -4296,6 +4306,15 @@
           );
         }
       );
+    }
+
+    if (navTestLab) {
+      navTestLab.addEventListener("click", function (e) {
+        e.preventDefault();
+        playClick();
+        switchView("testLab");
+        if (window.refreshTestLabRuns) window.refreshTestLabRuns();
+      });
     }
 
     // Weather Simulation quick-scroll
@@ -5592,6 +5611,7 @@
     var chatInput = document.getElementById('chatInput');
     var chatBody = document.getElementById('chatBody');
     var chatSessionId = null;
+    window.hydroSyncChatSession = function () { return chatSessionId; };
 
     if (!aiFabTrigger || !aiChatPanel) return;
 
@@ -5671,6 +5691,7 @@
         const data = await response.json();
         if (response.ok && typeof data.sessionId === 'string') {
           chatSessionId = data.sessionId;
+          window.hydroSyncChatSession = function () { return chatSessionId; };
         }
 
         var typingEl = document.getElementById(typingId);
@@ -5704,9 +5725,502 @@
     });
   }
 
+  function initTestLab() {
+    var objective = document.getElementById('testLabObjective');
+    var propose = document.getElementById('testLabPropose');
+    var errorBox = document.getElementById('testLabError');
+    var planBox = document.getElementById('testLabPlan');
+    var runsBox = document.getElementById('testLabRuns');
+    var agentsBox = document.getElementById('testLabAgents');
+    var activeRunId = null;
+    var session = function () { return typeof window.hydroSyncChatSession === 'function' ? window.hydroSyncChatSession() : null; };
+    if (!objective || !propose) return;
+
+    function ensureSession() {
+      var sid = session();
+      if (sid) return Promise.resolve(sid);
+      return fetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(function (response) { return response.json(); })
+        .then(function (body) {
+          window.hydroSyncChatSession = function () { return body.sessionId; };
+          return body.sessionId;
+        });
+    }
+
+    function request(path, method, data) {
+      return ensureSession().then(function (sid) {
+        var m = (method || 'GET').toUpperCase();
+        var url = path;
+        var options = {
+          method: m,
+          headers: { 'Content-Type': 'application/json' }
+        };
+        if (m === 'GET') {
+          url = url.replace(/([?&])sessionId=[^&]*(&|$)/, '$1').replace(/[?&]$/, '');
+          var separator = url.indexOf('?') === -1 ? '?' : '&';
+          url = url + separator + 'sessionId=' + encodeURIComponent(sid);
+        } else {
+          options.body = JSON.stringify(Object.assign({ sessionId: sid }, data || {}));
+        }
+        return fetch(url, options).then(function (response) {
+          return response.json().then(function (body) {
+            if (!response.ok) {
+              throw new Error(body.message || body.error || 'Test Lab request failed.');
+            }
+            return body;
+          });
+        });
+      });
+    }
+
+    function showError(message) { errorBox.textContent = message; errorBox.hidden = false; }
+
+    function formatStatusBadge(status) {
+      var s = String(status || '').toUpperCase();
+      var cls = 'badge-awaiting';
+      var icon = 'fa-clock';
+      var text = 'Awaiting Approval';
+      if (s === 'APPROVED') { cls = 'badge-approved'; icon = 'fa-check'; text = 'Approved & Ready'; }
+      else if (s === 'RUNNING') { cls = 'badge-running'; icon = 'fa-spinner fa-spin'; text = 'Running Observation'; }
+      else if (s === 'EVALUATING') { cls = 'badge-evaluating'; icon = 'fa-scale-balanced fa-spin'; text = 'Evaluating Results'; }
+      else if (s === 'COMPLETED') { cls = 'badge-completed'; icon = 'fa-circle-check'; text = 'Completed'; }
+      else if (s === 'ABORTED') { cls = 'badge-aborted'; icon = 'fa-hand'; text = 'Aborted by Safety'; }
+      else if (s === 'FAILED') { cls = 'badge-failed'; icon = 'fa-triangle-exclamation'; text = 'Failed'; }
+      else if (s === 'CANCELLED') { cls = 'badge-cancelled'; icon = 'fa-ban'; text = 'Cancelled'; }
+      else if (s === 'EXPIRED') { cls = 'badge-expired'; icon = 'fa-hourglass-end'; text = 'Expired'; }
+      else if (s === 'DRAFT') { cls = 'badge-awaiting'; icon = 'fa-pen-to-square'; text = 'Draft'; }
+      var span = document.createElement('span');
+      span.className = 'test-lab-status-badge ' + cls;
+      span.innerHTML = '<i class="fa-solid ' + icon + '"></i> ' + text;
+      return span;
+    }
+
+    function renderPipeline(agentRuns) {
+      if (!agentsBox) return;
+      agentsBox.replaceChildren();
+      var container = document.createElement('div');
+      container.className = 'test-lab-pipeline';
+      if (!agentRuns || !agentRuns.length) {
+        container.innerHTML = '<span class="test-lab-step"><i class="fa-solid fa-microchip"></i> Agent pipeline ready</span>';
+        agentsBox.appendChild(container);
+        return;
+      }
+      agentRuns.forEach(function (run, idx) {
+        if (idx > 0) {
+          var arrow = document.createElement('i');
+          arrow.className = 'fa-solid fa-arrow-right test-lab-step-arrow';
+          container.appendChild(arrow);
+        }
+        var step = document.createElement('span');
+        step.className = 'test-lab-step ' + (run.status === 'success' ? 'step-success' : 'step-active');
+        var icon = run.role === 'coordinator' ? 'fa-compass'
+          : run.role === 'diagnostic' ? 'fa-stethoscope'
+          : run.role === 'planner' ? 'fa-clipboard-list'
+          : run.role === 'executor' ? 'fa-play'
+          : 'fa-chart-pie';
+        step.innerHTML = '<i class="fa-solid ' + icon + '"></i> <strong>' + (run.agent || run.role) + '</strong> (' + run.model + '): ' + run.status;
+        container.appendChild(step);
+      });
+      agentsBox.appendChild(container);
+    }
+
+    function renderRun(run) {
+      activeRunId = run.testRunId;
+      planBox.hidden = false;
+      planBox.replaceChildren();
+
+      renderPipeline(run.agentRuns);
+
+      // Header with Title, Run ID, and Status Badge
+      var header = document.createElement('div');
+      header.className = 'test-lab-run-header';
+      var titleGroup = document.createElement('div');
+      titleGroup.style.display = 'flex';
+      titleGroup.style.alignItems = 'center';
+      titleGroup.style.gap = '12px';
+      var title = document.createElement('h3');
+      title.className = 'test-lab-run-title';
+      title.innerHTML = '<i class="fa-solid fa-flask-vial"></i> Test Run';
+      var idTag = document.createElement('span');
+      idTag.className = 'test-lab-run-id';
+      idTag.textContent = run.testRunId;
+      titleGroup.appendChild(title);
+      titleGroup.appendChild(idTag);
+      header.appendChild(titleGroup);
+      header.appendChild(formatStatusBadge(run.status));
+      planBox.appendChild(header);
+
+      // Plan Details Grid
+      if (run.proposedPlan) {
+        var plan = run.proposedPlan;
+        var grid = document.createElement('div');
+        grid.className = 'test-lab-plan-grid';
+
+        // 1. Objective Card
+        var objCard = document.createElement('div');
+        objCard.className = 'test-lab-card-block highlight';
+        objCard.innerHTML = '<h4 class="test-lab-card-title"><i class="fa-solid fa-bullseye"></i> Objective</h4>' +
+          '<p class="test-lab-card-content">' + plan.objective + '</p>';
+        grid.appendChild(objCard);
+
+        // 2. Scenario & Duration Card
+        var paramCard = document.createElement('div');
+        paramCard.className = 'test-lab-card-block';
+        var durationSec = plan.parameters?.durationSeconds || 10;
+        paramCard.innerHTML = '<h4 class="test-lab-card-title"><i class="fa-solid fa-stopwatch"></i> Scenario & Duration</h4>' +
+          '<div class="test-lab-stat-box"><span class="test-lab-stat-num">' + durationSec + 's</span>' +
+          '<span class="test-lab-stat-label">Normal Operation Observation</span></div>';
+        grid.appendChild(paramCard);
+
+        // 3. Preconditions Card
+        var preCard = document.createElement('div');
+        preCard.className = 'test-lab-card-block';
+        var preHtml = '<h4 class="test-lab-card-title"><i class="fa-solid fa-shield-halved"></i> Preconditions</h4><ul class="test-lab-checklist preconditions">';
+        (plan.preconditions || []).forEach(function (c) { preHtml += '<li><i class="fa-solid fa-circle-check"></i> <span>' + c + '</span></li>'; });
+        preHtml += '</ul>';
+        preCard.innerHTML = preHtml;
+        grid.appendChild(preCard);
+
+        // 4. Expected Observations
+        var expCard = document.createElement('div');
+        expCard.className = 'test-lab-card-block';
+        var expHtml = '<h4 class="test-lab-card-title"><i class="fa-solid fa-eye"></i> Expected Observations</h4><ul class="test-lab-checklist expected">';
+        (plan.expectedObservations || []).forEach(function (e) { expHtml += '<li><i class="fa-solid fa-magnifying-glass"></i> <span>' + e + '</span></li>'; });
+        expHtml += '</ul>';
+        expCard.innerHTML = expHtml;
+        grid.appendChild(expCard);
+
+        // 5. Acceptance & Abort Criteria
+        var critCard = document.createElement('div');
+        critCard.className = 'test-lab-card-block';
+        var critHtml = '<h4 class="test-lab-card-title"><i class="fa-solid fa-list-check"></i> Acceptance & Abort Conditions</h4><ul class="test-lab-checklist abort">';
+        (plan.acceptanceCriteria || []).forEach(function (a) { critHtml += '<li><i class="fa-solid fa-check"></i> <span>' + a + '</span></li>'; });
+        (plan.abortConditions || []).forEach(function (b) { critHtml += '<li><i class="fa-solid fa-triangle-exclamation"></i> <span>Abort: ' + b + '</span></li>'; });
+        critHtml += '</ul>';
+        critCard.innerHTML = critHtml;
+        grid.appendChild(critCard);
+
+        // 6. Planner Rationale
+        var ratCard = document.createElement('div');
+        ratCard.className = 'test-lab-card-block';
+        ratCard.innerHTML = '<h4 class="test-lab-card-title"><i class="fa-solid fa-brain"></i> Planner Rationale</h4>' +
+          '<p class="test-lab-card-content" style="font-style:italic; color:#94a3b8;">"' + plan.rationale + '"</p>';
+        grid.appendChild(ratCard);
+
+        planBox.appendChild(grid);
+      }
+
+      // Pre-Test Diagnostic Analyst Findings Card
+      if (run.diagnosticFindings) {
+        var findingsCard = document.createElement('div');
+        findingsCard.className = 'test-lab-findings';
+        var findingsTitle = document.createElement('h4');
+        findingsTitle.className = 'test-lab-card-title';
+        findingsTitle.innerHTML = '<i class="fa-solid fa-stethoscope"></i> Pre-Test Diagnostic Analyst Assessment';
+        findingsCard.appendChild(findingsTitle);
+
+        if (Array.isArray(run.diagnosticFindings.findings)) {
+          run.diagnosticFindings.findings.forEach(function (item) {
+            var f = document.createElement('div');
+            f.className = 'test-lab-finding-item';
+            f.innerHTML = '<span class="test-lab-finding-statement">' + item.finding + '</span>' +
+              (item.evidence ? '<span class="test-lab-finding-evidence"><i class="fa-solid fa-magnifying-glass"></i> ' + item.evidence + '</span>' : '');
+            findingsCard.appendChild(f);
+          });
+        }
+        if (Array.isArray(run.diagnosticFindings.missingEvidence) && run.diagnosticFindings.missingEvidence.length) {
+          var miss = document.createElement('div');
+          miss.className = 'test-lab-alert-pill';
+          miss.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <span>Missing Evidence: ' + run.diagnosticFindings.missingEvidence.join('; ') + '</span>';
+          findingsCard.appendChild(miss);
+        }
+        if (Array.isArray(run.diagnosticFindings.uncertainty) && run.diagnosticFindings.uncertainty.length) {
+          var unc = document.createElement('div');
+          unc.className = 'test-lab-alert-pill';
+          unc.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+          unc.style.background = 'rgba(56, 189, 248, 0.08)';
+          unc.style.color = '#7dd3fc';
+          unc.innerHTML = '<i class="fa-solid fa-circle-info"></i> <span>Uncertainty: ' + run.diagnosticFindings.uncertainty.join('; ') + '</span>';
+          findingsCard.appendChild(unc);
+        }
+        planBox.appendChild(findingsCard);
+      }
+
+      // Live Execution Status Banner (when running, evaluating, or just approved)
+      if (run.status === 'RUNNING' || run.status === 'EVALUATING' || run.status === 'APPROVED') {
+        var execCard = document.createElement('div');
+        execCard.className = 'test-lab-executing-card';
+        var isEval = run.status === 'EVALUATING';
+        var isAppr = run.status === 'APPROVED';
+        var bannerTitle = isEval ? 'Evaluation & Report Synthesis Active'
+          : isAppr ? 'Execution Authorized — Initiating Simulator Run'
+          : 'Live Simulator Observation in Progress';
+        var bannerDesc = isEval ? 'Observations recorded. Evaluator/Reporter agent is analyzing evidence against acceptance criteria…'
+          : isAppr ? 'Operator authorization recorded. Handing off to Test Executor agent…'
+          : 'Test Executor agent is sampling pump telemetry (10s observation window). SCADA safety trips and interlock monitoring active.';
+        execCard.innerHTML = '<div class="test-lab-executing-header">' +
+          '<div class="test-lab-executing-icon-pulse"><i class="fa-solid ' + (isEval ? 'fa-scale-balanced fa-spin' : 'fa-satellite-dish fa-fade') + '"></i></div>' +
+          '<div>' +
+            '<h4>' + bannerTitle + '</h4>' +
+            '<p>' + bannerDesc + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="test-lab-progress-track"><div class="test-lab-progress-bar-animated"></div></div>' +
+        '<div class="test-lab-executing-footer">' +
+          '<span><i class="fa-solid fa-shield-halved"></i> Safety Gate: Armed</span>' +
+          '<span><i class="fa-solid fa-microchip"></i> Active Stage: ' + (isEval ? 'Evaluator/Reporter' : 'Test Executor') + '</span>' +
+          '<span><i class="fa-solid fa-stopwatch"></i> Status: ' + run.status + '</span>' +
+        '</div>';
+        planBox.appendChild(execCard);
+      }
+
+      // Human Approval Gate (Awaiting Approval State)
+      if (run.status === 'AWAITING_APPROVAL') {
+        var gate = document.createElement('div');
+        gate.className = 'test-lab-approval-gate';
+        gate.innerHTML = '<div class="test-lab-approval-info">' +
+          '<h4><i class="fa-solid fa-lock"></i> Operator Approval Required</h4>' +
+          '<p>The AI Test Planner proposed the simulated test plan above. Simulator execution is locked until you review the parameters and authorize execution.</p>' +
+          '</div>';
+
+        var actions = document.createElement('div');
+        actions.className = 'test-lab-approval-actions';
+        var approve = document.createElement('button');
+        approve.className = 'btn-approve';
+        approve.innerHTML = '<i class="fa-solid fa-play"></i> Approve & Execute';
+        approve.addEventListener('click', function () {
+          approve.disabled = true;
+          errorBox.hidden = true;
+          approve.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Approving & Executing…';
+
+          // Immediately update state and render so operator sees immediate execution feedback
+          run.status = 'APPROVED';
+          renderRun(run);
+
+          var pollTimer = setInterval(function () {
+            refreshRun();
+          }, 1200);
+
+          request('/api/test-lab/runs/' + encodeURIComponent(run.testRunId) + '/approve', 'POST')
+            .then(function (approved) {
+              renderRun(approved.run);
+              return request('/api/test-lab/runs/' + encodeURIComponent(run.testRunId) + '/execute', 'POST');
+            })
+            .then(function (result) {
+              clearInterval(pollTimer);
+              renderRun(result.run);
+              refreshRuns();
+            })
+            .catch(function (err) {
+              clearInterval(pollTimer);
+              showError(err.message);
+              refreshRun();
+              refreshRuns();
+            });
+        });
+
+        var cancel = document.createElement('button');
+        cancel.className = 'btn-cancel';
+        cancel.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancel';
+        cancel.addEventListener('click', function () {
+          cancel.disabled = true;
+          request('/api/test-lab/runs/' + encodeURIComponent(run.testRunId) + '/cancel', 'POST').then(function (result) {
+            renderRun(result.run);
+            refreshRuns();
+          }).catch(function (err) {
+            showError(err.message);
+            cancel.disabled = false;
+          });
+        });
+
+        actions.appendChild(approve);
+        actions.appendChild(cancel);
+        gate.appendChild(actions);
+        planBox.appendChild(gate);
+      }
+
+      // Dedicated Output & Evaluation Section (for completed, evaluated, or observed runs)
+      if (run.evaluation || (run.observations && run.observations.length)) {
+        var outputSection = document.createElement('div');
+        outputSection.className = 'test-lab-output-section';
+        outputSection.innerHTML = '<h3 class="test-lab-section-title"><i class="fa-solid fa-square-poll-vertical"></i> Test Execution Output & Evaluation</h3>';
+
+        // 1. Final Deterministic Verdict Card
+        if (run.evaluation) {
+          var verdictCard = document.createElement('div');
+          var vStatus = String(run.evaluation.status || 'INCONCLUSIVE').toUpperCase();
+          var vClass = vStatus === 'PASS' ? 'test-lab-verdict-pass'
+            : vStatus === 'FAIL' ? 'test-lab-verdict-fail'
+            : 'test-lab-verdict-inconclusive';
+          var vIcon = vStatus === 'PASS' ? 'fa-circle-check'
+            : vStatus === 'FAIL' ? 'fa-circle-xmark'
+            : 'fa-circle-question';
+
+          verdictCard.className = 'test-lab-verdict-card ' + vClass;
+          verdictCard.innerHTML = '<div class="test-lab-verdict-header">' +
+            '<span class="test-lab-verdict-badge"><i class="fa-solid ' + vIcon + '"></i> Final Verdict: ' + vStatus + '</span>' +
+            (run.executionCompletedAt ? '<span style="font-size:12px; opacity:0.8; font-family:var(--font-mono, monospace);"><i class="fa-regular fa-clock"></i> ' + new Date(run.executionCompletedAt).toLocaleTimeString() + '</span>' : '') +
+            '</div>' +
+            '<div style="font-size:13.5px; line-height:1.5;">' +
+            '<strong style="display:block; margin-bottom:6px; text-transform:uppercase; font-size:11px; letter-spacing:0.5px; opacity:0.85;">Deterministic Safety & Acceptance Verification:</strong>' +
+            '<ul class="test-lab-checklist">' +
+            (run.evaluation.criteria || []).map(function (c) {
+              return '<li><i class="fa-solid ' + (vStatus === 'PASS' ? 'fa-circle-check' : 'fa-triangle-exclamation') + '"></i> <span>' + c + '</span></li>';
+            }).join('') +
+            '</ul>' +
+            '</div>';
+
+          // 2. Evaluator/Reporter Agent Analysis Box
+          if (run.evaluation.report) {
+            var evalBox = document.createElement('div');
+            evalBox.className = 'test-lab-eval-box';
+            evalBox.innerHTML = '<span class="test-lab-card-title"><i class="fa-solid fa-pen-nib"></i> Evaluator / Reporter Analysis</span>' +
+              '<p class="test-lab-eval-summary">' + run.evaluation.report.summary + '</p>';
+
+            if (Array.isArray(run.evaluation.report.comparisons) && run.evaluation.report.comparisons.length) {
+              var compDiv = document.createElement('div');
+              compDiv.className = 'test-lab-eval-comparisons';
+              compDiv.innerHTML = run.evaluation.report.comparisons.map(function (cmp) {
+                return '<span class="test-lab-eval-pill"><i class="fa-solid fa-check" style="color:#10b981; margin-right:4px;"></i> ' + cmp + '</span>';
+              }).join('');
+              evalBox.appendChild(compDiv);
+            }
+
+            if (Array.isArray(run.evaluation.report.limitations) && run.evaluation.report.limitations.length) {
+              var limDiv = document.createElement('div');
+              limDiv.style.fontSize = '12px';
+              limDiv.style.color = '#94a3b8';
+              limDiv.style.fontStyle = 'italic';
+              limDiv.innerHTML = '<strong>Limitations:</strong> ' + run.evaluation.report.limitations.join('; ');
+              evalBox.appendChild(limDiv);
+            }
+            verdictCard.appendChild(evalBox);
+          }
+          outputSection.appendChild(verdictCard);
+        }
+
+        // 3. Structured Telemetry Observations Table
+        if (run.observations && run.observations.length) {
+          var obsBlock = document.createElement('div');
+          obsBlock.className = 'test-lab-card-block';
+          obsBlock.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+            '<span class="test-lab-card-title"><i class="fa-solid fa-table-list"></i> Recorded Telemetry Observations (' + run.observations.length + ' samples)</span>' +
+            '<span style="font-size:12px; color:var(--text-dim,#94a3b8); font-family:var(--font-mono,monospace);">1 sample/sec</span>' +
+            '</div>';
+
+          var tableContainer = document.createElement('div');
+          tableContainer.className = 'test-lab-table-container';
+          var table = document.createElement('table');
+          table.className = 'test-lab-table';
+          table.innerHTML = '<thead><tr>' +
+            '<th>#</th>' +
+            '<th>Duty Cycle</th>' +
+            '<th>Flow Rate</th>' +
+            '<th>Motor Temp</th>' +
+            '<th>Vibration</th>' +
+            '<th>Safety Status</th>' +
+            '</tr></thead>';
+
+          var tbody = document.createElement('tbody');
+          run.observations.forEach(function (obs, i) {
+            var tr = document.createElement('tr');
+            var duty = obs.pumpDuty != null ? Number(obs.pumpDuty).toFixed(1) + '%' : '—';
+            var flow = obs.flowRate != null ? Number(obs.flowRate).toFixed(1) + ' m³/h' : '—';
+            var temp = obs.motorTemp != null ? Number(obs.motorTemp).toFixed(1) + ' °C' : '—';
+            var vib = obs.vibration != null ? Number(obs.vibration).toFixed(2) + ' mm/s' : '—';
+            var safety = obs.safety?.systemStatus || 'NORMAL';
+            var safetyColor = safety === 'NORMAL' ? '#34d399' : '#f87171';
+
+            tr.innerHTML = '<td>' + (i + 1) + '</td>' +
+              '<td><strong>' + duty + '</strong></td>' +
+              '<td>' + flow + '</td>' +
+              '<td>' + temp + '</td>' +
+              '<td>' + vib + '</td>' +
+              '<td><span style="color:' + safetyColor + '; font-weight:600;"><i class="fa-solid fa-circle" style="font-size:8px; margin-right:4px;"></i> ' + safety + '</span></td>';
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          tableContainer.appendChild(table);
+          obsBlock.appendChild(tableContainer);
+
+          // Raw JSON collapsible toggle
+          var toggleBtn = document.createElement('button');
+          toggleBtn.className = 'test-lab-toggle-raw';
+          toggleBtn.innerHTML = '<i class="fa-solid fa-code"></i> Show Raw JSON Payload';
+          var rawPre = document.createElement('pre');
+          rawPre.style.display = 'none';
+          rawPre.style.maxHeight = '240px';
+          rawPre.style.overflowY = 'auto';
+          rawPre.textContent = JSON.stringify(run.observations, null, 2);
+          toggleBtn.addEventListener('click', function () {
+            var isHidden = rawPre.style.display === 'none';
+            rawPre.style.display = isHidden ? 'block' : 'none';
+            toggleBtn.innerHTML = isHidden ? '<i class="fa-solid fa-code"></i> Hide Raw JSON Payload' : '<i class="fa-solid fa-code"></i> Show Raw JSON Payload';
+          });
+          obsBlock.appendChild(toggleBtn);
+          obsBlock.appendChild(rawPre);
+
+          outputSection.appendChild(obsBlock);
+        }
+
+        planBox.appendChild(outputSection);
+      }
+
+      // Errors
+      if (run.errors && run.errors.length) {
+        var errs = document.createElement('div');
+        errs.className = 'test-lab-error';
+        errs.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <span>' + run.errors.map(function (x) { return x.message; }).join('; ') + '</span>';
+        planBox.appendChild(errs);
+      }
+    }
+
+    function refreshRun() {
+      if (!activeRunId) return Promise.resolve();
+      return request('/api/test-lab/runs/' + encodeURIComponent(activeRunId), 'GET').then(function (x) {
+        renderRun(x.run);
+      }).catch(function () {});
+    }
+
+    function refreshRuns() {
+      return request('/api/test-lab/runs', 'GET').then(function (data) {
+        runsBox.replaceChildren();
+        if (!data.runs.length) {
+          runsBox.textContent = 'No previous Test Lab runs for this session.';
+          return;
+        }
+        var list = document.createElement('div');
+        list.className = 'test-lab-runs-list';
+        data.runs.forEach(function (run) {
+          var b = document.createElement('button');
+          b.className = 'test-lab-run-link' + (run.testRunId === activeRunId ? ' active-run' : '');
+          var formattedTime = new Date(run.createdAt).toLocaleString();
+          b.innerHTML = '<span><i class="fa-solid fa-flask-vial" style="margin-right:8px; color:var(--cyan);"></i><strong>' + run.scenarioId + '</strong> <span class="test-lab-run-time">· ' + formattedTime + '</span></span>';
+          b.appendChild(formatStatusBadge(run.status));
+          b.addEventListener('click', function () {
+            activeRunId = run.testRunId;
+            refreshRun();
+          });
+          list.appendChild(b);
+        });
+        runsBox.appendChild(list);
+      }).catch(function (err) {
+        runsBox.textContent = err.message;
+      });
+    }
+    window.refreshTestLabRuns = refreshRuns;
+    propose.addEventListener('click', function () {
+      errorBox.hidden = true; planBox.hidden = true;
+      if (!objective.value.trim()) { showError('Enter a test objective before requesting a plan.'); return; }
+      propose.disabled = true; propose.textContent = 'Coordinator and Planner are working…';
+      request('/api/test-lab/runs', 'POST', { objective: objective.value.trim() }).then(function (data) { renderRun(data.run); refreshRuns(); }).catch(function (err) { showError(err.message); }).finally(function () { propose.disabled = false; propose.innerHTML = '<i class="fa-solid fa-list-check"></i> Request Plan'; });
+    });
+  }
+
   // Ensure init runs correctly on boot
   document.addEventListener("DOMContentLoaded", function() {
     setTimeout(initAICopilot, 500);
+    initTestLab();
   });
     /* ---------- KPI Cards: active / pressed selection ---------- */
   function initKpiCardSelection() {
