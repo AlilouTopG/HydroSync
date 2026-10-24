@@ -4,6 +4,10 @@
 > Python AI service—its inference API, model responsibilities, feature contract,
 > and evaluation limits. The [root README](../README.md) is the project-wide
 > overview for the dashboard, simulator, storage, setup, and overall status.
+>
+> **System memory note:** The HydroSync Co‑Pilot chat retains conversational session memory (up to ~12 recent turns) for follow‑up queries. The AI Test Lab runs are isolated, finite‑state executions with no persistent memory across runs.
+>
+> See the root README for a detailed explanation of the memory model and operator workflow.
 
 ## ◇ Role in HydroSync
 

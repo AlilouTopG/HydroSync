@@ -39,6 +39,7 @@
       <!-- 📐 DEDICATED P&ID & MODBUS SCREEN BUTTON -->
       <a href="#pid-process" class="nav-item" data-view="pidView" id="navPidView"><i class="fa-solid fa-diagram-project"></i><span>P&amp;ID &amp; Modbus</span></a>
       <a href="#analytics" class="nav-item" data-view="analytics" id="navAnalytics"><i class="fa-solid fa-chart-pie"></i><span>Analytics &amp; ESG</span></a>
+      <a href="#test-lab" class="nav-item" data-view="testLab" id="navTestLab"><i class="fa-solid fa-flask-vial"></i><span>AI Test Lab</span></a>
       <a href="#settings" class="nav-item" data-modal="settingsModal"><i class="fa-solid fa-gear"></i><span>System Settings</span></a>
       <a href="#disturbance" class="nav-item" data-scroll="disturbance"><i class="fa-solid fa-cloud-sun"></i><span>Weather Simulation</span></a>
       <a href="#terms" class="nav-item" data-modal="termsModal"><i class="fa-solid fa-file-shield"></i><span>Terms &amp; Compliance</span></a>
@@ -566,6 +567,25 @@
             <div class="focus-item"><span>Dollar Equivalent (USD)</span><strong id="esgMoneyUsdVal" class="highlight-emerald">$6.41 USD</strong></div>
             <div class="focus-item"><span>Data Audit Compliance</span><strong>150 Historical Cycles Buffered</strong></div>
           </div>
+        </section>
+      </div>
+
+      <!-- ================= VIEW 7: AI TEST LAB ================= -->
+      <div id="viewTestLab" class="view-screen" hidden>
+        <section class="glass-card test-lab-card">
+          <div class="card-top"><span class="card-title"><i class="fa-solid fa-flask-vial"></i> AI Test Lab</span><span class="badge">SIMULATOR ONLY</span></div>
+          <p class="test-lab-intro">Request a bounded simulator observation. A separate Planner proposes the test; execution stays locked until you approve the exact plan.</p>
+          <div class="test-lab-form">
+            <label for="testLabObjective">Test objective</label>
+            <textarea id="testLabObjective" maxlength="300" rows="3" placeholder="e.g. Confirm the pump is operating normally for 10 seconds"></textarea>
+            <label for="testLabScenario">Scenario</label>
+            <select id="testLabScenario"><option value="normal_operation">Normal operation (supported)</option><option value="fault_injection" disabled>Fault injection (blocked: current demo bypasses safety interlocks)</option></select>
+            <button class="btn info" id="testLabPropose"><i class="fa-solid fa-list-check"></i> Request Plan</button>
+          </div>
+          <div id="testLabError" class="test-lab-error" role="alert" hidden></div>
+          <div class="test-lab-agents" id="testLabAgents" aria-live="polite">Coordinator → Planner → Human approval → Executor → Analyst → Evaluator</div>
+          <section id="testLabPlan" class="test-lab-plan" hidden aria-live="polite"></section>
+          <section class="test-lab-history"><h3>Previous runs</h3><div id="testLabRuns">Start a session in the SCADA AI Co-Pilot to create a run.</div></section>
         </section>
       </div>
     </main>
