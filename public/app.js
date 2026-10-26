@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    HydroSync v2.0 Enterprise — Industrial SCADA Client
    Full Integration: Open-Meteo Satellite, Web Serial USB Edge, 
    ISA 5.1 P&ID Screen, Modbus TCP Mapping, AI MPC & ESG Accounting
