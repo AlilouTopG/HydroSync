@@ -714,28 +714,36 @@ Do not use this run to tune thresholds or alter ground-truth labels.
 
 ## 👥 Contributors & Team Responsibilities
 
-HydroSync was developed by a cross-functional team. Responsibilities are divided by domain below, aligned with the project evaluation criteria.
+HydroSync was developed by a cross-functional team. The table below lists each team member, their exact role, and their area of responsibility, aligned with the project evaluation criteria.
 
-| Responsibility Area | Team Role | Deliverables |
-|---------------------|-----------|--------------|
-| **SCADA Architecture** | Lead Senior Industrial Automation & Full-Stack Engineer | `server.js` — Express + Socket.IO server, security headers/CSP/CORS, timing-safe auth, rate-limiting firewall, WebSocket session management, AI/Co-Pilot/Test Lab bridges, MPC gateway, graceful shutdown, CSV audit export |
-| **Physics Simulation** | Industrial Automation Engineer | `simulator.js` — pump/field physics, PID closed-loop control, DSP time-series vibration synthesizer (ISO 10816 harmonics), predictive maintenance model (bearing wear, cavitation, RUL), ESG/SDG 6.4 water accounting, safety interlock enforcement at physics layer, multi-zone micro-plots |
-| **AI Inference Engine** | AI / ML Engineer | `ai_engine/main.py` — FastAPI service, SciPy/NumPy FFT vibration analysis, `/predict` endpoint (Task 1 HistGradientBoosting, Task 2/3 Random Forest classifiers), `/vibration`, `/diagnostics`, ML feature extraction, `ml_predictor.py` model loading and inference |
-| **Database Schema** | Backend / Data Engineer | `database/schema.sql` — TimescaleDB (PostgreSQL 17) schema, experiments/telemetry hypertables, per-axis vibration telemetry, fault events, indexes, summary views, continuous aggregates; `database/db.js`, `telemetryCollector.js`, `demoMode.js`, `vibrationAnalysis.js`, `autoCollector.js` |
-| **Frontend UI/UX** | Full-Stack / Frontend Engineer | `public/app.js` (IIFE architecture), `public/index.html`, `public/style.css`, `public/charts.js` — Chart.js v4.4.1 telemetry/DSP/horizon charts, Leaflet.js GIS Fleet Map, FontAwesome, Google Fonts, ISA 5.1 P&ID schematic, Modbus TCP register table, Web Serial USB edge, Operator authorization modal, AI Co-Pilot chat, AI Test Lab client |
-| **Security & Interlocks** | Lead Senior Industrial Automation & Full-Stack Engineer | `core_control/mpc_controller.js` — `evaluateSafety`, `calculateIrrigationDuty`, `resetSafetyState`; dry-run, thermal overload, vibration trips (latching, PIN-reset); master operator PIN `1962` via `crypto.timingSafeEqual` |
-| **DevOps & Deployment** | DevOps Engineer | `compose.yml` — TimescaleDB container; `package.json`, `.env` configuration; Render cloud deployment readiness; local run instructions (Node + Python + Docker) |
+| Team Member | Exact Role | Responsibilities |
+|-------------|------------|------------------|
+| **Benseffa Ali Nasreddine** | Project Leader & Lead SCADA / Systems Architect | Core server architecture (`server.js`), safety interlocks (`core_control/mpc_controller.js`), physics simulation (`simulator.js`), security protocols (timing-safe auth, CSP, CORS, rate-limiting), and Git/GitHub synchronization |
+| **Allali Syrine** | AI & ML Specialist | AI inference engine (`ai_engine/main.py`), ML predictor models (`ai_engine/ml_predictor.py`), and data pipelines (Task 1 HistGradientBoosting, Task 2/3 classifiers) |
+| **Sami Ahmed Kayouche** | UX Designer & Frontend Developer | Dashboard UI/UX (`public/app.js`, `public/index.html`, `public/style.css`, `public/charts.js`), user experience evaluation, and client-side visualization (Chart.js, Leaflet.js GIS Fleet Map) |
+
+### Responsibility Matrix by Domain
+
+| Responsibility Area | Owner | Deliverables |
+|---------------------|-------|--------------|
+| **SCADA Architecture** | Benseffa Ali Nasreddine | `server.js` — Express + Socket.IO server, security headers/CSP/CORS, timing-safe auth, rate-limiting firewall, WebSocket session management, AI/Co-Pilot/Test Lab bridges, MPC gateway, graceful shutdown, CSV audit export |
+| **Physics Simulation** | Benseffa Ali Nasreddine | `simulator.js` — pump/field physics, PID closed-loop control, DSP time-series vibration synthesizer (ISO 10816 harmonics), predictive maintenance model (bearing wear, cavitation, RUL), ESG/SDG 6.4 water accounting, safety interlock enforcement at physics layer, multi-zone micro-plots |
+| **AI Inference Engine** | Allali Syrine | `ai_engine/main.py` — FastAPI service, SciPy/NumPy FFT vibration analysis, `/predict` endpoint (Task 1 HistGradientBoosting, Task 2/3 Random Forest classifiers), `/vibration`, `/diagnostics`, ML feature extraction, `ml_predictor.py` model loading and inference |
+| **Database Schema** | Benseffa Ali Nasreddine | `database/schema.sql` — TimescaleDB (PostgreSQL 17) schema, experiments/telemetry hypertables, per-axis vibration telemetry, fault events, indexes, summary views, continuous aggregates; `database/db.js`, `telemetryCollector.js`, `demoMode.js`, `vibrationAnalysis.js`, `autoCollector.js` |
+| **Frontend UI/UX** | Sami Ahmed Kayouche | `public/app.js` (IIFE architecture), `public/index.html`, `public/style.css`, `public/charts.js` — Chart.js v4.4.1 telemetry/DSP/horizon charts, Leaflet.js GIS Fleet Map, FontAwesome, Google Fonts, ISA 5.1 P&ID schematic, Modbus TCP register table, Web Serial USB edge, Operator authorization modal, AI Co-Pilot chat, AI Test Lab client |
+| **Security & Interlocks** | Benseffa Ali Nasreddine | `core_control/mpc_controller.js` — `evaluateSafety`, `calculateIrrigationDuty`, `resetSafetyState`; dry-run, thermal overload, vibration trips (latching, PIN-reset); master operator PIN `1962` via `crypto.timingSafeEqual` |
+| **DevOps & Deployment** | Benseffa Ali Nasreddine | `compose.yml` — TimescaleDB container; `package.json`, `.env` configuration; Render cloud deployment readiness; local run instructions (Node + Python + Docker) |
 
 ### Evaluation Criteria Mapping
 
 | Criterion | Primary Owner | Supporting Files |
 |-----------|---------------|------------------|
-| SCADA architecture & real-time telemetry | Lead Engineer | `server.js`, `simulator.js` |
-| Physics simulation & pump/field model | Industrial Automation Engineer | `simulator.js`, `core_control/mpc_controller.js` |
-| AI inference & vibration diagnostics | AI / ML Engineer | `ai_engine/main.py`, `ai_engine/ml_predictor.py`, `ai_engine/ml_models/` |
-| Database schema & telemetry persistence | Backend / Data Engineer | `database/schema.sql`, `database/telemetryCollector.js`, `database/db.js` |
-| Frontend UI/UX & dashboard | Frontend Engineer | `public/app.js`, `public/index.html`, `public/style.css`, `public/charts.js` |
-| Safety interlocks & authorization | Lead Engineer | `core_control/mpc_controller.js`, `server.js` (auth middleware) |
+| SCADA architecture & real-time telemetry | Benseffa Ali Nasreddine | `server.js`, `simulator.js` |
+| Physics simulation & pump/field model | Benseffa Ali Nasreddine | `simulator.js`, `core_control/mpc_controller.js` |
+| AI inference & vibration diagnostics | Allali Syrine | `ai_engine/main.py`, `ai_engine/ml_predictor.py`, `ai_engine/ml_models/` |
+| Database schema & telemetry persistence | Benseffa Ali Nasreddine | `database/schema.sql`, `database/telemetryCollector.js`, `database/db.js` |
+| Frontend UI/UX & dashboard | Sami Ahmed Kayouche | `public/app.js`, `public/index.html`, `public/style.css`, `public/charts.js` |
+| Safety interlocks & authorization | Benseffa Ali Nasreddine | `core_control/mpc_controller.js`, `server.js` (auth middleware) |
 
 ---
 
