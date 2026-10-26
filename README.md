@@ -720,7 +720,7 @@ HydroSync was developed by a cross-functional team. The table below lists each t
 |-------------|------------|------------------|
 | **Benseffa Ali Nasreddine** | Project Leader & Lead SCADA / Systems Architect | Core server architecture (`server.js`), safety interlocks (`core_control/mpc_controller.js`), physics simulation (`simulator.js`), security protocols (timing-safe auth, CSP, CORS, rate-limiting), and Git/GitHub synchronization |
 | **Allali Syrine** | AI & ML Specialist | AI inference engine (`ai_engine/main.py`), ML predictor models (`ai_engine/ml_predictor.py`), and data pipelines (Task 1 HistGradientBoosting, Task 2/3 classifiers) |
-| **Sami Ahmed Kayouche** | UX Designer & Frontend Developer | Dashboard UI/UX (`public/app.js`, `public/index.html`, `public/style.css`, `public/charts.js`), user experience evaluation, and client-side visualization (Chart.js, Leaflet.js GIS Fleet Map) |
+| **Samy Ahmed Kayouche** | UX Designer & Frontend Developer | Dashboard UI/UX (`public/app.js`, `public/index.html`, `public/style.css`, `public/charts.js`), user experience evaluation, and client-side visualization (Chart.js, Leaflet.js GIS Fleet Map) |
 
 ### Responsibility Matrix by Domain
 
