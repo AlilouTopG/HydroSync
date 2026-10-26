@@ -119,6 +119,10 @@ h3 {
   font-weight: 600;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* Keyboard focus — one consistent ring everywhere */
 :where(a, button, select, input, [tabindex]):focus-visible {
   outline: 2px solid var(--brand);

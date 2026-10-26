@@ -3995,7 +3995,7 @@
   }
 
   /* ---------- Controls Binding ---------- */
-  function bindControls() {
+function bindControls() {
     function slider(
       id,
       fn
@@ -4768,48 +4768,6 @@
     var shutoff =
       $("shutoffBtn");
 
-    // Emergency Stop Button
-    document.getElementById('shutoffBtn')?.addEventListener('click', () => {
-      socket.emit('client:emergency_stop');
-      console.log('Emergency Stop emitted');
-    });
-
-    // Clear Faults / Reset Button
-    document.getElementById('resetBtn')?.addEventListener('click', () => {
-      socket.emit('client:operator_reset');
-      console.log('Operator Reset emitted');
-    });
-
-    // Clear Faults Button (also emits operator_reset)
-    document.getElementById('faultClearBtn')?.addEventListener('click', () => {
-      socket.emit('client:inject_fault', 'clear');
-      socket.emit('client:operator_reset');
-    });
-
-    // Heavy Rain Button
-    document.getElementById('rainBtn')?.addEventListener('click', () => {
-      socket.emit('client:disturbance', 'rain');
-      console.log('Rain disturbance emitted');
-    });
-
-    // Drought Button
-    document.getElementById('droughtBtn')?.addEventListener('click', () => {
-      socket.emit('client:disturbance', 'drought');
-      console.log('Drought disturbance emitted');
-    });
-
-    // Overheat Fault Button
-    document.getElementById('faultHeatBtn')?.addEventListener('click', () => {
-      socket.emit('client:inject_fault', 'overheat');
-      console.log('Overheat fault emitted');
-    });
-
-    // Bearing Fault Button
-    document.getElementById('faultBearingBtn')?.addEventListener('click', () => {
-      socket.emit('client:inject_fault', 'bearing');
-      console.log('Bearing fault emitted');
-    });
-
     if (dr) {
       dr.addEventListener(
         "click",
@@ -4828,9 +4786,6 @@
           "<span style='color:var(--cyan)'>Heavy Rain</span>"
         )
       );
-      ra.addEventListener("click", function() {
-        console.log('Rain disturbance emitted');
-      });
     }
 
     if (shutoff) {
@@ -4887,7 +4842,6 @@
             socket.connected
           ) {
             socket.emit("client:emergency_stop");
-            console.log('Emergency Stop emitted');
           }
 
           if (isHardwareMode) {
@@ -4915,11 +4869,9 @@
         // For Clear Faults, also emit operator reset to clear system-wide trips
         if (p[1] === 'clear' && socket && socket.connected) socket.emit("client:operator_reset");
         log("<strong style='color:var(--amber)'>[FAULT INJECTION]</strong> " + p[1]);
-        if (p[1] === 'overheat') {
-          console.log('Overheat fault emitted');
-        }
       });
     });
+
     if (rs) {
       rs.addEventListener(
         "click",
@@ -4950,7 +4902,6 @@
             socket.connected
           ) {
             log("<strong style='color:var(--cyan)'>[SYSTEM RESET]</strong> Operator reset triggered via Reset button.");
-            console.log('Operator Reset emitted');
             socket.emit("client:operator_reset");
 
             socket.emit(
@@ -4959,7 +4910,7 @@
                 enabled:
                   false,
                 manualPwm:
-              0
+                  0
               }
             );
 
@@ -6125,7 +6076,7 @@
           run.observations.forEach(function (obs, i) {
             var tr = document.createElement('tr');
             var duty = obs.pumpDuty != null ? Number(obs.pumpDuty).toFixed(1) + '%' : '—';
-            var flow = obs.flowRate != null ? Number(obs.flowRate).toFixed(1) + ' m³/h' : '—';
+            var flow = obs.flowRate != null ? Number(obs.flowRate).toFixed(1) + ' L/min' : '—';
             var temp = obs.motorTemp != null ? Number(obs.motorTemp).toFixed(1) + ' °C' : '—';
             var vib = obs.vibration != null ? Number(obs.vibration).toFixed(2) + ' mm/s' : '—';
             var safety = obs.safety?.systemStatus || 'NORMAL';
