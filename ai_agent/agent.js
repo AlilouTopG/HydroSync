@@ -82,7 +82,9 @@ function createHydroSyncAgent({
   }
 
   async function answerWithTools({ message, safety, activeZone, history, signal }) {
-    const boundedHistory = Array.isArray(history) ? history.slice(-12) : [];
+    const boundedHistory = Array.isArray(history)
+   ? history.filter((turn) => turn && turn.user !== message.trim()).slice(-6)
+   : [];
     const historyContents = boundedHistory.flatMap((turn) => {
       if (!turn || typeof turn.user !== 'string' || typeof turn.assistant !== 'string') return [];
       return [
